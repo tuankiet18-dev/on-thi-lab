@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.turbo/
+.vite/
+.env
+.env.local
+.venv/
+cdk.out/
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo
+.DS_Store
+infra/cdk.context.json

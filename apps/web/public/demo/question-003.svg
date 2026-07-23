@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Question 3</title>
+  <desc id="desc">Select design principles that reduce coupling.</desc>
+  <rect width="1200" height="520" fill="#ffffff"/>
+  <rect width="1200" height="58" fill="#fff7ed"/>
+  <rect width="6" height="58" fill="#f59e0b"/>
+  <text x="34" y="37" fill="#b45309" font-family="Arial, sans-serif" font-size="22" font-weight="700">MULTIPLE ANSWERS</text>
+  <g fill="#0f172a" font-family="Arial, sans-serif" font-size="21">
+    <text x="58" y="110" font-weight="700">Which principles help reduce coupling? Select all that apply.</text>
+    <text x="58" y="174">A. Dependency inversion</text>
+    <text x="58" y="228">B. Global mutable state</text>
+    <text x="58" y="282">C. Interface segregation</text>
+    <text x="58" y="336">D. Hard-coded dependencies</text>
+  </g>
+</svg>
+

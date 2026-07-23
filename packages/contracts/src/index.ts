@@ -1,0 +1,107 @@
+import { z } from "zod";
+
+export const examTypes = ["FE", "PE"] as const;
+export const questionTypes = ["single", "multiple"] as const;
+export const attemptStatuses = [
+  "in_progress",
+  "submitted",
+  "auto_submitted",
+  "cancelled",
+] as const;
+
+export const questionSchema = z.object({
+  id: z.string(),
+  order: z.number().int().positive(),
+  imageUrl: z.string(),
+  imageAlt: z.string(),
+  type: z.enum(questionTypes),
+  options: z.array(z.string()).min(2).max(6),
+});
+
+export const examSummarySchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  courseCode: z.string(),
+  courseName: z.string(),
+  semester: z.string(),
+  campus: z.string(),
+  examType: z.enum(examTypes),
+  isRetake: z.boolean(),
+  durationMinutes: z.number().int().positive(),
+  questionCount: z.number().int().positive(),
+  publishedAt: z.string(),
+  answerConfidence: z.enum(["reviewed", "verified"]),
+});
+
+export const examSchema = examSummarySchema.extend({
+  instructions: z.array(z.string()),
+  shuffleQuestions: z.boolean(),
+  questions: z.array(questionSchema),
+});
+
+export const createAttemptSchema = z.object({
+  examId: z.string(),
+  deviceId: z.string().min(8),
+});
+
+export const saveAnswerSchema = z.object({
+  questionId: z.string(),
+  selectedOptions: z.array(z.number().int().nonnegative()).max(6),
+  sequence: z.number().int().nonnegative(),
+});
+
+export const submitAttemptSchema = z.object({
+  reason: z.enum(["user", "timeout"]),
+});
+
+export type Question = z.infer<typeof questionSchema>;
+export type ExamSummary = z.infer<typeof examSummarySchema>;
+export type Exam = z.infer<typeof examSchema>;
+export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
+export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
+export type AttemptStatus = (typeof attemptStatuses)[number];
+
+export interface AttemptResult {
+  attemptId: string;
+  status: Extract<AttemptStatus, "submitted" | "auto_submitted">;
+  correctCount: number;
+  questionCount: number;
+  score: number;
+  submittedAt: string;
+}
+
+export function isExactAnswer(
+  selectedOptions: readonly number[],
+  correctOptions: readonly number[],
+): boolean {
+  const selected = [...new Set(selectedOptions)].sort((a, b) => a - b);
+  const correct = [...new Set(correctOptions)].sort((a, b) => a - b);
+
+  return (
+    selected.length === correct.length &&
+    selected.every((value, index) => value === correct[index])
+  );
+}
+
+export function calculateScore(
+  answers: Record<string, readonly number[]>,
+  answerKey: Record<string, readonly number[]>,
+): Pick<AttemptResult, "correctCount" | "questionCount" | "score"> {
+  const entries = Object.entries(answerKey);
+  const correctCount = entries.reduce(
+    (total, [questionId, correctOptions]) =>
+      total +
+      (isExactAnswer(answers[questionId] ?? [], correctOptions) ? 1 : 0),
+    0,
+  );
+  const questionCount = entries.length;
+
+  return {
+    correctCount,
+    questionCount,
+    score:
+      questionCount === 0
+        ? 0
+        : Math.round((correctCount / questionCount) * 1000) / 100,
+  };
+}

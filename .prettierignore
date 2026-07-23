@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+cdk.out/
+test-results/
+playwright-report/
+design-system/
+spec.md
+.env.example
+packages/database/drizzle/

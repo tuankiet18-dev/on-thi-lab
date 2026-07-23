@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Question 5</title>
+  <desc id="desc">Select software quality attributes.</desc>
+  <rect width="1200" height="520" fill="#ffffff"/>
+  <rect width="1200" height="58" fill="#fff7ed"/>
+  <rect width="6" height="58" fill="#f59e0b"/>
+  <text x="34" y="37" fill="#b45309" font-family="Arial, sans-serif" font-size="22" font-weight="700">MULTIPLE ANSWERS</text>
+  <g fill="#0f172a" font-family="Arial, sans-serif" font-size="20">
+    <text x="58" y="108" font-weight="700">Which items are commonly treated as software quality attributes?</text>
+    <text x="58" y="164">A. Availability</text>
+    <text x="58" y="214">B. Modifiability</text>
+    <text x="58" y="264">C. Team lunch schedule</text>
+    <text x="58" y="314">D. Repository branch name</text>
+    <text x="58" y="364">E. Performance</text>
+    <text x="58" y="414">F. Office location</text>
+  </g>
+</svg>

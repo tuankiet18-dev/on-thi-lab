@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Question 2</title>
+  <desc id="desc">What is a software design concept? Four answer choices.</desc>
+  <rect width="1200" height="520" fill="#ffffff"/>
+  <rect width="1200" height="58" fill="#eff6ff"/>
+  <rect width="6" height="58" fill="#2563eb"/>
+  <text x="34" y="37" fill="#1d4ed8" font-family="Arial, sans-serif" font-size="22" font-weight="700">MULTIPLE CHOICE</text>
+  <g fill="#0f172a" font-family="Arial, sans-serif" font-size="21">
+    <text x="58" y="110" font-weight="700">What is a software design concept?</text>
+    <text x="58" y="174">A. A graphical or textual description of the software</text>
+    <text x="58" y="228">B. Documentation of the software</text>
+    <text x="58" y="282">C. A fundamental idea that can be applied to designing a system</text>
+    <text x="58" y="336">D. A systematic approach for producing a design</text>
+  </g>
+</svg>
+

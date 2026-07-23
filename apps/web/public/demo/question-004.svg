@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Question 4</title>
+  <desc id="desc">Architectural pattern question.</desc>
+  <rect width="1200" height="520" fill="#ffffff"/>
+  <rect width="1200" height="58" fill="#eff6ff"/>
+  <rect width="6" height="58" fill="#2563eb"/>
+  <text x="34" y="37" fill="#1d4ed8" font-family="Arial, sans-serif" font-size="22" font-weight="700">MULTIPLE CHOICE</text>
+  <g fill="#0f172a" font-family="Arial, sans-serif" font-size="21">
+    <text x="58" y="110" font-weight="700">Which pattern separates an application into Model, View and Controller?</text>
+    <text x="58" y="174">A. Repository</text>
+    <text x="58" y="228">B. Event sourcing</text>
+    <text x="58" y="282">C. Pipe and filter</text>
+    <text x="58" y="336">D. MVC</text>
+  </g>
+</svg>
+

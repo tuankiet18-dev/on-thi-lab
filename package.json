@@ -1,0 +1,28 @@
+{
+  "name": "onthilab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nền tảng luyện thi FE theo đề thi thực tế dành cho sinh viên FPT.",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @onthilab/api --filter @onthilab/web dev",
+    "dev:web": "pnpm --filter @onthilab/web dev",
+    "dev:api": "pnpm --filter @onthilab/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "playwright test",
+    "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:synth": "pnpm --filter @onthilab/infra synth"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.8.3"
+  }
+}
