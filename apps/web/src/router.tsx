@@ -4,11 +4,14 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { AppShell, PlaceholderPage } from "./components/AppShell";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { AdminImportPage } from "./pages/AdminImportPage";
 import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ExamDetailPage } from "./pages/ExamDetailPage";
+import { LoginPage } from "./pages/LoginPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { ResultPage } from "./pages/ResultPage";
 
 const rootRoute = createRootRoute({
@@ -22,6 +25,24 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: DashboardPage,
+});
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+
+const authCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/auth/callback",
+  component: AuthCallbackPage,
+});
+
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/onboarding",
+  component: OnboardingPage,
 });
 
 const catalogRoute = createRoute({
@@ -68,6 +89,9 @@ const adminImportRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  loginRoute,
+  authCallbackRoute,
+  onboardingRoute,
   catalogRoute,
   examDetailRoute,
   attemptRoute,

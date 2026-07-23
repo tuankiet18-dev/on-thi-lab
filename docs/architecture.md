@@ -13,6 +13,26 @@ Phiên bản khởi tạo chứng minh trọn vẹn một luồng quan trọng:
 
 UI hiện dùng local storage để có thể chạy độc lập. API Hono đã cung cấp cùng semantics cho create/resume, autosave và submit; bước tiếp theo là thay adapter local bằng HTTP client.
 
+## Luồng xác thực development
+
+```text
+React SPA
+  └── Authorization Code + PKCE
+        └── Cognito Managed Login
+              ├── Google OAuth
+              └── Cognito email/password
+```
+
+- Google client secret chỉ tồn tại trong AWS Secrets Manager tại
+  `/onthilab/dev/google/oauth`.
+- Browser chỉ nhận Cognito public client ID; không có client secret.
+- OAuth transaction và token được lưu trong `sessionStorage`; mã xác minh PKCE
+  và `state` được kiểm tra trước khi đổi code lấy token.
+- API phải xác thực chữ ký JWT, issuer, audience/client ID và expiry trước khi
+  tin bất kỳ claim nào.
+- Onboarding hiện dùng local adapter để kiểm thử UX. Phase 1 phải lưu hồ sơ vào
+  bảng `users`, kiểm tra MSSV unique và lấy role từ server trước khi production.
+
 ## Ranh giới hệ thống
 
 ```text
@@ -45,5 +65,5 @@ CDK mặc định đặt Aurora Serverless v2 ở 0.5–2 ACU, S3 private qua Cl
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
 - quyết định Aurora Serverless v2 hay PostgreSQL managed khác dựa trên traffic thật;
 - thêm WAF/rate limit, log retention và cảnh báo lỗi;
-- cấu hình Google IdP, domain, ACM certificate và secrets;
+- cấu hình domain production, ACM certificate và secrets theo environment;
 - nối Lambda/API Gateway và worker vào các package ứng dụng.

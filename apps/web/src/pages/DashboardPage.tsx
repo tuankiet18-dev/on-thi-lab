@@ -13,6 +13,7 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
+import { useAuth } from "../auth/AuthContext";
 
 const stats = [
   {
@@ -39,6 +40,9 @@ const stats = [
 ];
 
 export function DashboardPage() {
+  const { session } = useAuth();
+  const firstName = session?.user.name.trim().split(/\s+/).at(-1) ?? "bạn";
+
   return (
     <div className="space-y-8">
       <section className="grid gap-5 xl:grid-cols-[1fr_380px]">
@@ -46,7 +50,7 @@ export function DashboardPage() {
           <div className="relative z-10 max-w-2xl">
             <Badge tone="amber">Bản thử nghiệm nội bộ</Badge>
             <p className="mt-5 text-sm font-semibold text-blue-100">
-              Chào buổi tối, Kiet
+              Chào buổi tối, {firstName}
             </p>
             <h1 className="mt-2 font-heading text-3xl font-bold leading-tight sm:text-4xl">
               Luyện đề thật, tự tin bước vào phòng thi.

@@ -6,7 +6,7 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -27,9 +27,17 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npx pnpm@10.13.1 --filter @onthilab/web dev --host 127.0.0.1",
-    port: 5173,
-    reuseExistingServer: true,
+    command:
+      "npx pnpm@10.13.1 --filter @onthilab/web dev --host 127.0.0.1 --port 4173 --strictPort",
+    env: {
+      ...process.env,
+      VITE_COGNITO_DOMAIN: "",
+      VITE_COGNITO_CLIENT_ID: "",
+      VITE_COGNITO_REDIRECT_URI: "",
+      VITE_COGNITO_LOGOUT_URI: "",
+    },
+    port: 4173,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

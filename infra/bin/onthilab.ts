@@ -29,6 +29,7 @@ new OnThiLabAuthStack(app, `OnThiLabAuth-${stage}`, {
   domainPrefix,
   callbackUrls,
   logoutUrls,
+  googleSecretName: `/onthilab/${stage}/google/oauth`,
   description: `OnThiLab ${stage} authentication`,
 });
 

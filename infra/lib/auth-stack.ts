@@ -6,6 +6,7 @@ import {
   type StackProps,
 } from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import type { Construct } from "constructs";
 
 interface OnThiLabAuthStackProps extends StackProps {
@@ -13,6 +14,7 @@ interface OnThiLabAuthStackProps extends StackProps {
   domainPrefix: string;
   callbackUrls: string[];
   logoutUrls: string[];
+  googleSecretName: string;
 }
 
 export class OnThiLabAuthStack extends Stack {
@@ -54,6 +56,29 @@ export class OnThiLabAuthStack extends Stack {
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
     });
 
+    const googleOauthSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "GoogleOauthSecret",
+      props.googleSecretName,
+    );
+    const googleProvider = new cognito.UserPoolIdentityProviderGoogle(
+      this,
+      "GoogleProvider",
+      {
+        userPool,
+        clientId: googleOauthSecret
+          .secretValueFromJson("clientId")
+          .unsafeUnwrap(),
+        clientSecretValue:
+          googleOauthSecret.secretValueFromJson("clientSecret"),
+        scopes: ["openid", "email", "profile"],
+        attributeMapping: {
+          email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+          fullname: cognito.ProviderAttribute.GOOGLE_NAME,
+        },
+      },
+    );
+
     const userPoolClient = userPool.addClient("WebClient", {
       userPoolClientName: `onthilab-web-${props.stage}`,
       generateSecret: false,
@@ -68,6 +93,7 @@ export class OnThiLabAuthStack extends Stack {
       refreshTokenValidity: Duration.days(30),
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
+        cognito.UserPoolClientIdentityProvider.GOOGLE,
       ],
       oAuth: {
         flows: {
@@ -82,6 +108,7 @@ export class OnThiLabAuthStack extends Stack {
         logoutUrls: props.logoutUrls,
       },
     });
+    userPoolClient.node.addDependency(googleProvider);
 
     const domainBaseUrl = `https://${props.domainPrefix}.auth.${this.region}.amazoncognito.com`;
     const localCallbackUrl = props.callbackUrls[0]!;

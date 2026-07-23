@@ -41,6 +41,9 @@ importers:
 
   apps/web:
     dependencies:
+      "@onthilab/config":
+        specifier: workspace:*
+        version: link:../../packages/config
       "@onthilab/contracts":
         specifier: workspace:*
         version: link:../../packages/contracts

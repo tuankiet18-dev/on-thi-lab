@@ -40,8 +40,9 @@ Authorized redirect URI:
 https://onthilab-dev-563702590722.auth.ap-southeast-1.amazoncognito.com/oauth2/idpresponse
 ```
 
-Không bật `FEATURE_GOOGLE_AUTH_ENABLED` trước khi Google provider đã được thêm
-vào Cognito và đăng nhập end-to-end thành công.
+Google provider development đã được thêm vào Cognito. Local có thể bật
+`FEATURE_GOOGLE_AUTH_ENABLED=true`; staging/production vẫn giữ tắt cho tới khi
+có credential riêng và đăng nhập end-to-end thành công.
 
 Kiểm tra trước khi bật flag:
 
@@ -54,15 +55,13 @@ Kiểm tra trước khi bật flag:
 Tên secret dự kiến:
 
 ```text
-/onthilab/staging/google/client-id
-/onthilab/staging/google/client-secret
+/onthilab/staging/google/oauth
 /onthilab/staging/payos/client-id
 /onthilab/staging/payos/api-key
 /onthilab/staging/payos/checksum-key
 /onthilab/staging/ai/api-key
 
-/onthilab/prod/google/client-id
-/onthilab/prod/google/client-secret
+/onthilab/prod/google/oauth
 /onthilab/prod/payos/client-id
 /onthilab/prod/payos/api-key
 /onthilab/prod/payos/checksum-key
@@ -72,14 +71,23 @@ Tên secret dự kiến:
 Secret được tham chiếu bằng ARN/name trong CDK, không đọc rồi ghi lại vào
 CloudFormation output.
 
+Google OAuth dùng một JSON secret để giảm số secret phải trả phí:
+
+```json
+{
+  "clientId": "...",
+  "clientSecret": "..."
+}
+```
+
 ## Credential checklist
 
 | Hệ thống                     | Development | Staging        | Production            |
 | ---------------------------- | ----------- | -------------- | --------------------- |
 | AWS account/role             | Active      | Pending        | Pending               |
-| Google OAuth client          | Pending     | Pending        | Pending               |
+| Google OAuth client          | Active      | Pending        | Pending               |
 | Cognito User Pool/App Client | Provisioned | Pending        | Pending               |
 | AI Vision provider           | Pending     | Pending        | Pending               |
-| payOS channel                | Không bật   | Pending        | Pending               |
+| payOS channel                | Local, tắt  | Pending        | Pending               |
 | Domain và DNS                | Không cần   | CloudFront URL | `onthilab.vn`         |
 | Support mailbox              | Gmail tạm   | Gmail tạm      | `support@onthilab.vn` |

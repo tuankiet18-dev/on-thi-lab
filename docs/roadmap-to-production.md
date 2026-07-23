@@ -24,6 +24,11 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | 7     | Security, legal, launch data, closed beta  | Planned     | Không còn P0/P1, UAT đạt                       |
 | 8     | Production rollout và payOS feature flag   | Planned     | Go-live checklist và smoke test đạt            |
 
+Phase 2 development đã có Cognito User Pool, Google IdP, email/password,
+Authorization Code + PKCE, refresh/logout và onboarding UI. Phần còn lại của
+exit gate là JWT middleware ở API, persistence hồ sơ và phân quyền
+user/contributor/admin bằng integration test.
+
 ## Data waves
 
 | Wave |  Kỳ | Số môn | Ghi chú                             |

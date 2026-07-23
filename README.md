@@ -13,6 +13,8 @@ Nền tảng luyện thi FE theo cấu trúc đề thật dành cho sinh viên F
 - Worker contract độc lập với nhà cung cấp AI.
 - AWS CDK với stack Cognito độc lập; scaffold core cho S3/CloudFront, SQS/DLQ
   và Aurora PostgreSQL.
+- Cognito Managed Login với Google OAuth Authorization Code + PKCE, refresh,
+  logout và onboarding hồ sơ sinh viên.
 - Runtime config validation và feature flags an toàn cho Google, AI và payOS.
 - Seed idempotent cho 5 campus, 9 kỳ và 41 môn ưu tiên theo bốn data wave.
 
@@ -81,8 +83,7 @@ Tài liệu vận hành:
 ## Việc tiếp theo
 
 1. Kết nối UI với API và PostgreSQL thay cho adapter local.
-2. Kết nối Cognito Managed Login vào web, thêm Google OAuth và onboarding hồ
-   sơ.
+2. Xác thực JWT trên API, lưu onboarding vào PostgreSQL và hoàn thiện RBAC.
 3. Hoàn thiện presigned multipart upload ZIP, worker giải nén và AI adapter.
 4. Xây màn hình review đáp án 60 câu, audit log và publish revision.
 5. Thêm payOS, entitlement và giới hạn free 2 lượt/ngày.
