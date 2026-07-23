@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+blocked=0
+
+while IFS= read -r path; do
+  filename="${path##*/}"
+
+  case "$filename" in
+    .env.example)
+      ;;
+    .env|.env.*|.env_*|client_secret*.json|*.pem|*.p12)
+      echo "ERROR: Không được commit file chứa secret: $path"
+      blocked=1
+      ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [[ "$blocked" -ne 0 ]]; then
+  echo "Hãy giữ credential trong .env.local hoặc AWS Secrets Manager."
+  exit 1
+fi

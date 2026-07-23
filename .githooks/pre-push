@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+zero_sha="0000000000000000000000000000000000000000"
+should_validate=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$local_sha" == "$zero_sha" ]]; then
+    continue
+  fi
+
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "ERROR: Không push trực tiếp vào main."
+      echo "Hãy tạo branch, push branch đó và mở pull request."
+      exit 1
+      ;;
+    refs/heads/feat/*|refs/heads/fix/*|refs/heads/hotfix/*|refs/heads/refactor/*|refs/heads/test/*|refs/heads/docs/*|refs/heads/chore/*|refs/heads/ci/*)
+      should_validate=1
+      ;;
+    refs/tags/v*)
+      should_validate=1
+      ;;
+    *)
+      echo "ERROR: Tên branch không đúng quy ước: ${remote_ref#refs/heads/}"
+      echo "Dùng: feat/, fix/, hotfix/, refactor/, test/, docs/, chore/ hoặc ci/."
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$should_validate" -eq 1 ]]; then
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm validate
+  elif command -v npx >/dev/null 2>&1; then
+    npx --yes pnpm@10.13.1 validate
+  else
+    echo "ERROR: Không tìm thấy pnpm hoặc npx."
+    exit 1
+  fi
+fi

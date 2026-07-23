@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  branch-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate branch name
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          if [[ ! "$BRANCH_NAME" =~ ^(feat|fix|hotfix|refactor|test|docs|chore|ci)/[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::Branch '$BRANCH_NAME' không đúng quy ước."
+            echo "Dùng: feat/, fix/, hotfix/, refactor/, test/, docs/, chore/ hoặc ci/."
+            exit 1
+          fi
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
