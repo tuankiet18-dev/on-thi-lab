@@ -5,13 +5,16 @@ import {
   ClipboardList,
   FileUp,
   GraduationCap,
+  LogIn,
+  LogOut,
   LayoutDashboard,
   Menu,
   MessageSquareText,
   X,
 } from "lucide-react";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { cn } from "../lib/cn";
 
 const navigation = [
@@ -23,10 +26,47 @@ const navigation = [
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const { configured, session, signOut, status, studentProfile } = useAuth();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const isPublicAuthPage =
+    pathname === "/login" || pathname === "/auth/callback";
   const isFocusMode = pathname.startsWith("/attempts/");
+  const isAdmin =
+    !configured || session?.user.groups.includes("admin") === true;
+
+  if (isPublicAuthPage) {
+    return <Outlet />;
+  }
+
+  if (configured && status === "loading") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-app">
+        <p className="font-semibold text-slate-600">
+          Đang kiểm tra phiên đăng nhập...
+        </p>
+      </div>
+    );
+  }
+
+  if (configured && status === "unauthenticated") {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (
+    configured &&
+    status === "authenticated" &&
+    !studentProfile &&
+    pathname !== "/onboarding"
+  ) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (pathname === "/onboarding") {
+    return <Outlet />;
+  }
 
   if (isFocusMode) {
     return <Outlet />;
@@ -77,33 +117,66 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <Link
-              to="/admin/import"
-              className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 md:flex"
-            >
-              <FileUp size={17} aria-hidden="true" />
-              Nhập đề
-            </Link>
-            <button
-              type="button"
-              className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl px-2.5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 sm:flex"
-              aria-label="Mở menu tài khoản"
-            >
-              <span className="grid size-8 place-items-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
-                KT
-              </span>
-              <span className="text-left">
-                <span className="block text-sm font-semibold leading-4 text-foreground">
-                  Kiet Tran
-                </span>
-                <span className="block text-xs text-slate-500">Sinh viên</span>
-              </span>
-              <ChevronDown
-                size={16}
-                aria-hidden="true"
-                className="text-slate-400"
-              />
-            </button>
+            {isAdmin && (
+              <Link
+                to="/admin/import"
+                className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 md:flex"
+              >
+                <FileUp size={17} aria-hidden="true" />
+                Nhập đề
+              </Link>
+            )}
+            {session ? (
+              <div className="relative hidden sm:block">
+                <button
+                  type="button"
+                  onClick={() => setAccountOpen((open) => !open)}
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-2.5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                  aria-label="Mở menu tài khoản"
+                  aria-expanded={accountOpen}
+                >
+                  <span className="grid size-8 place-items-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
+                    {initialsFor(session.user.name)}
+                  </span>
+                  <span className="text-left">
+                    <span className="block max-w-36 truncate text-sm font-semibold leading-4 text-foreground">
+                      {session.user.name}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {isAdmin ? "Quản trị viên" : "Sinh viên"}
+                    </span>
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    aria-hidden="true"
+                    className="text-slate-400"
+                  />
+                </button>
+                {accountOpen && (
+                  <div className="absolute right-0 top-12 w-64 rounded-2xl border border-border bg-white p-2 shadow-modal">
+                    <p className="truncate px-3 py-2 text-xs text-slate-500">
+                      {session.user.email}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={signOut}
+                      className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      <LogOut size={17} aria-hidden="true" />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-strong sm:flex"
+              >
+                <LogIn size={17} aria-hidden="true" />
+                Đăng nhập
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
@@ -141,14 +214,35 @@ export function AppShell() {
                   {item.label}
                 </Link>
               ))}
-              <Link
-                to="/admin/import"
-                onClick={() => setMenuOpen(false)}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-              >
-                <FileUp size={18} aria-hidden="true" />
-                Nhập đề
-              </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin/import"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                >
+                  <FileUp size={18} aria-hidden="true" />
+                  Nhập đề
+                </Link>
+              )}
+              {session ? (
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  <LogOut size={18} aria-hidden="true" />
+                  Đăng xuất
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-primary-soft"
+                >
+                  <LogIn size={18} aria-hidden="true" />
+                  Đăng nhập
+                </Link>
+              )}
             </div>
           </nav>
         )}
@@ -175,6 +269,15 @@ export function AppShell() {
       </footer>
     </div>
   );
+}
+
+function initialsFor(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 export function PlaceholderPage({ title }: { title: string }) {

@@ -5,6 +5,21 @@ test.beforeEach(async ({ page }) => {
   await page.evaluate(() => localStorage.clear());
 });
 
+test("login route renders a safe unconfigured state in CI", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await expect(
+    page.getByRole("heading", { name: "Chào mừng bạn" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Chế độ đăng nhập chưa được cấu hình trong môi trường này."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Tiếp tục với Google" }),
+  ).toHaveCount(0);
+});
+
 test("desktop student can complete a practice exam", async ({
   page,
 }, testInfo) => {
