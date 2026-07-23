@@ -74,6 +74,7 @@ export class OnThiLabAuthStack extends Stack {
         scopes: ["openid", "email", "profile"],
         attributeMapping: {
           email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+          emailVerified: cognito.ProviderAttribute.GOOGLE_EMAIL_VERIFIED,
           fullname: cognito.ProviderAttribute.GOOGLE_NAME,
         },
       },
