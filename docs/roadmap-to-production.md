@@ -12,17 +12,17 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 
 ## Trạng thái phase
 
-| Phase | Phạm vi                                    | Trạng thái | Exit gate                                      |
-| ----- | ------------------------------------------ | ---------- | ---------------------------------------------- |
-| 0     | Config, flags, seed, CI, tài liệu vận hành | Done       | `pnpm validate`, CDK synth và E2E đạt          |
-| 1     | PostgreSQL persistence và API thật         | Planned    | Không còn in-memory API trong luồng production |
-| 2     | Cognito, Google OAuth, onboarding, RBAC    | Planned    | Auth/RBAC integration tests đạt                |
-| 3     | ZIP, S3, SQS, AI Vision, review, publish   | Planned    | Import và duyệt được đề tối thiểu 60 ảnh       |
-| 4     | Exam engine production                     | Planned    | Autosave/timeout/idempotency/concurrency đạt   |
-| 5     | History, stats, bookmark, report, admin    | Planned    | Acceptance criteria User/Admin đạt             |
-| 6     | AWS staging/prod, CI/CD, observability     | Planned    | Staging deploy/rollback/restore đạt            |
-| 7     | Security, legal, launch data, closed beta  | Planned    | Không còn P0/P1, UAT đạt                       |
-| 8     | Production rollout và payOS feature flag   | Planned    | Go-live checklist và smoke test đạt            |
+| Phase | Phạm vi                                    | Trạng thái  | Exit gate                                      |
+| ----- | ------------------------------------------ | ----------- | ---------------------------------------------- |
+| 0     | Config, flags, seed, CI, tài liệu vận hành | Done        | `pnpm validate`, CDK synth và E2E đạt          |
+| 1     | PostgreSQL persistence và API thật         | Planned     | Không còn in-memory API trong luồng production |
+| 2     | Cognito, Google OAuth, onboarding, RBAC    | In progress | Auth/RBAC integration tests đạt                |
+| 3     | ZIP, S3, SQS, AI Vision, review, publish   | Planned     | Import và duyệt được đề tối thiểu 60 ảnh       |
+| 4     | Exam engine production                     | Planned     | Autosave/timeout/idempotency/concurrency đạt   |
+| 5     | History, stats, bookmark, report, admin    | Planned     | Acceptance criteria User/Admin đạt             |
+| 6     | AWS staging/prod, CI/CD, observability     | Planned     | Staging deploy/rollback/restore đạt            |
+| 7     | Security, legal, launch data, closed beta  | Planned     | Không còn P0/P1, UAT đạt                       |
+| 8     | Production rollout và payOS feature flag   | Planned     | Go-live checklist và smoke test đạt            |
 
 ## Data waves
 

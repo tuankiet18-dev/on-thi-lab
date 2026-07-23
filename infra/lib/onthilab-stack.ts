@@ -7,7 +7,6 @@ import {
 } from "aws-cdk-lib";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
-import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -72,32 +71,6 @@ export class OnThiLabStack extends Stack {
       ],
     });
 
-    const userPool = new cognito.UserPool(this, "UserPool", {
-      selfSignUpEnabled: true,
-      signInAliases: { email: true },
-      autoVerify: { email: true },
-      standardAttributes: {
-        email: { required: true, mutable: true },
-        fullname: { required: true, mutable: true },
-      },
-      passwordPolicy: {
-        minLength: 10,
-        requireDigits: true,
-        requireLowercase: true,
-        requireUppercase: true,
-      },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: dataRemovalPolicy,
-    });
-
-    const userPoolClient = userPool.addClient("WebClient", {
-      authFlows: {
-        userPassword: true,
-        userSrp: true,
-      },
-      preventUserExistenceErrors: true,
-    });
-
     const deadLetterQueue = new sqs.Queue(this, "ImportDeadLetterQueue", {
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: Duration.days(14),
@@ -147,10 +120,6 @@ export class OnThiLabStack extends Stack {
     });
     new CfnOutput(this, "QuestionImageBucketName", {
       value: questionImageBucket.bucketName,
-    });
-    new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
-    new CfnOutput(this, "UserPoolClientId", {
-      value: userPoolClient.userPoolClientId,
     });
     new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
     new CfnOutput(this, "DatabaseClusterArn", {
