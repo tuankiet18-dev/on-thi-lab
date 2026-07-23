@@ -3,13 +3,25 @@ import {
   createAttemptSchema,
   saveAnswerSchema,
   submitAttemptSchema,
+  upsertStudentProfileSchema,
   type AttemptResult,
+  type StudentProfile,
 } from "@onthilab/contracts";
-import type { CatalogRepository } from "@onthilab/database";
-import { Hono } from "hono";
+import {
+  ProfileRepositoryError,
+  type CatalogRepository,
+  type UserProfileRepository,
+} from "@onthilab/database";
+import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
+import {
+  AuthenticationError,
+  type AuthIdentity,
+  type TokenVerifier,
+  UnconfiguredTokenVerifier,
+} from "./auth";
 import { demoAnswerKey, demoExam } from "./fixtures";
 import { openApiDocument } from "./openapi";
 
@@ -26,6 +38,8 @@ interface StoredAttempt {
 
 interface AppDependencies {
   catalog: CatalogRepository;
+  auth: TokenVerifier;
+  profiles: UserProfileRepository;
 }
 
 const demoCatalogRepository: CatalogRepository = {
@@ -34,12 +48,79 @@ const demoCatalogRepository: CatalogRepository = {
     idOrCode === demoExam.id || idOrCode === demoExam.code ? demoExam : null,
 };
 
-export function createApp(
-  dependencies: AppDependencies = { catalog: demoCatalogRepository },
-) {
+const unavailableProfileRepository: UserProfileRepository = {
+  findBySubject: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+  listOptions: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+  upsert: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+};
+
+type AppEnvironment = {
+  Variables: {
+    identity: AuthIdentity;
+    profile: StudentProfile;
+  };
+};
+
+function authenticationMiddleware(
+  verifier: TokenVerifier,
+): MiddlewareHandler<AppEnvironment> {
+  return async (context, next) => {
+    const authorization = context.req.header("Authorization");
+    const match = authorization?.match(/^Bearer\s+(.+)$/i);
+    if (!match?.[1]) {
+      return context.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    let identity: AuthIdentity;
+    try {
+      identity = await verifier.verify(match[1]);
+    } catch (error) {
+      if (
+        error instanceof AuthenticationError &&
+        error.code === "AUTH_NOT_CONFIGURED"
+      ) {
+        return context.json({ error: error.code }, 503);
+      }
+      return context.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    context.set("identity", identity);
+    await next();
+  };
+}
+
+function profileRequiredMiddleware(
+  profiles: UserProfileRepository,
+): MiddlewareHandler<AppEnvironment> {
+  return async (context, next) => {
+    const profile = await profiles.findBySubject(
+      context.get("identity").subject,
+    );
+    if (!profile) {
+      return context.json({ error: "PROFILE_REQUIRED" }, 403);
+    }
+
+    context.set("profile", profile);
+    await next();
+  };
+}
+
+export function createApp(overrides: Partial<AppDependencies> = {}) {
+  const dependencies: AppDependencies = {
+    catalog: demoCatalogRepository,
+    auth: new UnconfiguredTokenVerifier(),
+    profiles: unavailableProfileRepository,
+    ...overrides,
+  };
   const attempts = new Map<string, StoredAttempt>();
   const activeAttemptByDevice = new Map<string, string>();
-  const app = new Hono();
+  const app = new Hono<AppEnvironment>();
 
   app.use("*", requestId());
   app.use("*", secureHeaders());
@@ -61,6 +142,63 @@ export function createApp(
       timestamp: new Date().toISOString(),
     }),
   );
+
+  app.use("/v1/*", authenticationMiddleware(dependencies.auth));
+
+  app.get("/v1/me", async (context) =>
+    context.json({
+      data: await dependencies.profiles.findBySubject(
+        context.get("identity").subject,
+      ),
+    }),
+  );
+
+  app.put("/v1/me", async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+
+    const parsed = upsertStudentProfileSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
+    }
+
+    const identity = context.get("identity");
+    try {
+      const profile = await dependencies.profiles.upsert(
+        { subject: identity.subject, email: identity.email },
+        parsed.data,
+      );
+      return context.json({ data: profile });
+    } catch (error) {
+      if (error instanceof ProfileRepositoryError) {
+        const status =
+          error.code === "PROFILE_CONFLICT"
+            ? 409
+            : error.code === "PROFILE_DISABLED"
+              ? 403
+              : 400;
+        return context.json({ error: error.code }, status);
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/profile-options", async (context) =>
+    context.json({ data: await dependencies.profiles.listOptions() }),
+  );
+
+  const requireProfile = profileRequiredMiddleware(dependencies.profiles);
+  app.use("/v1/catalog", requireProfile);
+  app.use("/v1/exams/*", requireProfile);
+  app.use("/v1/attempts", requireProfile);
+  app.use("/v1/attempts/*", requireProfile);
 
   app.get("/v1/catalog", async (context) =>
     context.json({

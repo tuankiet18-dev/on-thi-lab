@@ -17,7 +17,12 @@ import {
   refreshAuthSession,
   type AuthSession,
 } from "../lib/auth";
+import { ApiError, getMyProfile, saveMyProfile } from "../lib/api";
 import { cognitoConfig } from "../lib/config";
+import type {
+  StudentProfile,
+  UpsertStudentProfileInput,
+} from "@onthilab/contracts";
 
 const sessionStorageKey = "onthilab.auth.session";
 const transactionStorageKey = "onthilab.auth.transaction";
@@ -27,23 +32,17 @@ interface AuthTransaction {
   verifier: string;
 }
 
-export interface StudentProfile {
-  campusCode: string;
-  fullName: string;
-  major: string;
-  studentCode: string;
-}
-
-type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
 
 interface AuthContextValue {
   configured: boolean;
   session: AuthSession | null;
   studentProfile: StudentProfile | null;
   status: AuthStatus;
+  error: string | null;
   signIn: (provider?: "Google") => Promise<void>;
   completeSignIn: (search: string) => Promise<void>;
-  saveStudentProfile: (profile: StudentProfile) => void;
+  saveStudentProfile: (profile: UpsertStudentProfileInput) => Promise<void>;
   signOut: () => void;
 }
 
@@ -73,22 +72,6 @@ function storeSession(session: AuthSession | null): void {
   }
 }
 
-function profileStorageKey(subject: string): string {
-  return `onthilab.student-profile.${subject}`;
-}
-
-function readStudentProfile(subject: string): StudentProfile | null {
-  const value = localStorage.getItem(profileStorageKey(subject));
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value) as StudentProfile;
-  } catch {
-    localStorage.removeItem(profileStorageKey(subject));
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(
@@ -97,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(
     cognitoConfig ? "loading" : "unauthenticated",
   );
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!cognitoConfig) return;
@@ -109,8 +93,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (stored.expiresAt > Date.now() + 60_000) {
       setSession(stored);
-      setStudentProfile(readStudentProfile(stored.user.subject));
-      setStatus("authenticated");
+      void getMyProfile(stored.idToken)
+        .then((profile) => {
+          setStudentProfile(profile);
+          setStatus("authenticated");
+        })
+        .catch((reason) => {
+          if (reason instanceof ApiError && reason.status === 401) {
+            storeSession(null);
+            setSession(null);
+            setStatus("unauthenticated");
+            return;
+          }
+          setError("Không thể kết nối API để tải hồ sơ. Vui lòng thử lại.");
+          setStatus("error");
+        });
       return;
     }
 
@@ -118,8 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((refreshed) => {
         storeSession(refreshed);
         setSession(refreshed);
-        setStudentProfile(readStudentProfile(refreshed.user.subject));
-        setStatus("authenticated");
+        void getMyProfile(refreshed.idToken)
+          .then((profile) => {
+            setStudentProfile(profile);
+            setStatus("authenticated");
+          })
+          .catch((reason) => {
+            if (reason instanceof ApiError && reason.status === 401) {
+              storeSession(null);
+              setSession(null);
+              setStatus("unauthenticated");
+              return;
+            }
+            setError("Không thể kết nối API để tải hồ sơ. Vui lòng thử lại.");
+            setStatus("error");
+          });
       })
       .catch(() => {
         storeSession(null);
@@ -188,20 +198,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     storeSession(nextSession);
     setSession(nextSession);
-    setStudentProfile(readStudentProfile(nextSession.user.subject));
-    setStatus("authenticated");
+    setStatus("loading");
+    try {
+      setStudentProfile(await getMyProfile(nextSession.idToken));
+      setStatus("authenticated");
+    } catch {
+      setError("Đăng nhập thành công nhưng chưa thể kết nối API để tải hồ sơ.");
+      setStatus("error");
+      throw new Error(
+        "Đăng nhập thành công nhưng chưa thể kết nối hệ thống hồ sơ. Vui lòng thử lại.",
+      );
+    }
   }, []);
 
   const saveStudentProfile = useCallback(
-    (profile: StudentProfile) => {
+    async (profile: UpsertStudentProfileInput) => {
       if (!session) {
         throw new Error("Bạn cần đăng nhập trước khi cập nhật hồ sơ.");
       }
-      localStorage.setItem(
-        profileStorageKey(session.user.subject),
-        JSON.stringify(profile),
-      );
-      setStudentProfile(profile);
+      const saved = await saveMyProfile(session.idToken, profile);
+      setStudentProfile(saved);
     },
     [session],
   );
@@ -211,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(transactionStorageKey);
     setSession(null);
     setStudentProfile(null);
+    setError(null);
     setStatus("unauthenticated");
 
     if (cognitoConfig) {
@@ -221,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       configured: Boolean(cognitoConfig),
+      error,
       session,
       studentProfile,
       status,
@@ -231,6 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       completeSignIn,
+      error,
       saveStudentProfile,
       session,
       signIn,

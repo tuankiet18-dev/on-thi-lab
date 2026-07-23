@@ -11,7 +11,9 @@ Phiên bản khởi tạo chứng minh trọn vẹn một luồng quan trọng:
 5. Hệ thống nộp thủ công hoặc tự nộp khi hết giờ.
 6. Kết quả dùng exact-match cho câu nhiều đáp án và thang điểm 10.
 
-UI hiện dùng local storage để có thể chạy độc lập. API Hono đã cung cấp cùng semantics cho create/resume, autosave và submit; bước tiếp theo là thay adapter local bằng HTTP client.
+Onboarding đã dùng API Hono và PostgreSQL làm nguồn dữ liệu chính. Exam engine
+demo vẫn dùng local storage để có thể chạy độc lập; bước tiếp theo là thay
+adapter attempt/catalog bằng HTTP client và repository production.
 
 ## Luồng xác thực development
 
@@ -28,10 +30,11 @@ React SPA
 - Browser chỉ nhận Cognito public client ID; không có client secret.
 - OAuth transaction và token được lưu trong `sessionStorage`; mã xác minh PKCE
   và `state` được kiểm tra trước khi đổi code lấy token.
-- API phải xác thực chữ ký JWT, issuer, audience/client ID và expiry trước khi
-  tin bất kỳ claim nào.
-- Onboarding hiện dùng local adapter để kiểm thử UX. Phase 1 phải lưu hồ sơ vào
-  bảng `users`, kiểm tra MSSV unique và lấy role từ server trước khi production.
+- API xác thực Cognito ID token trong bearer header, gồm chữ ký, issuer,
+  audience/client ID, loại token và expiry trước khi tin cậy email/tên.
+- Onboarding lưu vào bảng `users`, kiểm tra MSSV/email unique, lấy campus/ngành
+  từ database và lấy role từ server. Catalog/exam/attempt API yêu cầu người dùng
+  đã hoàn tất hồ sơ.
 
 ## Ranh giới hệ thống
 

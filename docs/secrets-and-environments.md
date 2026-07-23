@@ -44,6 +44,10 @@ Google provider development đã được thêm vào Cognito. Local có thể b�
 `FEATURE_GOOGLE_AUTH_ENABLED=true`; staging/production vẫn giữ tắt cho tới khi
 có credential riêng và đăng nhập end-to-end thành công.
 
+`pnpm dev` tự nạp `.env.local` cho cả Vite và API development. Browser gửi
+Cognito ID token qua bearer header; API dùng `COGNITO_USER_POOL_ID` và
+`COGNITO_CLIENT_ID` để xác minh token. Không ghi token vào log.
+
 Kiểm tra trước khi bật flag:
 
 - `FEATURE_GOOGLE_AUTH_ENABLED=true` yêu cầu Cognito IDs.

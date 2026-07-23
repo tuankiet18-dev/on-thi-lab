@@ -85,9 +85,7 @@ test("desktop student can complete a practice exam", async ({
   expect(consoleErrors).toEqual([]);
 });
 
-test("catalog is responsive without horizontal overflow", async ({
-  page,
-}, testInfo) => {
+test("catalog is responsive without horizontal overflow", async ({ page }) => {
   await page.goto("/exams");
   await expect(
     page.getByRole("heading", { name: "Kho đề thi FE" }),
@@ -100,10 +98,4 @@ test("catalog is responsive without horizontal overflow", async ({
   expect(measurements.scrollWidth).toBeLessThanOrEqual(
     measurements.viewportWidth,
   );
-  if (testInfo.project.name === "mobile-chromium") {
-    await page.screenshot({
-      path: testInfo.outputPath("catalog-mobile.png"),
-      fullPage: true,
-    });
-  }
 });

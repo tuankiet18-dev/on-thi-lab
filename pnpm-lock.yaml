@@ -28,6 +28,9 @@ importers:
       "@onthilab/database":
         specifier: workspace:*
         version: link:../../packages/database
+      aws-jwt-verify:
+        specifier: ^5.1.0
+        version: 5.2.1
       hono:
         specifier: ^4.8.5
         version: 4.12.31
@@ -1610,6 +1613,13 @@ packages:
     engines: { node: ">= 18.0.0" }
     hasBin: true
 
+  aws-jwt-verify@5.2.1:
+    resolution:
+      {
+        integrity: sha512-J+buA4M+qvQDk58WXFBLkDodkEX3DDL1ac5XFQPW3opxAsaLXYu5hYnlSHsaBRDBUXBAn695kE/cw/mdyJKwJg==,
+      }
+    engines: { node: ">=18.0.0" }
+
   baseline-browser-mapping@2.11.1:
     resolution:
       {
@@ -3155,6 +3165,8 @@ snapshots:
       constructs: 10.7.1
 
   aws-cdk@2.1132.1: {}
+
+  aws-jwt-verify@5.2.1: {}
 
   baseline-browser-mapping@2.11.1: {}
 

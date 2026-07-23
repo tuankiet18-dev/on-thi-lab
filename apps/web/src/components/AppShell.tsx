@@ -27,7 +27,8 @@ const navigation = [
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const { configured, session, signOut, status, studentProfile } = useAuth();
+  const { configured, error, session, signOut, status, studentProfile } =
+    useAuth();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -35,7 +36,9 @@ export function AppShell() {
     pathname === "/login" || pathname === "/auth/callback";
   const isFocusMode = pathname.startsWith("/attempts/");
   const isAdmin =
-    !configured || session?.user.groups.includes("admin") === true;
+    !configured ||
+    studentProfile?.role === "admin" ||
+    session?.user.groups.includes("admin") === true;
 
   if (isPublicAuthPage) {
     return <Outlet />;
@@ -53,6 +56,37 @@ export function AppShell() {
 
   if (configured && status === "unauthenticated") {
     return <Navigate to="/login" replace />;
+  }
+
+  if (configured && status === "error") {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-app p-5">
+        <section className="w-full max-w-lg rounded-3xl border border-border bg-white p-8 text-center shadow-panel">
+          <h1 className="font-heading text-2xl font-bold text-foreground">
+            Chưa thể tải hồ sơ
+          </h1>
+          <p className="mt-3 leading-7 text-slate-600">
+            {error ?? "Kết nối tới API đang tạm thời gián đoạn."}
+          </p>
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-strong"
+            >
+              Thử lại
+            </button>
+            <button
+              type="button"
+              onClick={signOut}
+              className="min-h-11 cursor-pointer rounded-xl border border-border-strong bg-white px-5 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Đăng xuất
+            </button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   if (

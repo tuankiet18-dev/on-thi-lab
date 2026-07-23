@@ -20,3 +20,4 @@ export function createDatabaseConnection(connectionString: string) {
 
 export * from "./schema";
 export * from "./catalog-repository";
+export * from "./user-profile-repository";
