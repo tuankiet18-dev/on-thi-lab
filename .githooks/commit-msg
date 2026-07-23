@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="$1"
+first_line="$(head -n 1 "$message_file")"
+
+if [[ "$first_line" =~ ^Merge\  ]]; then
+  exit 0
+fi
+
+if [[ ! "$first_line" =~ ^(feat|fix|hotfix|refactor|test|docs|chore|ci|build|perf|revert)(\([a-z0-9._/-]+\))?!?:\ .+ ]]; then
+  echo "ERROR: Commit message không đúng Conventional Commits:"
+  echo "  type(scope): mô tả"
+  echo "Ví dụ: feat(auth): add Google sign-in"
+  exit 1
+fi

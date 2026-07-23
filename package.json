@@ -16,6 +16,7 @@
     "test": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
     "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "git:setup": "git config core.hooksPath .githooks",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "infra:synth": "pnpm --filter @onthilab/infra synth"

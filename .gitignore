@@ -6,6 +6,12 @@ coverage/
 .vite/
 .env
 .env.local
+.env_*
+.env.*
+!.env.example
+client_secret*.json
+*.pem
+*.p12
 .venv/
 cdk.out/
 playwright-report/
