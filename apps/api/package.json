@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/dev.ts",
+    "dev": "tsx watch --env-file=../../.env.local src/dev.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
@@ -13,6 +13,7 @@
     "@hono/node-server": "^1.15.0",
     "@onthilab/contracts": "workspace:*",
     "@onthilab/database": "workspace:*",
+    "aws-jwt-verify": "^5.1.0",
     "hono": "^4.8.5"
   },
   "devDependencies": {

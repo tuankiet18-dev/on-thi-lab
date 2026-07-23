@@ -1,15 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, GraduationCap, UserRoundCheck } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-
-const campuses = [
-  { code: "HL", name: "Hòa Lạc" },
-  { code: "HCM", name: "Hồ Chí Minh" },
-  { code: "DN", name: "Đà Nẵng" },
-  { code: "CT", name: "Cần Thơ" },
-  { code: "QN", name: "Quy Nhơn" },
-];
+import { ApiError, getProfileOptions } from "../lib/api";
+import type { ProfileOptions } from "@onthilab/contracts";
 
 export function OnboardingPage() {
   const navigate = useNavigate();
@@ -21,12 +15,26 @@ export function OnboardingPage() {
     studentProfile?.studentCode ?? "",
   );
   const [campusCode, setCampusCode] = useState(
-    studentProfile?.campusCode ?? "",
+    studentProfile?.campus.code ?? "",
   );
-  const [major, setMajor] = useState(studentProfile?.major ?? "");
+  const [majorCode, setMajorCode] = useState(studentProfile?.major.code ?? "");
+  const [options, setOptions] = useState<ProfileOptions>();
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (!session) return;
+
+    void getProfileOptions(session.idToken)
+      .then(setOptions)
+      .catch(() => {
+        setError(
+          "Không thể tải danh sách campus và ngành học. Vui lòng tải lại trang.",
+        );
+      });
+  }, [session]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(undefined);
 
@@ -35,18 +43,29 @@ export function OnboardingPage() {
       setError("MSSV phải có 4–20 ký tự chữ, số hoặc dấu gạch ngang.");
       return;
     }
-    if (!fullName.trim() || !campusCode || !major.trim()) {
+    if (!fullName.trim() || !campusCode || !majorCode) {
       setError("Vui lòng điền đầy đủ thông tin hồ sơ.");
       return;
     }
 
-    saveStudentProfile({
-      fullName: fullName.trim(),
-      studentCode: normalizedStudentCode,
-      campusCode,
-      major: major.trim(),
-    });
-    void navigate({ to: "/", replace: true });
+    setPending(true);
+    try {
+      await saveStudentProfile({
+        fullName: fullName.trim(),
+        studentCode: normalizedStudentCode,
+        campusCode,
+        majorCode,
+      });
+      await navigate({ to: "/", replace: true });
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "PROFILE_CONFLICT") {
+        setError("Email hoặc mã số sinh viên này đã được sử dụng.");
+      } else {
+        setError("Không thể lưu hồ sơ. Vui lòng thử lại.");
+      }
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -118,7 +137,7 @@ export function OnboardingPage() {
                 required
               >
                 <option value="">Chọn campus</option>
-                {campuses.map((campus) => (
+                {options?.campuses.map((campus) => (
                   <option key={campus.code} value={campus.code}>
                     {campus.name}
                   </option>
@@ -127,13 +146,19 @@ export function OnboardingPage() {
             </label>
             <label className="form-field sm:col-span-2">
               Ngành học
-              <input
-                value={major}
-                onChange={(event) => setMajor(event.target.value)}
+              <select
+                value={majorCode}
+                onChange={(event) => setMajorCode(event.target.value)}
                 className="input-base"
-                placeholder="Ví dụ: Software Engineering"
                 required
-              />
+              >
+                <option value="">Chọn ngành học</option>
+                {options?.majors.map((major) => (
+                  <option key={major.code} value={major.code}>
+                    {major.name}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -148,9 +173,10 @@ export function OnboardingPage() {
 
           <button
             type="submit"
-            className="mt-7 inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-strong sm:w-auto"
+            disabled={pending || !options}
+            className="mt-7 inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-strong disabled:cursor-wait disabled:opacity-60 sm:w-auto"
           >
-            Hoàn tất hồ sơ
+            {pending ? "Đang lưu..." : "Hoàn tất hồ sơ"}
             <ArrowRight size={18} aria-hidden="true" />
           </button>
         </form>

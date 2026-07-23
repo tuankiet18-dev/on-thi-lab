@@ -15,7 +15,7 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | Phase | Phạm vi                                    | Trạng thái  | Exit gate                                      |
 | ----- | ------------------------------------------ | ----------- | ---------------------------------------------- |
 | 0     | Config, flags, seed, CI, tài liệu vận hành | Done        | `pnpm validate`, CDK synth và E2E đạt          |
-| 1     | PostgreSQL persistence và API thật         | Planned     | Không còn in-memory API trong luồng production |
+| 1     | PostgreSQL persistence và API thật         | In progress | Không còn in-memory API trong luồng production |
 | 2     | Cognito, Google OAuth, onboarding, RBAC    | In progress | Auth/RBAC integration tests đạt                |
 | 3     | ZIP, S3, SQS, AI Vision, review, publish   | Planned     | Import và duyệt được đề tối thiểu 60 ảnh       |
 | 4     | Exam engine production                     | Planned     | Autosave/timeout/idempotency/concurrency đạt   |
@@ -25,9 +25,10 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | 8     | Production rollout và payOS feature flag   | Planned     | Go-live checklist và smoke test đạt            |
 
 Phase 2 development đã có Cognito User Pool, Google IdP, email/password,
-Authorization Code + PKCE, refresh/logout và onboarding UI. Phần còn lại của
-exit gate là JWT middleware ở API, persistence hồ sơ và phân quyền
-user/contributor/admin bằng integration test.
+Authorization Code + PKCE, refresh/logout, JWT middleware ở API và persistence
+hồ sơ PostgreSQL. API yêu cầu onboarding trước khi truy cập catalog/exam/attempt
+và role được trả từ database. Phần còn lại của exit gate là áp dụng guard
+contributor/admin lên các endpoint quản trị và bổ sung integration test RBAC.
 
 ## Data waves
 

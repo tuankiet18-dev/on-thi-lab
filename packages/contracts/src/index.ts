@@ -8,6 +8,38 @@ export const attemptStatuses = [
   "auto_submitted",
   "cancelled",
 ] as const;
+export const userRoles = ["user", "contributor", "admin"] as const;
+
+export const profileOptionSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+});
+
+export const studentProfileSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  fullName: z.string().min(1),
+  studentCode: z.string().min(4),
+  campus: profileOptionSchema,
+  major: profileOptionSchema,
+  role: z.enum(userRoles),
+});
+
+export const profileOptionsSchema = z.object({
+  campuses: z.array(profileOptionSchema),
+  majors: z.array(profileOptionSchema),
+});
+
+export const upsertStudentProfileSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  studentCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9-]{4,20}$/),
+  campusCode: z.string().trim().min(1).max(20),
+  majorCode: z.string().trim().min(1).max(30),
+});
 
 export const questionSchema = z.object({
   id: z.string(),
@@ -60,6 +92,13 @@ export type Exam = z.infer<typeof examSchema>;
 export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
 export type AttemptStatus = (typeof attemptStatuses)[number];
+export type UserRole = (typeof userRoles)[number];
+export type ProfileOption = z.infer<typeof profileOptionSchema>;
+export type StudentProfile = z.infer<typeof studentProfileSchema>;
+export type ProfileOptions = z.infer<typeof profileOptionsSchema>;
+export type UpsertStudentProfileInput = z.infer<
+  typeof upsertStudentProfileSchema
+>;
 
 export interface AttemptResult {
   attemptId: string;
