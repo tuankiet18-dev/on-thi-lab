@@ -12,6 +12,7 @@ import {
   buildLogoutUrl,
   createCodeChallenge,
   createRandomBase64Url,
+  decodeIdToken,
   exchangeAuthorizationCode,
   refreshAuthSession,
   type AuthSession,
@@ -53,7 +54,11 @@ function readStoredSession(): AuthSession | null {
   if (!value) return null;
 
   try {
-    return JSON.parse(value) as AuthSession;
+    const stored = JSON.parse(value) as AuthSession;
+    return {
+      ...stored,
+      user: decodeIdToken(stored.idToken),
+    };
   } catch {
     sessionStorage.removeItem(sessionStorageKey);
     return null;

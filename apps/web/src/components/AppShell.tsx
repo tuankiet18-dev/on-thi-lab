@@ -73,7 +73,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-app">
+    <div className="flex min-h-dvh flex-col bg-app">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-foreground px-4 py-2 text-white transition-transform focus:translate-y-0"
@@ -139,7 +139,10 @@ export function AppShell() {
                     {initialsFor(session.user.name)}
                   </span>
                   <span className="text-left">
-                    <span className="block max-w-36 truncate text-sm font-semibold leading-4 text-foreground">
+                    <span
+                      className="block max-w-36 truncate text-sm font-semibold leading-4 text-foreground"
+                      title={session.user.name}
+                    >
                       {session.user.name}
                     </span>
                     <span className="block text-xs text-slate-500">
@@ -250,7 +253,7 @@ export function AppShell() {
 
       <main
         id="main-content"
-        className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
+        className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
       >
         <Outlet />
       </main>

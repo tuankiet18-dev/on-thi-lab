@@ -20,6 +20,22 @@ test("login route renders a safe unconfigured state in CI", async ({
   ).toHaveCount(0);
 });
 
+test("short pages keep the footer at the viewport bottom", async ({ page }) => {
+  await page.goto("/history");
+  await expect(
+    page.getByRole("heading", { name: "Lịch sử làm bài" }),
+  ).toBeVisible();
+
+  const footer = await page.locator("footer").boundingBox();
+  const viewport = page.viewportSize();
+
+  expect(footer).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(
+    Math.abs(footer!.y + footer!.height - viewport!.height),
+  ).toBeLessThanOrEqual(1);
+});
+
 test("desktop student can complete a practice exam", async ({
   page,
 }, testInfo) => {

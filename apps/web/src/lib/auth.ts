@@ -48,7 +48,9 @@ function encodeBase64Url(bytes: Uint8Array): string {
 function decodeBase64Url(value: string): string {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  return atob(base64 + padding);
+  const binary = atob(base64 + padding);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 export function createRandomBase64Url(byteLength = 32): string {

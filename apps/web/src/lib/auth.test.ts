@@ -15,7 +15,11 @@ const config: CognitoBrowserConfig = {
 };
 
 function encodePayload(payload: unknown): string {
-  return btoa(JSON.stringify(payload))
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+
+  return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
@@ -51,14 +55,14 @@ describe("Cognito browser authentication", () => {
     const token = `header.${encodePayload({
       sub: "subject-1",
       email: "student@example.com",
-      name: "Student Name",
+      name: "Lương Tuấn Kiệt",
       "cognito:groups": ["user", "contributor"],
     })}.signature`;
 
     expect(decodeIdToken(token)).toEqual({
       subject: "subject-1",
       email: "student@example.com",
-      name: "Student Name",
+      name: "Lương Tuấn Kiệt",
       groups: ["user", "contributor"],
     });
   });
