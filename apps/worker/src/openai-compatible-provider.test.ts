@@ -126,4 +126,30 @@ describe("OpenAI-compatible vision provider", () => {
       }),
     ).rejects.toThrow("AI provider đang giới hạn tốc độ");
   });
+
+  it("does not wait for a multi-hour daily rate-limit reset", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { message: "Daily token limit reached." },
+        }),
+        { status: 429, headers: { "retry-after": "14400" } },
+      ),
+    );
+    const provider = new OpenAiCompatibleVisionProvider({
+      apiKey: "server-secret",
+      model: "vision-test",
+      fetcher,
+      maxRetries: 4,
+    });
+
+    await expect(
+      provider.proposeAnswer({
+        imageDataUrl: "data:image/jpeg;base64,/9j/",
+        courseCode: "SWD392",
+        optionCount: 4,
+      }),
+    ).rejects.toThrow("AI provider đang giới hạn tốc độ");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });

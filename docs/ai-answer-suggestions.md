@@ -60,7 +60,8 @@ vì message sẽ chỉ nằm trong queue.
 
 - Bắt đầu với concurrency 1 và một đề thử. Với Groq Free/On-demand, provider
   giới hạn output ở 256 token, tắt reasoning của Qwen 3.6 và tự chờ theo header
-  `retry-after`.
+  `retry-after`. Cửa sổ chờ dài hơn 90 giây (ví dụ chạm hạn mức token/ngày) sẽ
+  được đánh dấu `failed` để batch không treo nhiều giờ.
 - Theo dõi số câu `failed`; nút chạy lại chỉ queue câu chưa có đáp án hoặc lỗi.
 - `queued`, `processing`, `suggested` và `confirmed` không bị queue trùng.
 - Không log API key, data URL ảnh hoặc raw response đầy đủ.

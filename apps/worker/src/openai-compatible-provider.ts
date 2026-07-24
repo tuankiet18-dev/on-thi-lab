@@ -23,6 +23,7 @@ export interface OpenAiCompatibleVisionProviderOptions {
   fetcher?: typeof fetch;
   timeoutMs?: number;
   maxRetries?: number;
+  maxRetryDelayMs?: number;
   maxCompletionTokens?: number;
   reasoningEffort?: "none" | "default" | "low" | "medium" | "high";
 }
@@ -35,6 +36,7 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
   private readonly fetcher: typeof fetch;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private readonly maxRetryDelayMs: number;
   private readonly maxCompletionTokens: number;
   private readonly reasoningEffort:
     "none" | "default" | "low" | "medium" | "high" | undefined;
@@ -50,6 +52,7 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
     this.fetcher = options.fetcher ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 45_000;
     this.maxRetries = options.maxRetries ?? 4;
+    this.maxRetryDelayMs = options.maxRetryDelayMs ?? 90_000;
     this.maxCompletionTokens = options.maxCompletionTokens ?? 256;
     this.reasoningEffort = options.reasoningEffort;
   }
@@ -110,8 +113,11 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
         .json()
         .catch(() => ({}))) as ChatCompletionResponse;
       if (response.status === 429 && attempt < this.maxRetries) {
-        await wait(retryDelayMilliseconds(response, body, attempt));
-        continue;
+        const delay = retryDelayMilliseconds(response, body, attempt);
+        if (delay <= this.maxRetryDelayMs) {
+          await wait(delay);
+          continue;
+        }
       }
       if (!response.ok) {
         throw new Error(safeProviderError(response.status));
