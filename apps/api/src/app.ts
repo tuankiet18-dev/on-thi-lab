@@ -5,6 +5,7 @@ import {
   feZipImportConstraints,
   saveAnswerSchema,
   submitAttemptSchema,
+  updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
   type AttemptResult,
   type StudentProfile,
@@ -14,6 +15,7 @@ import {
   DraftImportRepositoryError,
   ProfileRepositoryError,
   type CatalogRepository,
+  type ExamReviewRepository,
   type UserProfileRepository,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
@@ -35,6 +37,10 @@ import {
   UnconfiguredExamImportService,
 } from "./import-service";
 import { openApiDocument } from "./openapi";
+import {
+  type QuestionImageReader,
+  UnconfiguredQuestionImageReader,
+} from "./question-image-reader";
 
 interface StoredAttempt {
   id: string;
@@ -52,6 +58,8 @@ interface AppDependencies {
   auth: TokenVerifier;
   profiles: UserProfileRepository;
   imports: ExamImportService;
+  reviews: ExamReviewRepository;
+  images: QuestionImageReader;
 }
 
 const demoCatalogRepository: CatalogRepository = {
@@ -69,6 +77,16 @@ const unavailableProfileRepository: UserProfileRepository = {
   },
   upsert: async () => {
     throw new Error("Profile storage is not configured");
+  },
+};
+
+const unavailableReviewRepository: ExamReviewRepository = {
+  findReview: async () => null,
+  saveAnswer: async () => {
+    throw new Error("Review storage is not configured");
+  },
+  markReady: async () => {
+    throw new Error("Review storage is not configured");
   },
 };
 
@@ -154,6 +172,8 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     auth: new UnconfiguredTokenVerifier(),
     profiles: unavailableProfileRepository,
     imports: new UnconfiguredExamImportService(),
+    reviews: unavailableReviewRepository,
+    images: new UnconfiguredQuestionImageReader(),
     ...overrides,
   };
   const attempts = new Map<string, StoredAttempt>();
@@ -161,7 +181,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   const app = new Hono<AppEnvironment>();
 
   app.use("*", requestId());
-  app.use("*", secureHeaders());
+  app.use("*", secureHeaders({ crossOriginResourcePolicy: false }));
   app.use(
     "*",
     cors({
@@ -172,6 +192,30 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   );
 
   app.get("/openapi.json", (context) => context.json(openApiDocument));
+
+  app.get("/question-images/*", async (context) => {
+    let imageKey: string;
+    try {
+      imageKey = decodeURIComponent(
+        context.req.path.slice("/question-images/".length),
+      );
+    } catch {
+      return context.json({ error: "IMAGE_NOT_FOUND" }, 404);
+    }
+    const asset = await dependencies.images.read(imageKey);
+    if (!asset) return context.json({ error: "IMAGE_NOT_FOUND" }, 404);
+
+    const responseBytes = Uint8Array.from(asset.bytes);
+    return new Response(responseBytes.buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": asset.contentType,
+        "Cache-Control": "private, max-age=300",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  });
 
   app.get("/health", (context) =>
     context.json({
@@ -309,6 +353,91 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
             : error.code === "ARCHIVE_TOO_LARGE"
               ? 413
               : 400;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/admin/exams/:examId/review", async (context) => {
+    const review = await dependencies.reviews.findReview(
+      context.req.param("examId"),
+    );
+    if (!review) {
+      return context.json({ error: "EXAM_NOT_FOUND" }, 404);
+    }
+
+    const imageOrigin = new URL(context.req.url).origin;
+    return context.json({
+      data: {
+        ...review,
+        questions: review.questions.map(({ imageKey, ...question }) => ({
+          ...question,
+          imageUrl: `${imageOrigin}/question-images/${imageKey
+            .split("/")
+            .map(encodeURIComponent)
+            .join("/")}`,
+        })),
+      },
+    });
+  });
+
+  app.put(
+    "/v1/admin/exams/:examId/questions/:questionId/answer",
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = updateQuestionAnswerSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+
+      try {
+        const saved = await dependencies.reviews.saveAnswer({
+          examId: context.req.param("examId"),
+          questionId: context.req.param("questionId"),
+          changedBy: context.get("profile").id,
+          answer: parsed.data,
+        });
+        const { imageKey: _imageKey, ...question } = saved;
+        return context.json({ data: question });
+      } catch (error) {
+        if (error instanceof DraftImportRepositoryError) {
+          const status =
+            error.code === "QUESTION_NOT_FOUND" ||
+            error.code === "EXAM_NOT_FOUND"
+              ? 404
+              : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post("/v1/admin/exams/:examId/ready", async (context) => {
+    try {
+      const result = await dependencies.reviews.markReady(
+        context.req.param("examId"),
+        context.get("profile").id,
+      );
+      return context.json({ data: result });
+    } catch (error) {
+      if (error instanceof DraftImportRepositoryError) {
+        const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
         return context.json(
           { error: error.code, message: error.message },
           status,

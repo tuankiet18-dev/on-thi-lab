@@ -6,6 +6,7 @@ import {
 import { AppShell, PlaceholderPage } from "./components/AppShell";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { AdminImportPage } from "./pages/AdminImportPage";
+import { AdminReviewPage } from "./pages/AdminReviewPage";
 import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -87,6 +88,12 @@ const adminImportRoute = createRoute({
   component: AdminImportPage,
 });
 
+const adminReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/exams/$examId/review",
+  component: AdminReviewPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -99,6 +106,7 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   statisticsRoute,
   adminImportRoute,
+  adminReviewRoute,
 ]);
 
 export const router = createRouter({

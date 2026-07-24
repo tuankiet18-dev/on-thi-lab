@@ -109,6 +109,74 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/exams/{examId}/review": {
+      get: {
+        operationId: "getDraftExamReview",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Draft metadata, progress and 60 questions" },
+          "403": { description: "Contributor or admin role required" },
+          "404": { description: "Draft or review exam not found" },
+        },
+      },
+    },
+    "/v1/admin/exams/{examId}/questions/{questionId}/answer": {
+      put: {
+        operationId: "saveReviewedAnswer",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            in: "path",
+            name: "questionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Answer saved and audit record appended" },
+          "400": { description: "Invalid question type or answer selection" },
+          "403": { description: "Contributor or admin role required" },
+          "404": { description: "Question not found in the exam" },
+          "409": { description: "Exam is no longer editable" },
+        },
+      },
+    },
+    "/v1/admin/exams/{examId}/ready": {
+      post: {
+        operationId: "markExamReviewReady",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Exam moved from draft to review" },
+          "403": { description: "Contributor or admin role required" },
+          "409": { description: "One or more answers are incomplete" },
+        },
+      },
+    },
     "/v1/catalog": {
       get: {
         operationId: "listPublishedExams",

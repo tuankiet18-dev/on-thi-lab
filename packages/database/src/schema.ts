@@ -220,6 +220,38 @@ export const questions = pgTable(
   ],
 );
 
+export const questionAnswerAudits = pgTable(
+  "question_answer_audits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    questionId: uuid("question_id")
+      .references(() => questions.id)
+      .notNull(),
+    changedBy: uuid("changed_by")
+      .references(() => users.id)
+      .notNull(),
+    previousType: questionTypeEnum("previous_type").notNull(),
+    nextType: questionTypeEnum("next_type").notNull(),
+    previousOptions: jsonb("previous_options").$type<string[]>().notNull(),
+    nextOptions: jsonb("next_options").$type<string[]>().notNull(),
+    previousCorrectOptions: jsonb("previous_correct_options")
+      .$type<number[]>()
+      .notNull(),
+    nextCorrectOptions: jsonb("next_correct_options")
+      .$type<number[]>()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("question_answer_audits_question_idx").on(
+      table.questionId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const attempts = pgTable(
   "attempts",
   {

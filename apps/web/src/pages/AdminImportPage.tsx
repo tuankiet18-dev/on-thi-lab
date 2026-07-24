@@ -7,7 +7,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { Navigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
@@ -28,6 +28,7 @@ export function AdminImportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [createdDraft, setCreatedDraft] = useState<{
+    examId: string;
     examCode: string;
     questionCount: number;
   } | null>(null);
@@ -243,6 +244,14 @@ export function AdminImportPage() {
                   {createdDraft.questionCount} ảnh đã được lưu. Bước tiếp theo
                   là duyệt đáp án trước khi xuất bản.
                 </p>
+                <Link
+                  to="/admin/exams/$examId/review"
+                  params={{ examId: createdDraft.examId }}
+                  className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-emerald-600/25"
+                >
+                  Duyệt đáp án ngay
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
               </div>
             )}
 

@@ -3,6 +3,7 @@ import {
   calculateScore,
   createDraftImportSchema,
   isExactAnswer,
+  updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
 } from "./index";
 
@@ -66,6 +67,37 @@ describe("draft import input", () => {
         examType: "PE",
         isRetake: false,
         durationMinutes: 60,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("answer review input", () => {
+  it("enforces exact single and valid multiple answer selections", () => {
+    expect(
+      updateQuestionAnswerSchema.parse({
+        type: "multiple",
+        optionCount: 4,
+        correctOptions: [0, 2],
+      }),
+    ).toEqual({
+      type: "multiple",
+      optionCount: 4,
+      correctOptions: [0, 2],
+    });
+
+    expect(() =>
+      updateQuestionAnswerSchema.parse({
+        type: "single",
+        optionCount: 4,
+        correctOptions: [0, 2],
+      }),
+    ).toThrow();
+    expect(() =>
+      updateQuestionAnswerSchema.parse({
+        type: "multiple",
+        optionCount: 4,
+        correctOptions: [4],
       }),
     ).toThrow();
   });

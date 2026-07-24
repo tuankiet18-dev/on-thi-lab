@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { createApp } from "./app";
 import { CognitoIdTokenVerifier } from "./auth";
 import { LocalExamImportService } from "./import-service";
+import { LocalQuestionImageReader } from "./question-image-reader";
 
 export function createRuntimeApp(
   environment: Record<string, string | undefined> = process.env,
@@ -29,6 +30,8 @@ export function createRuntimeApp(
       resolve(process.cwd(), ".local-storage/question-images"),
   );
 
+  const draftRepository = new PostgresDraftImportRepository(database);
+
   return createApp({
     ...authDependencies,
     catalog: new PostgresCatalogRepository(database, {
@@ -37,9 +40,8 @@ export function createRuntimeApp(
         : undefined,
     }),
     profiles: new PostgresUserProfileRepository(database),
-    imports: new LocalExamImportService(
-      new PostgresDraftImportRepository(database),
-      imageStorageRoot,
-    ),
+    reviews: draftRepository,
+    imports: new LocalExamImportService(draftRepository, imageStorageRoot),
+    images: new LocalQuestionImageReader(imageStorageRoot),
   });
 }

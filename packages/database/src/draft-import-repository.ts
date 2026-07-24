@@ -1,10 +1,21 @@
 import type {
   CreateDraftImportInput,
+  DraftExamReview,
   DraftImportResult,
+  ReviewQuestion,
+  ReviewReadinessResult,
+  UpdateQuestionAnswerInput,
 } from "@onthilab/contracts";
-import { eq, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
-import { campuses, courses, examRevisions, exams, questions } from "./schema";
+import {
+  campuses,
+  courses,
+  examRevisions,
+  exams,
+  questionAnswerAudits,
+  questions,
+} from "./schema";
 
 export interface DraftQuestionInput {
   order: number;
@@ -19,7 +30,13 @@ export interface CreateDraftExamInput extends CreateDraftImportInput {
 }
 
 export type DraftImportRepositoryErrorCode =
-  "CAMPUS_NOT_FOUND" | "COURSE_NOT_FOUND" | "EXAM_ALREADY_EXISTS";
+  | "ANSWERS_INCOMPLETE"
+  | "CAMPUS_NOT_FOUND"
+  | "COURSE_NOT_FOUND"
+  | "EXAM_ALREADY_EXISTS"
+  | "EXAM_NOT_EDITABLE"
+  | "EXAM_NOT_FOUND"
+  | "QUESTION_NOT_FOUND";
 
 export class DraftImportRepositoryError extends Error {
   constructor(
@@ -33,6 +50,25 @@ export class DraftImportRepositoryError extends Error {
 
 export interface DraftImportRepository {
   createDraft(input: CreateDraftExamInput): Promise<DraftImportResult>;
+}
+
+export type StoredReviewQuestion = Omit<ReviewQuestion, "imageUrl"> & {
+  imageKey: string;
+};
+
+export type StoredDraftExamReview = Omit<DraftExamReview, "questions"> & {
+  questions: StoredReviewQuestion[];
+};
+
+export interface ExamReviewRepository {
+  findReview(examId: string): Promise<StoredDraftExamReview | null>;
+  saveAnswer(input: {
+    examId: string;
+    questionId: string;
+    changedBy: string;
+    answer: UpdateQuestionAnswerInput;
+  }): Promise<StoredReviewQuestion>;
+  markReady(examId: string, changedBy: string): Promise<ReviewReadinessResult>;
 }
 
 export function buildExamCode(
@@ -49,16 +85,21 @@ export function buildExamCode(
   ].join("-");
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23505"
-  );
+export function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (typeof current !== "object" || current === null) return false;
+    if ("code" in current && current.code === "23505") return true;
+    current = "cause" in current ? current.cause : undefined;
+  }
+
+  return false;
 }
 
-export class PostgresDraftImportRepository implements DraftImportRepository {
+export class PostgresDraftImportRepository
+  implements DraftImportRepository, ExamReviewRepository
+{
   constructor(private readonly db: OnThiLabDatabase) {}
 
   async createDraft(input: CreateDraftExamInput): Promise<DraftImportResult> {
@@ -151,5 +192,215 @@ export class PostgresDraftImportRepository implements DraftImportRepository {
       }
       throw error;
     }
+  }
+
+  async findReview(examId: string): Promise<StoredDraftExamReview | null> {
+    const [exam] = await this.db
+      .select({
+        examId: exams.id,
+        revisionId: examRevisions.id,
+        examCode: exams.code,
+        courseCode: courses.code,
+        courseName: courses.name,
+        semester: exams.semester,
+        campusCode: campuses.code,
+        campusName: campuses.name,
+        durationMinutes: exams.durationMinutes,
+        isRetake: exams.isRetake,
+        status: exams.status,
+      })
+      .from(exams)
+      .innerJoin(courses, eq(exams.courseId, courses.id))
+      .innerJoin(campuses, eq(exams.campusId, campuses.id))
+      .innerJoin(examRevisions, eq(examRevisions.examId, exams.id))
+      .where(
+        and(eq(exams.id, examId), inArray(exams.status, ["draft", "review"])),
+      )
+      .orderBy(desc(examRevisions.revision))
+      .limit(1);
+    if (!exam || (exam.status !== "draft" && exam.status !== "review")) {
+      return null;
+    }
+
+    const questionRows = await this.db
+      .select({
+        id: questions.id,
+        order: questions.order,
+        imageKey: questions.imageKey,
+        type: questions.type,
+        options: questions.options,
+        correctOptions: questions.correctOptions,
+      })
+      .from(questions)
+      .where(eq(questions.revisionId, exam.revisionId))
+      .orderBy(asc(questions.order));
+
+    return {
+      examId: exam.examId,
+      revisionId: exam.revisionId,
+      examCode: exam.examCode,
+      courseCode: exam.courseCode,
+      courseName: exam.courseName,
+      semester: exam.semester,
+      campus: { code: exam.campusCode, name: exam.campusName },
+      durationMinutes: exam.durationMinutes,
+      isRetake: exam.isRetake,
+      status: exam.status,
+      answeredCount: questionRows.filter(
+        (question) => question.correctOptions.length > 0,
+      ).length,
+      questionCount: questionRows.length,
+      questions: questionRows,
+    };
+  }
+
+  async saveAnswer(input: {
+    examId: string;
+    questionId: string;
+    changedBy: string;
+    answer: UpdateQuestionAnswerInput;
+  }): Promise<StoredReviewQuestion> {
+    return this.db.transaction(async (transaction) => {
+      const [current] = await transaction
+        .select({
+          id: questions.id,
+          order: questions.order,
+          imageKey: questions.imageKey,
+          type: questions.type,
+          options: questions.options,
+          correctOptions: questions.correctOptions,
+          examStatus: exams.status,
+        })
+        .from(questions)
+        .innerJoin(examRevisions, eq(questions.revisionId, examRevisions.id))
+        .innerJoin(exams, eq(examRevisions.examId, exams.id))
+        .where(
+          and(eq(exams.id, input.examId), eq(questions.id, input.questionId)),
+        )
+        .limit(1);
+
+      if (!current) {
+        throw new DraftImportRepositoryError(
+          "QUESTION_NOT_FOUND",
+          "Không tìm thấy câu hỏi trong đề.",
+        );
+      }
+      if (current.examStatus !== "draft") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_EDITABLE",
+          "Đề không còn ở trạng thái có thể chỉnh sửa.",
+        );
+      }
+
+      const nextOptions = Array.from(
+        { length: input.answer.optionCount },
+        (_, index) => String.fromCharCode(65 + index),
+      );
+      const nextCorrectOptions = [...input.answer.correctOptions].sort(
+        (left, right) => left - right,
+      );
+      const unchanged =
+        current.type === input.answer.type &&
+        JSON.stringify(current.options) === JSON.stringify(nextOptions) &&
+        JSON.stringify(current.correctOptions) ===
+          JSON.stringify(nextCorrectOptions);
+
+      if (!unchanged) {
+        await transaction.insert(questionAnswerAudits).values({
+          questionId: current.id,
+          changedBy: input.changedBy,
+          previousType: current.type,
+          nextType: input.answer.type,
+          previousOptions: current.options,
+          nextOptions,
+          previousCorrectOptions: current.correctOptions,
+          nextCorrectOptions,
+        });
+        await transaction
+          .update(questions)
+          .set({
+            type: input.answer.type,
+            options: nextOptions,
+            correctOptions: nextCorrectOptions,
+            updatedAt: new Date(),
+          })
+          .where(eq(questions.id, current.id));
+      }
+
+      return {
+        id: current.id,
+        order: current.order,
+        imageKey: current.imageKey,
+        type: input.answer.type,
+        options: nextOptions,
+        correctOptions: nextCorrectOptions,
+      };
+    });
+  }
+
+  async markReady(
+    examId: string,
+    _changedBy: string,
+  ): Promise<ReviewReadinessResult> {
+    return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({ id: exams.id, status: exams.status })
+        .from(exams)
+        .where(eq(exams.id, examId))
+        .limit(1);
+      if (!exam) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy đề thi.",
+        );
+      }
+      if (exam.status !== "draft" && exam.status !== "review") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_EDITABLE",
+          "Đề không thể chuyển sang bước duyệt.",
+        );
+      }
+
+      const [revision] = await transaction
+        .select({ id: examRevisions.id })
+        .from(examRevisions)
+        .where(eq(examRevisions.examId, examId))
+        .orderBy(desc(examRevisions.revision))
+        .limit(1);
+      if (!revision) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Đề chưa có phiên bản để duyệt.",
+        );
+      }
+
+      const answers = await transaction
+        .select({ correctOptions: questions.correctOptions })
+        .from(questions)
+        .where(eq(questions.revisionId, revision.id));
+      const answeredCount = answers.filter(
+        (question) => question.correctOptions.length > 0,
+      ).length;
+      if (answers.length === 0 || answeredCount !== answers.length) {
+        throw new DraftImportRepositoryError(
+          "ANSWERS_INCOMPLETE",
+          `Cần duyệt đủ ${answers.length} câu trước khi hoàn tất.`,
+        );
+      }
+
+      if (exam.status === "draft") {
+        await transaction
+          .update(exams)
+          .set({ status: "review", updatedAt: new Date() })
+          .where(eq(exams.id, examId));
+      }
+
+      return {
+        examId,
+        status: "review",
+        answeredCount,
+        questionCount: answers.length,
+      };
+    });
   }
 }
