@@ -18,7 +18,7 @@ import {
   questions,
   subscriptions,
 } from "./schema";
-import type { AttemptSummary } from "@onthilab/contracts";
+import type { AttemptSummary, StudentStatistics } from "@onthilab/contracts";
 
 export type AttemptRepositoryErrorCode =
   | "ATTEMPT_CLOSED"
@@ -56,6 +56,7 @@ export interface AttemptRepository {
     userId: string;
     reason: "user" | "timeout";
   }): Promise<{ result: AttemptResult; idempotent: boolean }>;
+  getStatistics(userId: string): Promise<StudentStatistics>;
 }
 
 function hashDeviceId(deviceId: string): string {
@@ -565,5 +566,43 @@ export class PostgresAttemptRepository implements AttemptRepository {
         idempotent: false,
       };
     });
+  }
+
+  async getStatistics(userId: string): Promise<StudentStatistics> {
+    const statsQuery = await this.db
+      .select({
+        totalAttempts: sql<number>`count(*)::integer`,
+        averageScore: sql<number>`avg(${attempts.score})::numeric`,
+        highestScore: sql<number>`max(${attempts.score})::numeric`,
+      })
+      .from(attempts)
+      .where(and(eq(attempts.userId, userId), isNotNull(attempts.score)));
+
+    const recent = await this.db
+      .select({
+        id: attempts.id,
+        examCode: exams.code,
+        score: attempts.score,
+        submittedAt: attempts.submittedAt,
+      })
+      .from(attempts)
+      .innerJoin(exams, eq(attempts.examId, exams.id))
+      .where(and(eq(attempts.userId, userId), isNotNull(attempts.score)))
+      .orderBy(desc(attempts.submittedAt))
+      .limit(5);
+
+    const stats = statsQuery[0];
+
+    return {
+      totalAttempts: stats?.totalAttempts ?? 0,
+      averageScore: stats?.averageScore !== null ? Number(stats!.averageScore) : null,
+      highestScore: stats?.highestScore !== null ? Number(stats!.highestScore) : null,
+      recentAttempts: recent.map(r => ({
+        id: r.id,
+        examCode: r.examCode,
+        score: r.score !== null ? Number(r.score) : null,
+        submittedAt: r.submittedAt?.toISOString() ?? null,
+      })),
+    };
   }
 }

@@ -677,6 +677,9 @@ describe("attempt API", () => {
         submit: async () => {
           throw new Error("not used");
         },
+        getStatistics: async () => {
+          throw new Error("not used");
+        },
       },
     });
     const response = await isolatedApp.request("/v1/attempts", {

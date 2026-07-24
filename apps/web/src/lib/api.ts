@@ -37,6 +37,8 @@ import {
   type StudentProfile,
   type UpdateQuestionAnswerInput,
   type UpsertStudentProfileInput,
+  studentStatisticsSchema,
+  type StudentStatistics,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -424,4 +426,12 @@ export async function updateRole(
     },
     fetcher,
   );
+}
+
+export async function getStudentStatistics(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<StudentStatistics> {
+  const result = await request("/v1/me/statistics", idToken, {}, fetcher);
+  return studentStatisticsSchema.parse(result);
 }

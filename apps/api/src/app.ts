@@ -656,6 +656,14 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     });
   });
 
+  app.get("/v1/me/statistics", async (context) =>
+    context.json({
+      data: await dependencies.attempts.getStatistics(
+        context.get("profile").id,
+      ),
+    }),
+  );
+
   app.get("/v1/attempts", async (context) => {
     const attempts = await dependencies.attempts.listUserAttempts(
       context.get("profile").id,

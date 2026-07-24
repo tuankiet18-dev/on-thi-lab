@@ -1,0 +1,143 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { Badge } from "../components/ui/Badge";
+import { getStudentStatistics } from "../lib/api";
+import { useAuth } from "../auth/AuthContext";
+
+export function StatisticsPage() {
+  const { session } = useAuth();
+
+  const {
+    data: stats,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["statistics", session?.idToken],
+    queryFn: async () => {
+      if (!session) throw new Error("Unauthorized");
+      return getStudentStatistics(session.idToken);
+    },
+    enabled: !!session,
+  });
+
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-900">
+          <h3 className="font-semibold">Đã có lỗi xảy ra</h3>
+          <p className="mt-2 text-sm">{error instanceof Error ? error.message : "Không thể tải thống kê."}</p>
+          <button onClick={() => refetch()} className="mt-4 rounded-lg bg-rose-100 px-4 py-2 text-sm font-medium hover:bg-rose-200">Thử lại</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <div className="mx-auto max-w-5xl animate-pulse space-y-6">
+        <div className="h-10 w-1/3 rounded-lg bg-slate-200" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="h-32 rounded-xl bg-slate-200" />
+          <div className="h-32 rounded-xl bg-slate-200" />
+          <div className="h-32 rounded-xl bg-slate-200" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8">
+      <header>
+        <h1 className="font-heading text-3xl font-bold text-slate-900">
+          Thống kê học tập
+        </h1>
+        <p className="mt-2 text-slate-600">
+          Tổng quan về quá trình làm bài và điểm số của bạn.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
+          <span className="text-sm font-medium text-slate-500">
+            Tổng số bài đã nộp
+          </span>
+          <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
+            {stats.totalAttempts}
+          </span>
+        </div>
+        <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
+          <span className="text-sm font-medium text-slate-500">
+            Điểm số trung bình
+          </span>
+          <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
+            {stats.averageScore !== null ? stats.averageScore.toFixed(2) : "--"}
+          </span>
+        </div>
+        <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
+          <span className="text-sm font-medium text-slate-500">
+            Điểm số cao nhất
+          </span>
+          <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
+            {stats.highestScore !== null ? stats.highestScore.toFixed(2) : "--"}
+          </span>
+        </div>
+      </div>
+
+      <section>
+        <h2 className="font-heading text-xl font-semibold text-slate-900 mb-4">
+          Lịch sử bài làm gần đây
+        </h2>
+        {stats.recentAttempts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+            <h3 className="font-heading text-lg font-medium text-slate-900">
+              Chưa có dữ liệu
+            </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Bạn chưa hoàn thành bài thi nào. Hãy bắt đầu luyện tập ngay nhé!
+            </p>
+            <Link
+              to="/exams"
+              className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Chọn đề thi
+            </Link>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/50">
+            <ul className="divide-y divide-slate-100">
+              {stats.recentAttempts.map((attempt) => (
+                <li key={attempt.id} className="flex items-center justify-between p-4 hover:bg-slate-50">
+                  <div>
+                    <p className="font-medium text-slate-900">{attempt.examCode}</p>
+                    <p className="text-sm text-slate-500">
+                      Nộp lúc:{" "}
+                      {attempt.submittedAt
+                        ? new Date(attempt.submittedAt).toLocaleString("vi-VN")
+                        : "--"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {attempt.score !== null && (
+                      <Badge tone={attempt.score >= 5 ? "green" : "pink"}>
+                        {attempt.score.toFixed(2)} điểm
+                      </Badge>
+                    )}
+                    <Link
+                      to={`/results/$attemptId`}
+                      params={{ attemptId: attempt.id }}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                    >
+                      Xem chi tiết &rarr;
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

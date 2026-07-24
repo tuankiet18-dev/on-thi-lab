@@ -16,6 +16,7 @@ import { ExamDetailPage } from "./pages/ExamDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ResultPage } from "./pages/ResultPage";
+import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 
 const rootRoute = createRootRoute({
@@ -85,7 +86,7 @@ const historyRoute = createRoute({
 const statisticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/statistics",
-  component: () => <PlaceholderPage title="Thống kê học tập" />,
+  component: StatisticsPage,
 });
 
 const adminRoute = createRoute({

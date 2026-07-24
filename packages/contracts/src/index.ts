@@ -405,6 +405,22 @@ export type AttemptResult = z.infer<typeof attemptResultSchema>;
 export type Attempt = z.infer<typeof attemptSchema>;
 export type AttemptLaunch = z.infer<typeof attemptLaunchSchema>;
 
+export const studentStatisticsSchema = z.object({
+  totalAttempts: z.number(),
+  averageScore: z.number().nullable(),
+  highestScore: z.number().nullable(),
+  recentAttempts: z.array(
+    z.object({
+      id: z.string().uuid(),
+      examCode: z.string(),
+      score: z.number().nullable(),
+      submittedAt: z.string().datetime().nullable(),
+    })
+  ),
+});
+
+export type StudentStatistics = z.infer<typeof studentStatisticsSchema>;
+
 export function isExactAnswer(
   selectedOptions: readonly number[],
   correctOptions: readonly number[],
