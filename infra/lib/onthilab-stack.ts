@@ -40,6 +40,19 @@ export class OnThiLabStack extends Stack {
       versioned: true,
       removalPolicy: dataRemovalPolicy,
       autoDeleteObjects: !isProduction,
+      cors: [
+        {
+          allowedMethods: [
+            s3.HttpMethods.GET,
+            s3.HttpMethods.PUT,
+            s3.HttpMethods.POST,
+            s3.HttpMethods.HEAD,
+          ],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+          maxAge: 3000,
+        },
+      ],
       lifecycleRules: [
         {
           id: "abort-incomplete-multipart-uploads",

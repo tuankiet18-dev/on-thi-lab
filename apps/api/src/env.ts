@@ -31,6 +31,7 @@ const envSchema = z.object({
   // ── Storage ──────────────────────────────────────────────────────────────
   QUESTION_IMAGE_BASE_URL: z.string().url().optional(),
   QUESTION_IMAGE_STORAGE_PATH: z.string().optional(),
+  QUESTION_IMAGE_BUCKET: z.string().optional(),
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   /**

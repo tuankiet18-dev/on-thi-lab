@@ -15,7 +15,8 @@ import {
 } from "./answer-suggestion-service";
 import { CognitoIdTokenVerifier } from "./auth";
 import { parseEnv, parseCorsOrigins } from "./env";
-import { LocalExamImportService } from "./import-service";
+import { LocalExamImportService, S3ExamImportService } from "./import-service";
+import { S3Client } from "@aws-sdk/client-s3";
 import { LocalQuestionImageReader } from "./question-image-reader";
 
 export function createRuntimeApp(
@@ -96,7 +97,13 @@ export function createRuntimeApp(
         ? (key) => `${imageBaseUrl}/${key}`
         : undefined,
     }),
-    imports: new LocalExamImportService(draftRepository, imageStorageRoot),
+    imports: env.QUESTION_IMAGE_BUCKET
+      ? new S3ExamImportService(
+          draftRepository,
+          new S3Client({}),
+          env.QUESTION_IMAGE_BUCKET,
+        )
+      : new LocalExamImportService(draftRepository, imageStorageRoot),
     images: imageReader,
   });
 }

@@ -126,14 +126,54 @@ export async function uploadDraftImport(
   archive: File,
   fetcher: typeof fetch = fetch,
 ): Promise<DraftImportResult> {
-  const form = new FormData();
-  form.set("metadata", JSON.stringify(metadata));
-  form.set("archive", archive);
+  let archiveKey: string | undefined;
+  try {
+    // 1. Get Presigned URL
+    const presignResponse = (await request(
+      "/v1/admin/imports/presign",
+      idToken,
+      { method: "GET" },
+      fetcher,
+    )) as { uploadUrl: string; key: string };
 
+    archiveKey = presignResponse.key;
+
+    // 2. Upload to S3 directly
+    const uploadResponse = await fetcher(presignResponse.uploadUrl, {
+      method: "PUT",
+      body: archive,
+      headers: {
+        "Content-Type": "application/zip",
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("S3 upload failed");
+    }
+  } catch (err) {
+    // Fallback to local upload if presign fails or is not supported (503)
+    const form = new FormData();
+    form.set("metadata", JSON.stringify(metadata));
+    form.set("archive", archive);
+
+    const result = await request(
+      "/v1/admin/imports",
+      idToken,
+      { method: "POST", body: form },
+      fetcher,
+    );
+    return draftImportResultSchema.parse(result);
+  }
+
+  // 3. Inform API
   const result = await request(
     "/v1/admin/imports",
     idToken,
-    { method: "POST", body: form },
+    {
+      method: "POST",
+      body: JSON.stringify({ metadata, archiveKey }),
+      headers: { "Content-Type": "application/json" },
+    },
     fetcher,
   );
   return draftImportResultSchema.parse(result);

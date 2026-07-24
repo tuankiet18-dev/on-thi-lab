@@ -311,7 +311,7 @@ describe("attempt API", () => {
       imports: {
         createDraft: async (input) => {
           receivedMetadata = input.metadata;
-          expect(input.archive.name).toBe("questions.zip");
+          expect(input.archive?.name).toBe("questions.zip");
           expect(input.creator.role).toBe("admin");
           return {
             examId: "20000000-0000-4000-8000-000000000001",
