@@ -333,6 +333,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   const requireAdmin = roleRequiredMiddleware("admin");
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
+  app.use("/v1/me/statistics", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
