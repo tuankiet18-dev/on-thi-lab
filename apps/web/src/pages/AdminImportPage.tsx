@@ -7,19 +7,35 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { Navigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 
 export function AdminImportPage() {
   const [fileName, setFileName] = useState("");
+  const { configured, session, studentProfile } = useAuth();
+  const canContribute =
+    !configured ||
+    studentProfile?.role === "admin" ||
+    studentProfile?.role === "contributor" ||
+    session?.user.groups.some((group) =>
+      ["admin", "contributor"].includes(group),
+    );
+
+  if (!canContribute) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
         <div className="flex items-center gap-2">
-          <Badge tone="pink">Admin</Badge>
+          <Badge tone="pink">
+            {studentProfile?.role === "contributor" ? "Contributor" : "Admin"}
+          </Badge>
           <span className="text-sm text-slate-500">Quy trình nhập đề</span>
         </div>
         <h1 className="mt-3 font-heading text-3xl font-bold text-foreground">
@@ -117,7 +133,7 @@ export function AdminImportPage() {
               {fileName || "Chọn file ZIP chứa ảnh câu hỏi"}
             </span>
             <span className="mt-2 block text-sm text-slate-500">
-              Tối đa 100 ảnh · JPG, PNG hoặc WebP · 20 MB mỗi ảnh
+              Đúng 60 ảnh · JPG, PNG hoặc WebP · 20 MB mỗi ảnh
             </span>
           </label>
 
@@ -140,7 +156,7 @@ export function AdminImportPage() {
               </li>
               <li className="flex gap-2">
                 <FileImage size={17} className="mt-0.5 shrink-0 text-primary" />
-                Tên ảnh theo mẫu 001.webp → 060.webp.
+                Tên ảnh theo mẫu Q1.jpg → Q60.jpg (hoặc 001.webp → 060.webp).
               </li>
               <li className="flex gap-2">
                 <Sparkles size={17} className="mt-0.5 shrink-0 text-primary" />

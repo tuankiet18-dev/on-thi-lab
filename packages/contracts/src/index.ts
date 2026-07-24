@@ -10,6 +10,15 @@ export const attemptStatuses = [
 ] as const;
 export const userRoles = ["user", "contributor", "admin"] as const;
 
+export const feZipImportConstraints = {
+  expectedQuestionCount: 60,
+  maxArchiveBytes: 250 * 1024 * 1024,
+  maxImageBytes: 20 * 1024 * 1024,
+  maxTotalUncompressedBytes: 500 * 1024 * 1024,
+  maxCompressionRatio: 100,
+  allowedExtensions: [".jpg", ".jpeg", ".png", ".webp"],
+} as const;
+
 export const profileOptionSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),

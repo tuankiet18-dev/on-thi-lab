@@ -1,11 +1,13 @@
 import {
   calculateScore,
   createAttemptSchema,
+  feZipImportConstraints,
   saveAnswerSchema,
   submitAttemptSchema,
   upsertStudentProfileSchema,
   type AttemptResult,
   type StudentProfile,
+  type UserRole,
 } from "@onthilab/contracts";
 import {
   ProfileRepositoryError,
@@ -111,6 +113,18 @@ function profileRequiredMiddleware(
   };
 }
 
+function roleRequiredMiddleware(
+  ...allowedRoles: readonly UserRole[]
+): MiddlewareHandler<AppEnvironment> {
+  return async (context, next) => {
+    if (!allowedRoles.includes(context.get("profile").role)) {
+      return context.json({ error: "FORBIDDEN" }, 403);
+    }
+
+    await next();
+  };
+}
+
 export function createApp(overrides: Partial<AppDependencies> = {}) {
   const dependencies: AppDependencies = {
     catalog: demoCatalogRepository,
@@ -195,10 +209,23 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   );
 
   const requireProfile = profileRequiredMiddleware(dependencies.profiles);
+  const requireContributor = roleRequiredMiddleware("contributor", "admin");
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
+  app.use("/v1/admin/*", requireProfile);
+  app.use("/v1/admin/*", requireContributor);
+
+  app.get("/v1/admin/imports/config", (context) =>
+    context.json({
+      data: {
+        examType: "FE",
+        ...feZipImportConstraints,
+        canPublish: context.get("profile").role === "admin",
+      },
+    }),
+  );
 
   app.get("/v1/catalog", async (context) =>
     context.json({

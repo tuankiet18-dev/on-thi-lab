@@ -63,10 +63,14 @@ API Gateway ── Lambda/Hono ── Aurora PostgreSQL (Data API)
 
 ## Chi phí AWS
 
-CDK mặc định đặt Aurora Serverless v2 ở 0.5–2 ACU, S3 private qua CloudFront OAC, SQS có DLQ và tài nguyên dev có thể xóa. Trước khi deploy production cần:
+Aurora PostgreSQL Serverless v2 đã được chọn cho staging/production. CDK mặc
+định đặt cluster ở 0.5–2 ACU, S3 private qua CloudFront OAC, SQS có DLQ và tài
+nguyên dev có thể xóa. Chưa tạo cluster trước khi pipeline nhập đề sẵn sàng để
+tránh tiêu credit trong giai đoạn phát triển local. Trước khi deploy production
+cần:
 
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
-- quyết định Aurora Serverless v2 hay PostgreSQL managed khác dựa trên traffic thật;
+- load test và tinh chỉnh khoảng ACU theo traffic thật;
 - thêm WAF/rate limit, log retention và cảnh báo lỗi;
 - cấu hình domain production, ACM certificate và secrets theo environment;
 - nối Lambda/API Gateway và worker vào các package ứng dụng.
