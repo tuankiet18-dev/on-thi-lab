@@ -155,6 +155,9 @@ export const publicWebConfigSchema = z.object({
   cognitoClientId: z.string().optional(),
   cognitoRedirectUri: optionalUrl,
   cognitoLogoutUri: optionalUrl,
+  flags: z.object({
+    googleAuthEnabled: booleanFromEnvironment.default(false),
+  }),
 });
 
 export type PublicWebConfig = z.infer<typeof publicWebConfigSchema>;
@@ -168,5 +171,8 @@ export function readPublicWebConfig(
     cognitoClientId: environment.VITE_COGNITO_CLIENT_ID,
     cognitoRedirectUri: environment.VITE_COGNITO_REDIRECT_URI,
     cognitoLogoutUri: environment.VITE_COGNITO_LOGOUT_URI,
+    flags: {
+      googleAuthEnabled: environment.VITE_FEATURE_GOOGLE_AUTH_ENABLED,
+    },
   });
 }

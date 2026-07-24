@@ -16,6 +16,7 @@ import { app, createApp } from "./app";
 const identity: AuthIdentity = {
   subject: "cognito-user-1",
   email: "student@example.com",
+  emailVerified: true,
   name: "Lương Tuấn Kiệt",
   groups: [],
 };
@@ -34,6 +35,7 @@ class MemoryProfileRepository implements UserProfileRepository {
   readonly options: ProfileOptions = {
     campuses: [{ code: "HL", name: "Hòa Lạc" }],
     majors: [{ code: "SE", name: "Software Engineering" }],
+    curricula: [{ id: "cr1", majorId: "m1", code: "SE_2024", name: "SE 2024" }],
   };
 
   async findBySubject(subject: string) {
@@ -55,9 +57,30 @@ class MemoryProfileRepository implements UserProfileRepository {
       studentCode: input.studentCode,
       campus: this.options.campuses[0]!,
       major: this.options.majors[0]!,
+      curriculum: null,
       role: "user",
     };
     return this.profile;
+  }
+
+  async updateRole(
+    userId: string,
+    role: "user" | "contributor" | "admin",
+  ): Promise<void> {
+    if (this.profile && this.profile.id === userId) {
+      this.profile = { ...this.profile, role };
+    }
+  }
+
+  async searchUsers(query: string): Promise<StudentProfile[]> {
+    if (!this.profile) return [];
+    if (
+      this.profile.email.includes(query) ||
+      this.profile.studentCode.includes(query)
+    ) {
+      return [this.profile];
+    }
+    return [];
   }
 }
 
@@ -72,6 +95,7 @@ function createOnboardedProfiles(
     studentCode: "HE170001",
     campus: profiles.options.campuses[0]!,
     major: profiles.options.majors[0]!,
+    curriculum: null,
     role,
   };
   return profiles;
@@ -99,11 +123,46 @@ describe("attempt API", () => {
     });
   });
 
-  it("uses the injected catalog repository", async () => {
+  it("blocks non-admin users from accessing admin routes", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      catalog: {
+        listCampuses: async () => [],
+        listMajors: async () => [],
+        listCurricula: async () => [],
+        listTermCourses: async () => [],
+        listPublished: async () => [],
+        findPublishedByIdOrCode: async () => null,
+      },
+      imports: {
+        createDraft: async () => {
+          throw new Error("Not implemented");
+        },
+      } as any,
+    } as any);
+
+    const response = await isolatedApp.request("/v1/admin/users/123/role", {
+      method: "POST",
+      headers: authorization,
+      body: JSON.stringify({ role: "admin" }),
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "FORBIDDEN",
+    });
+  });
+
+  it("returns published exams from the catalog", async () => {
     const isolatedApp = createApp({
       auth,
       profiles: createOnboardedProfiles(),
       catalog: {
+        listCampuses: async () => [],
+        listMajors: async () => [],
+        listCurricula: async () => [],
+        listTermCourses: async () => [],
         listPublished: async () => [],
         findPublishedByIdOrCode: async () => null,
       },
@@ -611,6 +670,7 @@ describe("attempt API", () => {
           );
         },
         findForUser: async () => null,
+        listUserAttempts: async () => [],
         saveAnswer: async () => {
           throw new Error("not used");
         },

@@ -23,3 +23,4 @@ export * from "./attempt-repository";
 export * from "./catalog-repository";
 export * from "./draft-import-repository";
 export * from "./user-profile-repository";
+export * from "./report-repository";

@@ -256,6 +256,31 @@ export const openApiDocument = {
       },
     },
     "/v1/attempts": {
+      get: {
+        summary: "List user attempts",
+        operationId: "listAttempts",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description: "A list of attempts",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["data"],
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/AttemptSummary" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       post: {
         operationId: "createOrResumeAttempt",
         tags: ["Attempts"],

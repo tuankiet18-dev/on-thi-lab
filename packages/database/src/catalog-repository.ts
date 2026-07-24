@@ -1,15 +1,37 @@
-import type { Exam, ExamSummary } from "@onthilab/contracts";
-import { and, count, desc, eq, isNotNull, max, or } from "drizzle-orm";
+import type {
+  Exam,
+  ExamSummary,
+  Campus,
+  Major,
+  Curriculum,
+  TermCourse,
+} from "@onthilab/contracts";
+import { and, count, desc, eq, isNotNull, max, or, asc, lt } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
-import { campuses, courses, examRevisions, exams, questions } from "./schema";
+import {
+  campuses,
+  courses,
+  curricula,
+  curriculumCourses,
+  examRevisions,
+  exams,
+  majors,
+  questions,
+} from "./schema";
 
 export interface CatalogFilters {
   campus?: string;
   courseCode?: string;
   semester?: string;
+  cursor?: string; // Tên môn (mã môn) hoặc ID tuỳ cách sort, hiện tại orderBy code thì cursor có thể là (code, id)
+  limit?: number;
 }
 
 export interface CatalogRepository {
+  listCampuses(): Promise<Campus[]>;
+  listMajors(): Promise<Major[]>;
+  listCurricula(majorId: string): Promise<Curriculum[]>;
+  listTermCourses(curriculumId: string): Promise<TermCourse[]>;
   listPublished(filters?: CatalogFilters): Promise<ExamSummary[]>;
   findPublishedByIdOrCode(idOrCode: string): Promise<Exam | null>;
 }
@@ -49,7 +71,19 @@ export class PostgresCatalogRepository implements CatalogRepository {
       conditions.push(eq(courses.code, filters.courseCode));
     if (filters.semester) conditions.push(eq(exams.semester, filters.semester));
 
-    const rows = await this.db
+    if (filters.cursor) {
+      const [publishedAt, id] = filters.cursor.split("_");
+      if (publishedAt && id) {
+        conditions.push(
+          or(
+            lt(exams.publishedAt, new Date(publishedAt)),
+            and(eq(exams.publishedAt, new Date(publishedAt)), lt(exams.id, id)),
+          )!,
+        );
+      }
+    }
+
+    let query = this.db
       .select({
         id: exams.id,
         code: exams.code,
@@ -87,7 +121,13 @@ export class PostgresCatalogRepository implements CatalogRepository {
         campuses.name,
         examRevisions.answerConfidence,
       )
-      .orderBy(desc(exams.publishedAt));
+      .orderBy(desc(exams.publishedAt), desc(exams.id));
+
+    if (filters.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+
+    const rows = await query;
 
     return rows.map((row) => ({
       id: row.id,
@@ -184,5 +224,57 @@ export class PostgresCatalogRepository implements CatalogRepository {
         options: question.options,
       })),
     };
+  }
+
+  async listCampuses(): Promise<Campus[]> {
+    return this.db
+      .select({
+        id: campuses.id,
+        code: campuses.code,
+        name: campuses.name,
+      })
+      .from(campuses)
+      .where(eq(campuses.isActive, true))
+      .orderBy(asc(campuses.code));
+  }
+
+  async listMajors(): Promise<Major[]> {
+    return this.db
+      .select({
+        id: majors.id,
+        code: majors.code,
+        name: majors.name,
+      })
+      .from(majors)
+      .orderBy(asc(majors.name));
+  }
+
+  async listCurricula(majorId: string): Promise<Curriculum[]> {
+    return this.db
+      .select({
+        id: curricula.id,
+        majorId: curricula.majorId,
+        code: curricula.code,
+        name: curricula.name,
+      })
+      .from(curricula)
+      .where(eq(curricula.majorId, majorId))
+      .orderBy(desc(curricula.code));
+  }
+
+  async listTermCourses(curriculumId: string): Promise<TermCourse[]> {
+    return this.db
+      .select({
+        courseId: courses.id,
+        courseCode: courses.code,
+        courseName: courses.name,
+        termNumber: curriculumCourses.termNumber,
+        isElective: curriculumCourses.isElective,
+        examFormatStatus: courses.examFormatStatus,
+      })
+      .from(curriculumCourses)
+      .innerJoin(courses, eq(curriculumCourses.courseId, courses.id))
+      .where(eq(curriculumCourses.curriculumId, curriculumId))
+      .orderBy(asc(curriculumCourses.termNumber), asc(courses.code));
   }
 }

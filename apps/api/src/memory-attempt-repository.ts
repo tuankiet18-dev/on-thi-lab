@@ -4,6 +4,7 @@ import {
   type AttemptLaunch,
   type AttemptResult,
   type SaveAnswerInput,
+  type AttemptSummary,
 } from "@onthilab/contracts";
 import {
   AttemptRepositoryError,
@@ -54,7 +55,24 @@ export class MemoryAttemptRepository implements AttemptRepository {
     this.attempts.set(attempt.id, attempt);
     this.owners.set(attempt.id, input.userId);
     this.activeAttemptIds.set(activeKey, attempt.id);
-    return { attempt, resumed: false };
+    return {
+      attempt,
+      resumed: false,
+    };
+  }
+
+  async listUserAttempts(userId: string): Promise<AttemptSummary[]> {
+    return Array.from(this.attempts.entries())
+      .filter(([id, _]) => this.owners.get(id) === userId)
+      .map(([_, attempt]) => ({
+        id: attempt.id,
+        examId: attempt.examId,
+        examCode: "DEMO-FE",
+        courseCode: "DEMO",
+        status: attempt.status,
+        startedAt: attempt.startedAt,
+        result: attempt.result,
+      }));
   }
 
   async findForUser(

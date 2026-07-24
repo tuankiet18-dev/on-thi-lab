@@ -2,6 +2,8 @@ import {
   attemptLaunchSchema,
   attemptResultSchema,
   attemptSchema,
+  attemptSummarySchema,
+  createReportSchema,
   draftExamReviewSchema,
   draftImportResultSchema,
   examSchema,
@@ -13,10 +15,14 @@ import {
   saveAnswerResultSchema,
   savedReviewQuestionSchema,
   studentProfileSchema,
+  reportSchema,
+  resolveReportSchema,
   type Attempt,
   type AttemptLaunch,
   type AttemptResult,
+  type AttemptSummary,
   type CreateDraftImportInput,
+  type CreateReportInput,
   type DraftExamReview,
   type DraftImportResult,
   type Exam,
@@ -24,6 +30,8 @@ import {
   type ProfileOptions,
   type PublishExamResult,
   type QueueAiSuggestionsResult,
+  type Report,
+  type ResolveReportInput,
   type ReviewReadinessResult,
   type SavedReviewQuestion,
   type StudentProfile,
@@ -225,6 +233,14 @@ export async function getPublishedExam(
   return examSchema.parse(result);
 }
 
+export async function listAttempts(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AttemptSummary[]> {
+  const result = await request("/v1/attempts", idToken, {}, fetcher);
+  return attemptSummarySchema.array().parse(result);
+}
+
 export async function createAttempt(
   idToken: string,
   examId: string,
@@ -289,4 +305,83 @@ export async function submitAttempt(
     fetcher,
   );
   return attemptResultSchema.parse(result);
+}
+
+export async function createReport(
+  idToken: string,
+  attemptId: string,
+  questionId: string,
+  report: CreateReportInput,
+  fetcher: typeof fetch = fetch,
+): Promise<Report> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(
+      attemptId,
+    )}/questions/${encodeURIComponent(questionId)}/report`,
+    idToken,
+    {
+      method: "POST",
+      body: JSON.stringify(report),
+    },
+    fetcher,
+  );
+  return reportSchema.parse(result);
+}
+
+export async function listReports(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Report[]> {
+  const result = await request("/v1/admin/reports", idToken, {}, fetcher);
+  return reportSchema.array().parse(result);
+}
+
+export async function resolveReport(
+  idToken: string,
+  reportId: string,
+  resolution: ResolveReportInput,
+  fetcher: typeof fetch = fetch,
+): Promise<Report> {
+  const result = await request(
+    `/v1/admin/reports/${encodeURIComponent(reportId)}/resolve`,
+    idToken,
+    {
+      method: "POST",
+      body: JSON.stringify(resolution),
+    },
+    fetcher,
+  );
+  return reportSchema.parse(result);
+}
+
+export async function searchUsers(
+  query: string,
+  token: string,
+  fetcher = fetch,
+): Promise<StudentProfile[]> {
+  const result = await request(
+    `/v1/admin/users/search?q=${encodeURIComponent(query)}`,
+    token,
+    undefined,
+    fetcher,
+  );
+  if (!Array.isArray(result)) return [];
+  return result.map((p) => studentProfileSchema.parse(p));
+}
+
+export async function updateRole(
+  userId: string,
+  role: "user" | "contributor" | "admin",
+  token: string,
+  fetcher = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/users/${encodeURIComponent(userId)}/role`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    },
+    fetcher,
+  );
 }

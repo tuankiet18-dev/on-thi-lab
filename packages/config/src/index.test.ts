@@ -73,6 +73,9 @@ describe("runtime configuration", () => {
       cognitoClientId: undefined,
       cognitoRedirectUri: undefined,
       cognitoLogoutUri: undefined,
+      flags: {
+        googleAuthEnabled: false,
+      },
     });
   });
 });
