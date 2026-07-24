@@ -122,3 +122,19 @@ test("draft import form captures metadata and a ZIP archive", async ({
   await submit.click();
   await expect(page.getByRole("alert")).toContainText("Bạn cần đăng nhập");
 });
+
+test("answer review route has a safe unauthenticated state", async ({
+  page,
+}) => {
+  await page.goto("/admin/exams/20000000-0000-4000-8000-000000000001/review");
+  await expect(
+    page.getByRole("heading", { name: "Cần đăng nhập" }),
+  ).toBeVisible();
+  const measurements = await page.locator("body").evaluate((body) => ({
+    scrollWidth: body.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth,
+  );
+});

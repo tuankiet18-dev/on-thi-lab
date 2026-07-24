@@ -32,8 +32,10 @@ nhập đề và có integration test RBAC.
 
 Phase 3 đã có validator ZIP an toàn, giải nén đúng 60 ảnh, checksum bất biến,
 multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
-local để kiểm thử. Các phần còn lại là presigned S3 + SQS, đề xuất đáp án AI,
-màn hình duyệt đáp án và publish chỉ dành cho admin.
+local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
+hoặc nhiều đáp án, xem tiến độ 60 câu và chuyển đề sang trạng thái `review`.
+Mọi lần sửa đáp án đều có audit trước/sau. Các phần còn lại là presigned S3 +
+SQS, đề xuất đáp án AI và publish chỉ dành cho admin.
 
 ## Data waves
 

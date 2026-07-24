@@ -79,6 +79,72 @@ export const draftImportResultSchema = z.object({
   status: z.literal("draft"),
 });
 
+export const reviewQuestionSchema = z.object({
+  id: z.string().uuid(),
+  order: z.number().int().positive(),
+  imageUrl: z.string().min(1),
+  type: z.enum(questionTypes),
+  options: z.array(z.string()).min(2).max(6),
+  correctOptions: z.array(z.number().int().min(0).max(5)).max(6),
+});
+export const savedReviewQuestionSchema = reviewQuestionSchema.omit({
+  imageUrl: true,
+});
+
+export const draftExamReviewSchema = z.object({
+  examId: z.string().uuid(),
+  revisionId: z.string().uuid(),
+  examCode: z.string(),
+  courseCode: z.string(),
+  courseName: z.string(),
+  semester: z.string(),
+  campus: profileOptionSchema,
+  durationMinutes: z.number().int().positive(),
+  isRetake: z.boolean(),
+  status: z.enum(["draft", "review"]),
+  answeredCount: z.number().int().nonnegative(),
+  questionCount: z.number().int().positive(),
+  questions: z.array(reviewQuestionSchema),
+});
+
+export const updateQuestionAnswerSchema = z
+  .object({
+    type: z.enum(questionTypes),
+    optionCount: z.number().int().min(2).max(6),
+    correctOptions: z.array(z.number().int().min(0).max(5)).min(1).max(6),
+  })
+  .superRefine((value, context) => {
+    const unique = new Set(value.correctOptions);
+    if (unique.size !== value.correctOptions.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["correctOptions"],
+        message: "Đáp án không được trùng lặp.",
+      });
+    }
+    if (value.correctOptions.some((option) => option >= value.optionCount)) {
+      context.addIssue({
+        code: "custom",
+        path: ["correctOptions"],
+        message: "Đáp án vượt quá số lựa chọn của câu.",
+      });
+    }
+    if (value.type === "single" && value.correctOptions.length !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["correctOptions"],
+        message: "Câu một đáp án phải có đúng một đáp án.",
+      });
+    }
+  });
+
+export const reviewReadinessResultSchema = z.object({
+  examId: z.string().uuid(),
+  status: z.literal("review"),
+  answeredCount: z.number().int().positive(),
+  questionCount: z.number().int().positive(),
+});
+
 export const questionSchema = z.object({
   id: z.string(),
   order: z.number().int().positive(),
@@ -130,6 +196,7 @@ export type Exam = z.infer<typeof examSchema>;
 export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
 export type AttemptStatus = (typeof attemptStatuses)[number];
+export type QuestionType = (typeof questionTypes)[number];
 export type UserRole = (typeof userRoles)[number];
 export type ProfileOption = z.infer<typeof profileOptionSchema>;
 export type StudentProfile = z.infer<typeof studentProfileSchema>;
@@ -139,6 +206,13 @@ export type UpsertStudentProfileInput = z.infer<
 >;
 export type CreateDraftImportInput = z.infer<typeof createDraftImportSchema>;
 export type DraftImportResult = z.infer<typeof draftImportResultSchema>;
+export type ReviewQuestion = z.infer<typeof reviewQuestionSchema>;
+export type SavedReviewQuestion = z.infer<typeof savedReviewQuestionSchema>;
+export type DraftExamReview = z.infer<typeof draftExamReviewSchema>;
+export type UpdateQuestionAnswerInput = z.infer<
+  typeof updateQuestionAnswerSchema
+>;
+export type ReviewReadinessResult = z.infer<typeof reviewReadinessResultSchema>;
 
 export interface AttemptResult {
   attemptId: string;

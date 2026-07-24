@@ -298,6 +298,126 @@ describe("attempt API", () => {
     });
   });
 
+  it("loads a draft, audits answer edits and marks a complete review ready", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const questionId = "40000000-0000-4000-8000-000000000001";
+    let changedBy = "";
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      reviews: {
+        findReview: async () => ({
+          examId,
+          revisionId: "30000000-0000-4000-8000-000000000001",
+          examCode: "SWD392-SP26-FE",
+          courseCode: "SWD392",
+          courseName: "Software Architecture and Design",
+          semester: "SP26",
+          campus: { code: "HL", name: "Hòa Lạc" },
+          durationMinutes: 60,
+          isRetake: false,
+          status: "draft",
+          answeredCount: 0,
+          questionCount: 1,
+          questions: [
+            {
+              id: questionId,
+              order: 1,
+              imageKey: "drafts/example/Q1.jpg",
+              type: "single",
+              options: ["A", "B", "C", "D"],
+              correctOptions: [],
+            },
+          ],
+        }),
+        saveAnswer: async (input) => {
+          changedBy = input.changedBy;
+          return {
+            id: questionId,
+            order: 1,
+            imageKey: "drafts/example/Q1.jpg",
+            type: input.answer.type,
+            options: ["A", "B", "C", "D"],
+            correctOptions: input.answer.correctOptions,
+          };
+        },
+        markReady: async () => ({
+          examId,
+          status: "review",
+          answeredCount: 1,
+          questionCount: 1,
+        }),
+      },
+    });
+
+    const reviewResponse = await isolatedApp.request(
+      `/v1/admin/exams/${examId}/review`,
+      { headers: authorization },
+    );
+    expect(reviewResponse.status).toBe(200);
+    await expect(reviewResponse.json()).resolves.toMatchObject({
+      data: {
+        examCode: "SWD392-SP26-FE",
+        questions: [
+          {
+            id: questionId,
+            imageUrl: "http://localhost/question-images/drafts/example/Q1.jpg",
+          },
+        ],
+      },
+    });
+
+    const saveResponse = await isolatedApp.request(
+      `/v1/admin/exams/${examId}/questions/${questionId}/answer`,
+      {
+        method: "PUT",
+        headers: {
+          ...authorization,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "single",
+          optionCount: 4,
+          correctOptions: [1],
+        }),
+      },
+    );
+    expect(saveResponse.status).toBe(200);
+    expect(changedBy).toBe("10000000-0000-4000-8000-000000000001");
+
+    const readyResponse = await isolatedApp.request(
+      `/v1/admin/exams/${examId}/ready`,
+      { method: "POST", headers: authorization },
+    );
+    await expect(readyResponse.json()).resolves.toMatchObject({
+      data: { status: "review", answeredCount: 1 },
+    });
+  });
+
+  it("serves local question images with a safe content type", async () => {
+    const isolatedApp = createApp({
+      images: {
+        read: async (key) =>
+          key === "drafts/example/Q1.jpg"
+            ? {
+                bytes: new Uint8Array([255, 216, 255]),
+                contentType: "image/jpeg",
+              }
+            : null,
+      },
+    });
+
+    const response = await isolatedApp.request(
+      "/question-images/drafts/example/Q1.jpg",
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(response.headers.get("cross-origin-resource-policy")).toBe(
+      "cross-origin",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
   it("creates, saves and submits an attempt idempotently", async () => {
     const isolatedApp = createApp({
       auth,

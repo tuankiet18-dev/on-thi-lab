@@ -1,11 +1,18 @@
 import {
+  draftExamReviewSchema,
   draftImportResultSchema,
   profileOptionsSchema,
+  reviewReadinessResultSchema,
+  savedReviewQuestionSchema,
   studentProfileSchema,
   type CreateDraftImportInput,
+  type DraftExamReview,
   type DraftImportResult,
   type ProfileOptions,
+  type ReviewReadinessResult,
+  type SavedReviewQuestion,
   type StudentProfile,
+  type UpdateQuestionAnswerInput,
   type UpsertStudentProfileInput,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
@@ -107,4 +114,48 @@ export async function uploadDraftImport(
     fetcher,
   );
   return draftImportResultSchema.parse(result);
+}
+
+export async function getDraftExamReview(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DraftExamReview> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/review`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return draftExamReviewSchema.parse(result);
+}
+
+export async function saveQuestionReviewAnswer(
+  idToken: string,
+  examId: string,
+  questionId: string,
+  answer: UpdateQuestionAnswerInput,
+  fetcher: typeof fetch = fetch,
+): Promise<SavedReviewQuestion> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}/answer`,
+    idToken,
+    { method: "PUT", body: JSON.stringify(answer) },
+    fetcher,
+  );
+  return savedReviewQuestionSchema.parse(result);
+}
+
+export async function markExamReviewReady(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ReviewReadinessResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/ready`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return reviewReadinessResultSchema.parse(result);
 }
