@@ -178,7 +178,8 @@ export async function uploadDraftImport(
     },
     fetcher,
   );
-  console.error("RESULT:", result); return draftImportResultSchema.parse(result);
+  console.error("RESULT:", result);
+  return draftImportResultSchema.parse(result);
 }
 
 export async function getDraftExamReview(
