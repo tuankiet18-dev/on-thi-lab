@@ -58,6 +58,10 @@ export function createRuntimeApp(
               model,
               baseUrl: environment.AI_BASE_URL,
               providerName,
+              reasoningEffort:
+                providerName === "groq" && model === "qwen/qwen3.6-27b"
+                  ? "none"
+                  : undefined,
             }),
             Math.min(
               5,
