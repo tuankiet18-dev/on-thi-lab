@@ -3,7 +3,15 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "../components/ui/Badge";
 import { getStudentStatistics } from "../lib/api";
 import { useAuth } from "../auth/AuthContext";
-
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 export function StatisticsPage() {
   const { session } = useAuth();
 
@@ -150,6 +158,84 @@ export function StatisticsPage() {
           </div>
         )}
       </section>
+
+      {stats.recentAttempts.length > 0 && (
+        <section>
+          <h2 className="font-heading text-xl font-semibold text-slate-900 mb-4">
+            Tiến độ điểm số
+          </h2>
+          <div className="h-80 w-full rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={[...stats.recentAttempts]
+                  .reverse()
+                  .filter((a) => a.score !== null)
+                  .map((a) => ({
+                    name: a.examCode,
+                    score: a.score,
+                    date: a.submittedAt
+                      ? new Date(a.submittedAt).toLocaleDateString("vi-VN")
+                      : "",
+                  }))}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#e2e8f0"
+                />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  dy={10}
+                />
+                <YAxis
+                  domain={[0, 10]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "12px",
+                    border: "none",
+                    boxShadow:
+                      "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                  }}
+                  labelStyle={{
+                    fontWeight: 600,
+                    color: "#0f172a",
+                    marginBottom: "4px",
+                  }}
+                  formatter={(value: number) => [
+                    `${value.toFixed(2)} điểm`,
+                    "Điểm số",
+                  ]}
+                  labelFormatter={(label, payload) => {
+                    const date = payload[0]?.payload.date;
+                    return date ? `${label} (${date})` : label;
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#4f46e5"
+                  strokeWidth={3}
+                  activeDot={{ r: 6, strokeWidth: 0, fill: "#4f46e5" }}
+                  dot={{
+                    r: 4,
+                    strokeWidth: 2,
+                    fill: "#fff",
+                    stroke: "#4f46e5",
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
