@@ -4,6 +4,9 @@ dist/
 coverage/
 .turbo/
 .vite/
+.local-storage/
+/clean_images/
+/temp_extracted_images/
 .env
 .env.local
 .env_*

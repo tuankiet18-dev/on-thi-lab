@@ -1,6 +1,9 @@
 import {
+  draftImportResultSchema,
   profileOptionsSchema,
   studentProfileSchema,
+  type CreateDraftImportInput,
+  type DraftImportResult,
   type ProfileOptions,
   type StudentProfile,
   type UpsertStudentProfileInput,
@@ -23,6 +26,10 @@ interface ApiResponse {
   error?: unknown;
 }
 
+function isFormDataBody(body: BodyInit | null | undefined): boolean {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
 async function request(
   path: string,
   idToken: string,
@@ -35,7 +42,9 @@ async function request(
       ...init,
       headers: {
         Authorization: `Bearer ${idToken}`,
-        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...(init.body && !isFormDataBody(init.body)
+          ? { "content-type": "application/json" }
+          : {}),
         ...init.headers,
       },
     },
@@ -79,4 +88,23 @@ export async function saveMyProfile(
     fetcher,
   );
   return studentProfileSchema.parse(result);
+}
+
+export async function uploadDraftImport(
+  idToken: string,
+  metadata: CreateDraftImportInput,
+  archive: File,
+  fetcher: typeof fetch = fetch,
+): Promise<DraftImportResult> {
+  const form = new FormData();
+  form.set("metadata", JSON.stringify(metadata));
+  form.set("archive", archive);
+
+  const result = await request(
+    "/v1/admin/imports",
+    idToken,
+    { method: "POST", body: form },
+    fetcher,
+  );
+  return draftImportResultSchema.parse(result);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateScore,
+  createDraftImportSchema,
   isExactAnswer,
   upsertStudentProfileSchema,
 } from "./index";
@@ -37,5 +38,35 @@ describe("student profile input", () => {
       campusCode: "HL",
       majorCode: "SE",
     });
+  });
+});
+
+describe("draft import input", () => {
+  it("normalizes identifiers and rejects unsupported exam types", () => {
+    expect(
+      createDraftImportSchema.parse({
+        courseCode: "swd392",
+        semester: "sp26",
+        campusCode: "hl",
+        examType: "FE",
+        isRetake: false,
+        durationMinutes: 60,
+      }),
+    ).toMatchObject({
+      courseCode: "SWD392",
+      semester: "SP26",
+      campusCode: "HL",
+    });
+
+    expect(() =>
+      createDraftImportSchema.parse({
+        courseCode: "SWD392",
+        semester: "SP26",
+        campusCode: "HL",
+        examType: "PE",
+        isRetake: false,
+        durationMinutes: 60,
+      }),
+    ).toThrow();
   });
 });

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, getMyProfile, saveMyProfile } from "./api";
+import {
+  ApiError,
+  getMyProfile,
+  saveMyProfile,
+  uploadDraftImport,
+} from "./api";
 
 const profile = {
   id: "10000000-0000-4000-8000-000000000001",
@@ -77,5 +82,41 @@ describe("profile API client", () => {
         "API request failed with status 409",
       ),
     );
+  });
+
+  it("uploads ZIP data without overriding the multipart boundary", async () => {
+    const draft = {
+      examId: "20000000-0000-4000-8000-000000000001",
+      revisionId: "30000000-0000-4000-8000-000000000001",
+      examCode: "SWD392-SP26-FE",
+      questionCount: 60,
+      status: "draft",
+    } as const;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ data: draft }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await expect(
+      uploadDraftImport(
+        "signed-id-token",
+        {
+          courseCode: "SWD392",
+          semester: "SP26",
+          campusCode: "HL",
+          examType: "FE",
+          isRetake: false,
+          durationMinutes: 60,
+        },
+        new File(["PK"], "questions.zip", { type: "application/zip" }),
+        fetcher,
+      ),
+    ).resolves.toEqual(draft);
+
+    const requestInit = fetcher.mock.calls[0]?.[1];
+    expect(requestInit?.body).toBeInstanceOf(FormData);
+    expect(new Headers(requestInit?.headers).has("content-type")).toBe(false);
   });
 });

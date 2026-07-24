@@ -16,19 +16,24 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | ----- | ------------------------------------------ | ----------- | ---------------------------------------------- |
 | 0     | Config, flags, seed, CI, tài liệu vận hành | Done        | `pnpm validate`, CDK synth và E2E đạt          |
 | 1     | PostgreSQL persistence và API thật         | In progress | Không còn in-memory API trong luồng production |
-| 2     | Cognito, Google OAuth, onboarding, RBAC    | In progress | Auth/RBAC integration tests đạt                |
-| 3     | ZIP, S3, SQS, AI Vision, review, publish   | Planned     | Import và duyệt được đề tối thiểu 60 ảnh       |
+| 2     | Cognito, Google OAuth, onboarding, RBAC    | Done        | Auth/RBAC integration tests đạt                |
+| 3     | ZIP, S3, SQS, AI Vision, review, publish   | In progress | Import và duyệt được đề tối thiểu 60 ảnh       |
 | 4     | Exam engine production                     | Planned     | Autosave/timeout/idempotency/concurrency đạt   |
 | 5     | History, stats, bookmark, report, admin    | Planned     | Acceptance criteria User/Admin đạt             |
 | 6     | AWS staging/prod, CI/CD, observability     | Planned     | Staging deploy/rollback/restore đạt            |
 | 7     | Security, legal, launch data, closed beta  | Planned     | Không còn P0/P1, UAT đạt                       |
 | 8     | Production rollout và payOS feature flag   | Planned     | Go-live checklist và smoke test đạt            |
 
-Phase 2 development đã có Cognito User Pool, Google IdP, email/password,
+Phase 2 đã có Cognito User Pool, Google IdP, email/password,
 Authorization Code + PKCE, refresh/logout, JWT middleware ở API và persistence
 hồ sơ PostgreSQL. API yêu cầu onboarding trước khi truy cập catalog/exam/attempt
-và role được trả từ database. Phần còn lại của exit gate là áp dụng guard
-contributor/admin lên các endpoint quản trị và bổ sung integration test RBAC.
+và role được trả từ database. Guard contributor/admin đã được áp dụng trên API
+nhập đề và có integration test RBAC.
+
+Phase 3 đã có validator ZIP an toàn, giải nén đúng 60 ảnh, checksum bất biến,
+multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
+local để kiểm thử. Các phần còn lại là presigned S3 + SQS, đề xuất đáp án AI,
+màn hình duyệt đáp án và publish chỉ dành cho admin.
 
 ## Data waves
 

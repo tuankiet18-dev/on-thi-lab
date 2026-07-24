@@ -50,6 +50,35 @@ export const upsertStudentProfileSchema = z.object({
   majorCode: z.string().trim().min(1).max(30),
 });
 
+export const createDraftImportSchema = z.object({
+  courseCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{3,12}$/),
+  semester: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9-]{3,20}$/),
+  campusCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9-]{1,20}$/),
+  examType: z.literal("FE"),
+  isRetake: z.boolean(),
+  durationMinutes: z.number().int().min(15).max(240),
+});
+
+export const draftImportResultSchema = z.object({
+  examId: z.string().uuid(),
+  revisionId: z.string().uuid(),
+  examCode: z.string(),
+  questionCount: z.number().int().positive(),
+  status: z.literal("draft"),
+});
+
 export const questionSchema = z.object({
   id: z.string(),
   order: z.number().int().positive(),
@@ -108,6 +137,8 @@ export type ProfileOptions = z.infer<typeof profileOptionsSchema>;
 export type UpsertStudentProfileInput = z.infer<
   typeof upsertStudentProfileSchema
 >;
+export type CreateDraftImportInput = z.infer<typeof createDraftImportSchema>;
+export type DraftImportResult = z.infer<typeof draftImportResultSchema>;
 
 export interface AttemptResult {
   attemptId: string;

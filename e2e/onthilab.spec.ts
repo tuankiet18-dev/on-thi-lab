@@ -99,3 +99,26 @@ test("catalog is responsive without horizontal overflow", async ({ page }) => {
     measurements.viewportWidth,
   );
 });
+
+test("draft import form captures metadata and a ZIP archive", async ({
+  page,
+}) => {
+  await page.goto("/admin/import");
+  await expect(
+    page.getByRole("heading", { name: "Tạo đề thi mới" }),
+  ).toBeVisible();
+
+  await page.getByLabel("Kỳ học").fill("SP26");
+  await page.getByLabel("Chọn file ZIP chứa ảnh câu hỏi").setInputFiles({
+    name: "questions.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("PK"),
+  });
+
+  const submit = page.getByRole("button", {
+    name: "Kiểm tra và tạo đề nháp",
+  });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect(page.getByRole("alert")).toContainText("Bạn cần đăng nhập");
+});

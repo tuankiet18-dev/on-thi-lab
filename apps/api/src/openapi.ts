@@ -60,6 +60,55 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/imports/config": {
+      get: {
+        operationId: "getImportConstraints",
+        tags: ["Admin imports"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description: "FE ZIP constraints and publishing capability",
+          },
+          "403": { description: "Contributor or admin role required" },
+        },
+      },
+    },
+    "/v1/admin/imports": {
+      post: {
+        operationId: "createDraftExamImport",
+        tags: ["Admin imports"],
+        security: [{ cognitoIdToken: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["metadata", "archive"],
+                properties: {
+                  metadata: {
+                    type: "string",
+                    description: "JSON-encoded FE exam metadata",
+                  },
+                  archive: {
+                    type: "string",
+                    format: "binary",
+                    description: "ZIP containing exactly Q1–Q60 images",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Draft exam and revision created" },
+          "400": { description: "Invalid metadata, ZIP or catalog reference" },
+          "403": { description: "Contributor or admin role required" },
+          "409": { description: "Exam identifier already exists" },
+          "413": { description: "Archive exceeds the configured limit" },
+        },
+      },
+    },
     "/v1/catalog": {
       get: {
         operationId: "listPublishedExams",
