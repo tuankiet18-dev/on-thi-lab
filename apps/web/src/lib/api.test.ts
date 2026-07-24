@@ -104,12 +104,21 @@ describe("profile API client", () => {
       questionCount: 60,
       status: "draft",
     } as const;
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ data: draft }), {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url: URL | string | Request) => {
+      const urlString = typeof url === 'string' ? url : (url as URL).toString?.() ?? '';
+      if (urlString.includes("/presign")) {
+        return new Response(JSON.stringify({ data: { uploadUrl: "https://s3/upload", key: "test-key" } }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (urlString.includes("https://s3/upload")) {
+        return new Response(null, { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: draft }), {
         status: 201,
         headers: { "content-type": "application/json" },
-      }),
-    );
+      });
+    });
 
     await expect(
       uploadDraftImport(
@@ -127,9 +136,9 @@ describe("profile API client", () => {
       ),
     ).resolves.toEqual(draft);
 
-    const requestInit = fetcher.mock.calls[0]?.[1];
-    expect(requestInit?.body).toBeInstanceOf(FormData);
-    expect(new Headers(requestInit?.headers).has("content-type")).toBe(false);
+    const requestInit = fetcher.mock.calls[2]?.[1];
+    expect(requestInit?.body).toBeTypeOf("string");
+    expect(new Headers(requestInit?.headers).get("content-type")).toContain("application/json");
   });
 
   it("loads, saves and completes an answer review", async () => {
