@@ -45,14 +45,14 @@ describe("runtime configuration", () => {
       readServerConfig({
         ...baseServerEnvironment,
         FEATURE_AI_IMPORT_ENABLED: "true",
-        AI_PROVIDER: "openai-compatible",
+        AI_PROVIDER: "groq",
       }),
     ).toThrow();
 
     const config = readServerConfig({
       ...baseServerEnvironment,
       FEATURE_AI_IMPORT_ENABLED: "true",
-      AI_PROVIDER: "openai-compatible",
+      AI_PROVIDER: "groq",
       AI_MODEL: "vision-test",
       AI_API_KEY: "server-only",
       AI_BASE_URL: "https://ai.example.test/v1",

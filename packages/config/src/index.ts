@@ -36,7 +36,14 @@ export const serverConfigSchema = z
     cognitoUserPoolId: z.string().optional(),
     cognitoClientId: z.string().optional(),
     aiProvider: z
-      .enum(["disabled", "openai-compatible", "gemini", "openai", "bedrock"])
+      .enum([
+        "disabled",
+        "openai-compatible",
+        "groq",
+        "gemini",
+        "openai",
+        "bedrock",
+      ])
       .default("disabled"),
     aiModel: z.string().optional(),
     aiApiKey: z.string().optional(),

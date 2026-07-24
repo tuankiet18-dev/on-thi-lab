@@ -22,6 +22,9 @@ export interface OpenAiCompatibleVisionProviderOptions {
   providerName?: string;
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  maxRetries?: number;
+  maxCompletionTokens?: number;
+  reasoningEffort?: "none" | "default" | "low" | "medium" | "high";
 }
 
 export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
@@ -31,6 +34,10 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
   private readonly baseUrl: string;
   private readonly fetcher: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly maxCompletionTokens: number;
+  private readonly reasoningEffort:
+    "none" | "default" | "low" | "medium" | "high" | undefined;
 
   constructor(options: OpenAiCompatibleVisionProviderOptions) {
     this.apiKey = options.apiKey;
@@ -42,6 +49,9 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
     );
     this.fetcher = options.fetcher ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 45_000;
+    this.maxRetries = options.maxRetries ?? 4;
+    this.maxCompletionTokens = options.maxCompletionTokens ?? 256;
+    this.reasoningEffort = options.reasoningEffort;
   }
 
   async proposeAnswer(input: {
@@ -49,65 +59,111 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
     courseCode: string;
     optionCount: number;
   }): Promise<AiAnswerProposal> {
-    const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      signal: AbortSignal.timeout(this.timeoutMs),
-      headers: {
-        authorization: `Bearer ${this.apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "Bạn phân tích ảnh câu hỏi trắc nghiệm để tạo đáp án THAM KHẢO cho quản trị viên. Không khẳng định chắc chắn khi ảnh thiếu dữ liệu. Chỉ trả JSON.",
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: [
-                  `Môn học: ${input.courseCode}.`,
-                  `Hệ thống đang cấu hình ${input.optionCount} lựa chọn, đánh số từ 0.`,
-                  "Trả JSON gồm questionType (single|multiple), optionCount, proposedAnswers (mảng chỉ số), confidence (0..1).",
-                  "Không đưa nội dung giải thích dài. Có thể thêm rationale ngắn để audit nội bộ.",
-                ].join(" "),
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: input.imageDataUrl,
-                  detail: "high",
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: AbortSignal.timeout(this.timeoutMs),
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0,
+          max_completion_tokens: this.maxCompletionTokens,
+          ...(this.reasoningEffort
+            ? { reasoning_effort: this.reasoningEffort }
+            : {}),
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                "Bạn phân tích ảnh câu hỏi trắc nghiệm để tạo đáp án THAM KHẢO cho quản trị viên. Không khẳng định chắc chắn khi ảnh thiếu dữ liệu. Chỉ trả JSON.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: [
+                    `Môn học: ${input.courseCode}.`,
+                    `Hệ thống đang cấu hình ${input.optionCount} lựa chọn, đánh số từ 0.`,
+                    "Trả JSON gồm questionType (single|multiple), optionCount, proposedAnswers (mảng chỉ số), confidence (0..1).",
+                    "Không đưa nội dung giải thích dài. Có thể thêm rationale ngắn để audit nội bộ.",
+                  ].join(" "),
                 },
-              },
-            ],
-          },
-        ],
-      }),
-    });
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: input.imageDataUrl,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
-    const body = (await response
-      .json()
-      .catch(() => ({}))) as ChatCompletionResponse;
-    if (!response.ok) {
-      throw new Error(
-        body.error?.message ?? `AI provider trả về HTTP ${response.status}.`,
-      );
-    }
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) throw new Error("AI provider không trả về nội dung.");
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as ChatCompletionResponse;
+      if (response.status === 429 && attempt < this.maxRetries) {
+        await wait(retryDelayMilliseconds(response, body, attempt));
+        continue;
+      }
+      if (!response.ok) {
+        throw new Error(safeProviderError(response.status));
+      }
+      const content = body.choices?.[0]?.message?.content;
+      if (!content) throw new Error("AI provider không trả về nội dung.");
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      throw new Error("AI provider trả về JSON không hợp lệ.");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        throw new Error("AI provider trả về JSON không hợp lệ.");
+      }
+      return validateAiProposal(parsed);
     }
-    return validateAiProposal(parsed);
+
+    throw new Error("AI provider tạm thời không sẵn sàng.");
   }
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function retryDelayMilliseconds(
+  response: Response,
+  body: ChatCompletionResponse,
+  attempt: number,
+): number {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return retryAfter * 1_000 + 250;
+  }
+  const describedSeconds = body.error?.message?.match(
+    /try again in ([0-9.]+)s/i,
+  )?.[1];
+  if (describedSeconds) {
+    return Number(describedSeconds) * 1_000 + 250;
+  }
+  return Math.min(30_000, 2_000 * 2 ** attempt);
+}
+
+function safeProviderError(status: number): string {
+  if (status === 400 || status === 422) {
+    return "AI provider từ chối ảnh hoặc cấu hình model.";
+  }
+  if (status === 401 || status === 403) {
+    return "Khóa AI không hợp lệ hoặc chưa được cấp quyền model.";
+  }
+  if (status === 413) return "Ảnh vượt quá giới hạn của AI provider.";
+  if (status === 429) {
+    return "AI provider đang giới hạn tốc độ. Hãy thử lại sau.";
+  }
+  return "AI provider tạm thời không sẵn sàng.";
 }

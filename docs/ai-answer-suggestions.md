@@ -15,7 +15,7 @@
 Admin xác nhận chi phí
   → API tìm các câu chưa có đáp án
   → đánh dấu queued trong PostgreSQL
-  → local: hàng đợi nền, tối đa 2 ảnh đồng thời
+  → local: hàng đợi nền, số ảnh đồng thời theo AI_LOCAL_CONCURRENCY
      AWS: SQS, tối đa 10 message mỗi batch
   → worker đọc ảnh server-side
   → provider Vision trả JSON có cấu trúc
@@ -34,11 +34,11 @@ Thêm các biến sau vào `.env.local`:
 
 ```dotenv
 FEATURE_AI_IMPORT_ENABLED=true
-AI_PROVIDER=openai-compatible
-AI_BASE_URL=https://api.openai.com/v1
+AI_PROVIDER=groq
+AI_BASE_URL=https://api.groq.com/openai/v1
 AI_MODEL=<vision-model-name>
 AI_API_KEY=<server-only-key>
-AI_LOCAL_CONCURRENCY=2
+AI_LOCAL_CONCURRENCY=1
 ```
 
 Không đặt tên biến khóa AI với tiền tố `VITE_`. Khi
@@ -58,7 +58,9 @@ vì message sẽ chỉ nằm trong queue.
 
 ## Vận hành và chi phí
 
-- Bắt đầu với concurrency 2 và một đề thử.
+- Bắt đầu với concurrency 1 và một đề thử. Với Groq Free/On-demand, provider
+  giới hạn output ở 256 token, tắt reasoning của Qwen 3.6 và tự chờ theo header
+  `retry-after`.
 - Theo dõi số câu `failed`; nút chạy lại chỉ queue câu chưa có đáp án hoặc lỗi.
 - `queued`, `processing`, `suggested` và `confirmed` không bị queue trùng.
 - Không log API key, data URL ảnh hoặc raw response đầy đủ.
