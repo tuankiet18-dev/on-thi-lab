@@ -209,8 +209,8 @@ export function StatisticsPage() {
                     color: "#0f172a",
                     marginBottom: "4px",
                   }}
-                  formatter={(value: number) => [
-                    `${value.toFixed(2)} điểm`,
+                  formatter={(value: any) => [
+                    `${Number(value).toFixed(2)} điểm`,
                     "Điểm số",
                   ]}
                   labelFormatter={(label, payload) => {
