@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquareText,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
@@ -99,7 +100,9 @@ export function AppShell() {
     !studentProfile &&
     pathname !== "/onboarding"
   ) {
-    return <Navigate to="/onboarding" replace />;
+    return (
+      <Navigate to="/onboarding" search={{ redirect: pathname }} replace />
+    );
   }
 
   if (pathname === "/onboarding") {
@@ -198,6 +201,28 @@ export function AppShell() {
                     <p className="truncate px-3 py-2 text-xs text-slate-500">
                       {session.user.email}
                     </p>
+                    {isAdmin && (
+                      <>
+                        <div className="my-1 h-px bg-border" />
+                        <Link
+                          to="/admin/users"
+                          onClick={() => setAccountOpen(false)}
+                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <ShieldCheck size={17} aria-hidden="true" />
+                          Phân quyền
+                        </Link>
+                        <Link
+                          to="/admin/reports"
+                          onClick={() => setAccountOpen(false)}
+                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <MessageSquareText size={17} aria-hidden="true" />
+                          Quản lý báo cáo
+                        </Link>
+                      </>
+                    )}
+                    <div className="my-1 h-px bg-border" />
                     <button
                       type="button"
                       onClick={signOut}

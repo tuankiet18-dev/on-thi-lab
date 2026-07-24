@@ -17,7 +17,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoAnswerKey, demoExam } from "../data/demo";
-import { getAttempt, getPublishedExam } from "../lib/api";
+import { getAttempt, getPublishedExam, createReport } from "../lib/api";
 import { loadAttempt, resetDemoAttempt } from "../lib/attempt-storage";
 
 export function ResultPage() {
@@ -29,6 +29,9 @@ export function ResultPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reportedQuestion, setReportedQuestion] = useState<string | null>(null);
+  const [reportDetail, setReportDetail] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportedList, setReportedList] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -82,6 +85,24 @@ export function ResultPage() {
       active = false;
     };
   }, [attemptId, configured, session]);
+
+  const handleSubmitReport = async (questionId: string) => {
+    if (!session || !reportDetail.trim()) return;
+    setReportLoading(true);
+    try {
+      await createReport(session.idToken, attemptId, questionId, {
+        category: "wrong_answer",
+        detail: reportDetail,
+      });
+      setReportedList((prev) => new Set(prev).add(questionId));
+      setReportedQuestion(null);
+      setReportDetail("");
+    } catch (error) {
+      alert("Đã xảy ra lỗi khi gửi báo cáo.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -294,19 +315,50 @@ export function ResultPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setReportedQuestion(question.id)}
-                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 sm:self-auto"
+                    onClick={() => {
+                      if (reportedQuestion === question.id) {
+                        setReportedQuestion(null);
+                      } else {
+                        setReportedQuestion(question.id);
+                        setReportDetail("");
+                      }
+                    }}
+                    disabled={reportedList.has(question.id)}
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 disabled:opacity-50 sm:self-auto"
                   >
                     <Flag size={16} aria-hidden="true" />
-                    Báo lỗi
+                    {reportedList.has(question.id) ? "Đã báo lỗi" : "Báo lỗi"}
                   </button>
                 </div>
-                {reportedQuestion === question.id && (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                    Cảm ơn bạn. Điểm của lần thi này vẫn được giữ nguyên khi
-                    Admin xem xét báo cáo.
-                  </div>
-                )}
+                {reportedQuestion === question.id &&
+                  !reportedList.has(question.id) && (
+                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                      <p className="mb-2 font-semibold">Báo lỗi câu hỏi này</p>
+                      <textarea
+                        value={reportDetail}
+                        onChange={(e) => setReportDetail(e.target.value)}
+                        placeholder="Vui lòng mô tả chi tiết lỗi (ví dụ: Sai đáp án, hình ảnh mờ...)"
+                        className="w-full rounded-md border border-blue-200 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        rows={3}
+                        disabled={reportLoading}
+                      />
+                      <div className="mt-3 flex justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setReportedQuestion(null)}
+                          disabled={reportLoading}
+                        >
+                          Hủy
+                        </Button>
+                        <Button
+                          onClick={() => handleSubmitReport(question.id)}
+                          disabled={reportLoading || !reportDetail.trim()}
+                        >
+                          {reportLoading ? "Đang gửi..." : "Gửi báo cáo"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
               </Card>
             );
           })}

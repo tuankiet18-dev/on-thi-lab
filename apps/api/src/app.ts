@@ -6,6 +6,8 @@ import {
   submitAttemptSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
+  createReportSchema,
+  resolveReportSchema,
   type StudentProfile,
   type UserRole,
 } from "@onthilab/contracts";
@@ -17,6 +19,8 @@ import {
   type CatalogRepository,
   type ExamReviewRepository,
   type UserProfileRepository,
+  type ReportRepository,
+  ReportRepositoryError,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -57,9 +61,28 @@ interface AppDependencies {
   images: QuestionImageReader;
   attempts: AttemptRepository;
   suggestions: AnswerSuggestionService;
+  reports: ReportRepository;
+  /** Allowed CORS origins. Defaults to localhost:5173 when not set. */
+  corsOrigins: string[];
+}
+
+class UnconfiguredReportRepository implements ReportRepository {
+  async createReport(): Promise<never> {
+    throw new Error("Report repository not configured");
+  }
+  async listPendingReports(): Promise<never[]> {
+    throw new Error("Report repository not configured");
+  }
+  async resolveReport(): Promise<never> {
+    throw new Error("Report repository not configured");
+  }
 }
 
 const demoCatalogRepository: CatalogRepository = {
+  listCampuses: async () => [],
+  listMajors: async () => [],
+  listCurricula: async () => [],
+  listTermCourses: async () => [],
   listPublished: async () => [demoExam],
   findPublishedByIdOrCode: async (idOrCode) =>
     idOrCode === demoExam.id || idOrCode === demoExam.code ? demoExam : null,
@@ -73,6 +96,12 @@ const unavailableProfileRepository: UserProfileRepository = {
     throw new Error("Profile storage is not configured");
   },
   upsert: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+  updateRole: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+  searchUsers: async () => {
     throw new Error("Profile storage is not configured");
   },
 };
@@ -176,6 +205,8 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     images: new UnconfiguredQuestionImageReader(),
     attempts: new MemoryAttemptRepository(),
     suggestions: new UnconfiguredAnswerSuggestionService(),
+    reports: new UnconfiguredReportRepository(),
+    corsOrigins: ["http://localhost:5173"],
     ...overrides,
   };
   const app = new Hono<AppEnvironment>();
@@ -185,7 +216,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use(
     "*",
     cors({
-      origin: ["http://localhost:5173"],
+      origin: dependencies.corsOrigins,
       allowHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
       allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
     }),
@@ -252,6 +283,15 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }
 
     const identity = context.get("identity");
+    if (!identity.emailVerified) {
+      return context.json(
+        {
+          error: "EMAIL_NOT_VERIFIED",
+          message: "Vui lòng xác thực email trước khi tạo hồ sơ.",
+        },
+        403,
+      );
+    }
     try {
       const profile = await dependencies.profiles.upsert(
         { subject: identity.subject, email: identity.email },
@@ -285,6 +325,36 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
   app.use("/v1/admin/*", requireContributor);
+
+  app.post("/v1/admin/users/:id/role", requireAdmin, async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+
+    const { role } = body as { role?: string };
+    if (role !== "user" && role !== "contributor" && role !== "admin") {
+      return context.json(
+        { error: "INVALID_INPUT", message: "Quyền không hợp lệ" },
+        400,
+      );
+    }
+
+    await dependencies.profiles.updateRole(context.req.param("id"), role);
+    return context.json({ data: { success: true } });
+  });
+
+  app.get("/v1/admin/users/search", requireAdmin, async (context) => {
+    const query = context.req.query("q") || "";
+    if (query.trim().length < 3) {
+      return context.json({ data: [] });
+    }
+    return context.json({
+      data: await dependencies.profiles.searchUsers(query.trim()),
+    });
+  });
 
   app.get("/v1/admin/imports/config", (context) =>
     context.json({
@@ -496,16 +566,46 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     },
   );
 
-  app.get("/v1/catalog", async (context) =>
-    context.json({
+  app.get("/v1/catalog", async (context) => {
+    const limitQuery = context.req.query("limit");
+    const limit = limitQuery ? parseInt(limitQuery, 10) : undefined;
+
+    return context.json({
       data: await dependencies.catalog.listPublished({
         campus: context.req.query("campus"),
         courseCode: context.req.query("courseCode"),
         semester: context.req.query("semester"),
+        cursor: context.req.query("cursor"),
+        limit: isNaN(limit!) ? undefined : limit,
       }),
       meta: { source: "repository" },
-    }),
+    });
+  });
+
+  app.get("/v1/catalog/campuses", async (context) =>
+    context.json({ data: await dependencies.catalog.listCampuses() }),
   );
+
+  app.get("/v1/catalog/majors", async (context) =>
+    context.json({ data: await dependencies.catalog.listMajors() }),
+  );
+
+  app.get("/v1/catalog/curricula", async (context) => {
+    const majorId = context.req.query("majorId");
+    if (!majorId) return context.json({ error: "majorId is required" }, 400);
+    return context.json({
+      data: await dependencies.catalog.listCurricula(majorId),
+    });
+  });
+
+  app.get("/v1/catalog/term-courses", async (context) => {
+    const curriculumId = context.req.query("curriculumId");
+    if (!curriculumId)
+      return context.json({ error: "curriculumId is required" }, 400);
+    return context.json({
+      data: await dependencies.catalog.listTermCourses(curriculumId),
+    });
+  });
 
   app.get("/v1/exams/:examId", async (context) => {
     const exam = await dependencies.catalog.findPublishedByIdOrCode(
@@ -527,6 +627,13 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         })),
       },
     });
+  });
+
+  app.get("/v1/attempts", async (context) => {
+    const attempts = await dependencies.attempts.listUserAttempts(
+      context.get("profile").id,
+    );
+    return context.json({ data: attempts });
   });
 
   app.post("/v1/attempts", async (context) => {
@@ -679,6 +786,106 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       500,
     );
   });
+
+  app.post(
+    "/v1/attempts/:attemptId/questions/:questionId/report",
+    requireProfile,
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = createReportSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        const report = await dependencies.reports.createReport({
+          userId: context.get("profile").id,
+          attemptId: context.req.param("attemptId"),
+          questionId: context.req.param("questionId"),
+          report: parsed.data,
+        });
+        return context.json({ data: report }, 201);
+      } catch (error) {
+        if (error instanceof ReportRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            404,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.get(
+    "/v1/admin/reports",
+    roleRequiredMiddleware("admin", "contributor"),
+    async (context) => {
+      const pending = await dependencies.reports.listPendingReports();
+      const apiOrigin = new URL(context.req.url).origin;
+      return context.json({
+        data: pending.map((report) => ({
+          ...report,
+          question: report.question
+            ? {
+                ...report.question,
+                imageUrl: report.question.imageUrl.startsWith("http")
+                  ? report.question.imageUrl
+                  : report.question.imageUrl.startsWith("/")
+                    ? `${apiOrigin}${report.question.imageUrl}`
+                    : `${apiOrigin}/question-images/${report.question.imageUrl
+                        .split("/")
+                        .map(encodeURIComponent)
+                        .join("/")}`,
+              }
+            : undefined,
+        })),
+      });
+    },
+  );
+
+  app.post(
+    "/v1/admin/reports/:id/resolve",
+    roleRequiredMiddleware("admin", "contributor"),
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = resolveReportSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        const report = await dependencies.reports.resolveReport({
+          reportId: context.req.param("id"),
+          resolvedBy: context.get("profile").id,
+          resolution: parsed.data,
+        });
+        return context.json({ data: report });
+      } catch (error) {
+        if (error instanceof ReportRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            404,
+          );
+        }
+        throw error;
+      }
+    },
+  );
 
   return app;
 }

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env.local src/dev.ts",
+    "migrate": "pnpm --filter @onthilab/database migrate",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
@@ -17,7 +18,8 @@
     "@onthilab/importer": "workspace:*",
     "@onthilab/worker": "workspace:*",
     "aws-jwt-verify": "^5.1.0",
-    "hono": "^4.8.5"
+    "hono": "^4.8.5",
+    "zod": "^4.0.5"
   },
   "devDependencies": {
     "tsx": "^4.20.3",

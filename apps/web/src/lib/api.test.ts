@@ -24,6 +24,7 @@ const profile = {
   studentCode: "HE170001",
   campus: { code: "HL", name: "Hòa Lạc" },
   major: { code: "SE", name: "Software Engineering" },
+  curriculum: null,
   role: "user",
 } as const;
 

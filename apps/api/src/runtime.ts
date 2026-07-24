@@ -3,6 +3,7 @@ import {
   PostgresAttemptRepository,
   PostgresCatalogRepository,
   PostgresDraftImportRepository,
+  PostgresReportRepository,
   PostgresUserProfileRepository,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/worker";
@@ -13,65 +14,74 @@ import {
   SqsAnswerSuggestionService,
 } from "./answer-suggestion-service";
 import { CognitoIdTokenVerifier } from "./auth";
+import { parseEnv, parseCorsOrigins } from "./env";
 import { LocalExamImportService } from "./import-service";
 import { LocalQuestionImageReader } from "./question-image-reader";
 
 export function createRuntimeApp(
   environment: Record<string, string | undefined> = process.env,
 ) {
-  const databaseUrl = environment.DATABASE_URL;
-  const userPoolId = environment.COGNITO_USER_POOL_ID;
-  const clientId = environment.COGNITO_CLIENT_ID;
-  const auth =
-    userPoolId && clientId
-      ? new CognitoIdTokenVerifier(userPoolId, clientId)
-      : undefined;
-  const authDependencies = auth ? { auth } : {};
-  if (!databaseUrl) return createApp(authDependencies);
+  // Validate all env vars up-front; throws with a clear message if invalid.
+  const env = parseEnv(environment);
 
-  const database = createDatabase(databaseUrl);
-  const imageBaseUrl = environment.QUESTION_IMAGE_BASE_URL?.replace(/\/$/, "");
+  const corsOrigins = parseCorsOrigins(env.CORS_ORIGINS);
+  const authDependencies =
+    env.COGNITO_USER_POOL_ID && env.COGNITO_CLIENT_ID
+      ? {
+          auth: new CognitoIdTokenVerifier(
+            env.COGNITO_USER_POOL_ID,
+            env.COGNITO_CLIENT_ID,
+          ),
+        }
+      : {};
+
+  if (!env.DATABASE_URL) {
+    return createApp({ ...authDependencies, corsOrigins });
+  }
+
+  const database = createDatabase(env.DATABASE_URL);
+  const imageBaseUrl = env.QUESTION_IMAGE_BASE_URL?.replace(/\/$/, "");
   const imageStorageRoot = resolve(
-    environment.QUESTION_IMAGE_STORAGE_PATH ??
+    env.QUESTION_IMAGE_STORAGE_PATH ??
       resolve(process.cwd(), ".local-storage/question-images"),
   );
 
   const draftRepository = new PostgresDraftImportRepository(database);
   const imageReader = new LocalQuestionImageReader(imageStorageRoot);
-  const aiEnabled = environment.FEATURE_AI_IMPORT_ENABLED === "true";
+
   const providerName =
-    environment.AI_PROVIDER && environment.AI_PROVIDER !== "disabled"
-      ? environment.AI_PROVIDER
-      : undefined;
-  const queueUrl = environment.AI_SUGGESTION_QUEUE_URL;
-  const apiKey = environment.AI_API_KEY;
-  const model = environment.AI_MODEL;
+    env.AI_PROVIDER !== "disabled" ? env.AI_PROVIDER : undefined;
+
   const suggestions =
-    aiEnabled && providerName && queueUrl
-      ? new SqsAnswerSuggestionService(draftRepository, queueUrl)
-      : aiEnabled && providerName && apiKey && model
+    env.FEATURE_AI_IMPORT_ENABLED && providerName && env.AI_SUGGESTION_QUEUE_URL
+      ? new SqsAnswerSuggestionService(
+          draftRepository,
+          env.AI_SUGGESTION_QUEUE_URL,
+        )
+      : env.FEATURE_AI_IMPORT_ENABLED &&
+          providerName &&
+          env.AI_API_KEY &&
+          env.AI_MODEL
         ? new LocalAsyncAnswerSuggestionService(
             draftRepository,
             imageReader,
             new OpenAiCompatibleVisionProvider({
-              apiKey,
-              model,
-              baseUrl: environment.AI_BASE_URL,
+              apiKey: env.AI_API_KEY,
+              model: env.AI_MODEL,
+              baseUrl: env.AI_BASE_URL,
               providerName,
               reasoningEffort:
-                providerName === "groq" && model === "qwen/qwen3.6-27b"
+                providerName === "groq" && env.AI_MODEL === "qwen/qwen3.6-27b"
                   ? "none"
                   : undefined,
             }),
-            Math.min(
-              5,
-              Math.max(1, Number(environment.AI_LOCAL_CONCURRENCY) || 2),
-            ),
+            Math.min(5, Math.max(1, env.AI_LOCAL_CONCURRENCY)),
           )
         : undefined;
 
   return createApp({
     ...authDependencies,
+    corsOrigins,
     catalog: new PostgresCatalogRepository(database, {
       imageUrlForKey: imageBaseUrl
         ? (key) => `${imageBaseUrl}/${key}`
@@ -81,6 +91,11 @@ export function createRuntimeApp(
     reviews: draftRepository,
     ...(suggestions ? { suggestions } : {}),
     attempts: new PostgresAttemptRepository(database),
+    reports: new PostgresReportRepository(database, {
+      imageUrlForKey: imageBaseUrl
+        ? (key) => `${imageBaseUrl}/${key}`
+        : undefined,
+    }),
     imports: new LocalExamImportService(draftRepository, imageStorageRoot),
     images: imageReader,
   });

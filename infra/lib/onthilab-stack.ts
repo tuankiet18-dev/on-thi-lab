@@ -7,6 +7,7 @@ import {
 } from "aws-cdk-lib";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -83,6 +84,24 @@ export class OnThiLabStack extends Stack {
         queue: deadLetterQueue,
         maxReceiveCount: 3,
       },
+    });
+
+    new cloudwatch.Alarm(this, "ImportDeadLetterQueueAlarm", {
+      metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator:
+        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: "Alert when there are messages in the DLQ.",
+    });
+
+    new cloudwatch.Alarm(this, "ImportQueueOldMessageAlarm", {
+      metric: importQueue.metricApproximateAgeOfOldestMessage(),
+      threshold: Duration.hours(1).toSeconds(),
+      evaluationPeriods: 1,
+      comparisonOperator:
+        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: "Alert when messages are stuck in the queue for >1hr.",
     });
 
     const vpc = new ec2.Vpc(this, "Vpc", {

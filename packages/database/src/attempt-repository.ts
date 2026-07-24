@@ -11,12 +11,14 @@ import type { OnThiLabDatabase } from "./index";
 import {
   attemptAnswers,
   attempts,
+  courses,
   dailyUsage,
   examRevisions,
   exams,
   questions,
   subscriptions,
 } from "./schema";
+import type { AttemptSummary } from "@onthilab/contracts";
 
 export type AttemptRepositoryErrorCode =
   | "ATTEMPT_CLOSED"
@@ -42,6 +44,7 @@ export interface AttemptRepository {
     examId: string;
     deviceId: string;
   }): Promise<AttemptLaunch>;
+  listUserAttempts(userId: string): Promise<AttemptSummary[]>;
   findForUser(attemptId: string, userId: string): Promise<Attempt | null>;
   saveAnswer(input: {
     attemptId: string;
@@ -219,6 +222,48 @@ export class PostgresAttemptRepository implements AttemptRepository {
     const attempt = await this.findForUser(attemptId, input.userId);
     if (!attempt) throw new Error("Không thể tải lượt thi vừa tạo.");
     return { attempt, resumed: false };
+  }
+
+  async listUserAttempts(userId: string): Promise<AttemptSummary[]> {
+    const rows = await this.db
+      .select({
+        id: attempts.id,
+        examId: exams.id,
+        examCode: exams.code,
+        courseCode: courses.code,
+        status: attempts.status,
+        startedAt: attempts.startedAt,
+        submittedAt: attempts.submittedAt,
+        correctCount: attempts.correctCount,
+        score: attempts.score,
+        questionOrder: attempts.questionOrder,
+      })
+      .from(attempts)
+      .innerJoin(exams, eq(attempts.examId, exams.id))
+      .innerJoin(courses, eq(exams.courseId, courses.id))
+      .where(eq(attempts.userId, userId))
+      .orderBy(desc(attempts.startedAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      examId: row.examId,
+      examCode: row.examCode,
+      courseCode: row.courseCode,
+      status: row.status,
+      startedAt: row.startedAt.toISOString(),
+      result:
+        row.status === "submitted" || row.status === "auto_submitted"
+          ? {
+              attemptId: row.id,
+              status: row.status as "submitted" | "auto_submitted",
+              correctCount: row.correctCount ?? 0,
+              questionCount: row.questionOrder.length,
+              score: row.score ? Number.parseFloat(row.score) : 0,
+              submittedAt:
+                row.submittedAt?.toISOString() ?? new Date().toISOString(),
+            }
+          : null,
+    }));
   }
 
   async findForUser(

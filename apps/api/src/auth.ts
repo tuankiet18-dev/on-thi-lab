@@ -3,6 +3,7 @@ import { CognitoJwtVerifier } from "aws-jwt-verify";
 export interface AuthIdentity {
   subject: string;
   email: string;
+  emailVerified: boolean;
   name: string;
   groups: string[];
 }
@@ -59,7 +60,14 @@ export class CognitoIdTokenVerifier implements TokenVerifier {
           )
         : [];
 
-      return { subject: payload.sub, email, name, groups };
+      return {
+        subject: payload.sub,
+        email,
+        emailVerified:
+          payload.email_verified === true || payload.email_verified === "true",
+        name,
+        groups,
+      };
     } catch {
       throw new AuthenticationError(
         "INVALID_TOKEN",

@@ -6,7 +6,9 @@ import {
 import { AppShell, PlaceholderPage } from "./components/AppShell";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { AdminImportPage } from "./pages/AdminImportPage";
+import { AdminReportPage } from "./pages/AdminReportPage";
 import { AdminReviewPage } from "./pages/AdminReviewPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -14,6 +16,7 @@ import { ExamDetailPage } from "./pages/ExamDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ResultPage } from "./pages/ResultPage";
+import { HistoryPage } from "./pages/HistoryPage";
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -43,6 +46,9 @@ const authCallbackRoute = createRoute({
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: search.redirect as string | undefined,
+  }),
   component: OnboardingPage,
 });
 
@@ -73,7 +79,7 @@ const resultRoute = createRoute({
 const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/history",
-  component: () => <PlaceholderPage title="Lịch sử làm bài" />,
+  component: HistoryPage,
 });
 
 const statisticsRoute = createRoute({
@@ -82,16 +88,33 @@ const statisticsRoute = createRoute({
   component: () => <PlaceholderPage title="Thống kê học tập" />,
 });
 
-const adminImportRoute = createRoute({
+const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/admin/import",
+  path: "/admin",
+});
+
+const adminImportRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "import",
   component: AdminImportPage,
 });
 
+const adminReportsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "reports",
+  component: AdminReportPage,
+});
+
 const adminReviewRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/admin/exams/$examId/review",
+  getParentRoute: () => adminRoute,
+  path: "exams/$examId/review",
   component: AdminReviewPage,
+});
+
+const adminUsersRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "users",
+  component: AdminUsersPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -105,8 +128,12 @@ const routeTree = rootRoute.addChildren([
   resultRoute,
   historyRoute,
   statisticsRoute,
-  adminImportRoute,
-  adminReviewRoute,
+  adminRoute.addChildren([
+    adminImportRoute,
+    adminReviewRoute,
+    adminReportsRoute,
+    adminUsersRoute,
+  ]),
 ]);
 
 export const router = createRouter({

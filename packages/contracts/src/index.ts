@@ -2,6 +2,12 @@ import { z } from "zod";
 
 export const examTypes = ["FE", "PE"] as const;
 export const questionTypes = ["single", "multiple"] as const;
+export const reportStatuses = [
+  "open",
+  "reviewing",
+  "resolved",
+  "rejected",
+] as const;
 export const aiSuggestionStatuses = [
   "queued",
   "processing",
@@ -31,6 +37,34 @@ export const profileOptionSchema = z.object({
   name: z.string().min(1),
 });
 
+export const campusSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+});
+
+export const majorSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+});
+
+export const curriculumSchema = z.object({
+  id: z.string().uuid(),
+  majorId: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+});
+
+export const termCourseSchema = z.object({
+  courseId: z.string().uuid(),
+  courseCode: z.string(),
+  courseName: z.string(),
+  termNumber: z.number().int(),
+  isElective: z.boolean(),
+  examFormatStatus: z.enum(["fe_candidate", "requires_review", "not_fe"]),
+});
+
 export const studentProfileSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -38,12 +72,14 @@ export const studentProfileSchema = z.object({
   studentCode: z.string().min(4),
   campus: profileOptionSchema,
   major: profileOptionSchema,
+  curriculum: curriculumSchema.nullable(),
   role: z.enum(userRoles),
 });
 
 export const profileOptionsSchema = z.object({
   campuses: z.array(profileOptionSchema),
   majors: z.array(profileOptionSchema),
+  curricula: z.array(curriculumSchema),
 });
 
 export const upsertStudentProfileSchema = z.object({
@@ -55,6 +91,7 @@ export const upsertStudentProfileSchema = z.object({
     .regex(/^[A-Z0-9-]{4,20}$/),
   campusCode: z.string().trim().min(1).max(20),
   majorCode: z.string().trim().min(1).max(30),
+  curriculumId: z.string().uuid().optional(),
 });
 
 export const createDraftImportSchema = z.object({
@@ -248,6 +285,42 @@ export const submitAttemptSchema = z.object({
   reason: z.enum(["user", "timeout"]),
 });
 
+export const createReportSchema = z.object({
+  category: z.string(),
+  detail: z.string(),
+});
+
+export const reportSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  questionId: z.string().uuid(),
+  attemptId: z.string().uuid().nullable(),
+  category: z.string(),
+  detail: z.string(),
+  status: z.enum(reportStatuses),
+  resolution: z.string().nullable(),
+  resolvedBy: z.string().uuid().nullable(),
+  resolvedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  question: z
+    .object({
+      examCode: z.string(),
+      courseCode: z.string(),
+      imageUrl: z.string(),
+      options: z.array(z.string()),
+      correctOptions: z.array(z.number()),
+      type: z.enum(questionTypes),
+    })
+    .optional(),
+});
+
+export const resolveReportSchema = z.object({
+  status: z.enum(["resolved", "rejected"]),
+  resolution: z.string(),
+  correctOptions: z.array(z.number().int().nonnegative()).max(6).optional(),
+});
+
 export const attemptResultSchema = z.object({
   attemptId: z.string().uuid(),
   status: z.enum(["submitted", "auto_submitted"]),
@@ -279,12 +352,31 @@ export const attemptLaunchSchema = z.object({
   resumed: z.boolean(),
 });
 
+export const attemptSummarySchema = z.object({
+  id: z.string().uuid(),
+  examId: z.string().uuid(),
+  examCode: z.string(),
+  courseCode: z.string(),
+  status: z.enum(attemptStatuses),
+  startedAt: z.string().datetime(),
+  result: attemptResultSchema.nullable(),
+});
+
 export type Question = z.infer<typeof questionSchema>;
+export type Campus = z.infer<typeof campusSchema>;
+export type Major = z.infer<typeof majorSchema>;
+export type Curriculum = z.infer<typeof curriculumSchema>;
+export type TermCourse = z.infer<typeof termCourseSchema>;
 export type ExamSummary = z.infer<typeof examSummarySchema>;
 export type Exam = z.infer<typeof examSchema>;
 export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
 export type SaveAnswerResult = z.infer<typeof saveAnswerResultSchema>;
+export type AttemptSummary = z.infer<typeof attemptSummarySchema>;
+export type CreateReportInput = z.infer<typeof createReportSchema>;
+export type Report = z.infer<typeof reportSchema>;
+export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+export type ReportStatus = (typeof reportStatuses)[number];
 export type AttemptStatus = (typeof attemptStatuses)[number];
 export type QuestionType = (typeof questionTypes)[number];
 export type AiSuggestionStatus = (typeof aiSuggestionStatuses)[number];

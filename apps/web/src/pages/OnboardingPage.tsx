@@ -1,12 +1,15 @@
-import { useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, GraduationCap, UserRoundCheck } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, getProfileOptions } from "../lib/api";
 import type { ProfileOptions } from "@onthilab/contracts";
 
+const routeApi = getRouteApi("/onboarding");
+
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const search = routeApi.useSearch();
   const { saveStudentProfile, session, studentProfile } = useAuth();
   const [fullName, setFullName] = useState(
     studentProfile?.fullName ?? session?.user.name ?? "",
@@ -56,7 +59,7 @@ export function OnboardingPage() {
         campusCode,
         majorCode,
       });
-      await navigate({ to: "/", replace: true });
+      await navigate({ to: search.redirect || "/", replace: true });
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "PROFILE_CONFLICT") {
         setError("Email hoặc mã số sinh viên này đã được sử dụng.");

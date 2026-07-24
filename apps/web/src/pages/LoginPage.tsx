@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { webConfig } from "../lib/config";
 
 function GoogleIcon() {
   return (
@@ -129,17 +130,19 @@ export function LoginPage() {
               </div>
             ) : (
               <div className="mt-7 space-y-3">
-                <button
-                  type="button"
-                  disabled={Boolean(pending)}
-                  onClick={() => void beginSignIn("Google")}
-                  className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-border-strong bg-white px-4 font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-                >
-                  <GoogleIcon />
-                  {pending === "google"
-                    ? "Đang chuyển hướng..."
-                    : "Tiếp tục với Google"}
-                </button>
+                {webConfig.flags?.googleAuthEnabled && (
+                  <button
+                    type="button"
+                    disabled={Boolean(pending)}
+                    onClick={() => void beginSignIn("Google")}
+                    className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-border-strong bg-white px-4 font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <GoogleIcon />
+                    {pending === "google"
+                      ? "Đang chuyển hướng..."
+                      : "Tiếp tục với Google"}
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={Boolean(pending)}
