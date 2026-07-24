@@ -1,5 +1,4 @@
 import {
-  calculateScore,
   createAttemptSchema,
   createDraftImportSchema,
   feZipImportConstraints,
@@ -7,13 +6,14 @@ import {
   submitAttemptSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
-  type AttemptResult,
   type StudentProfile,
   type UserRole,
 } from "@onthilab/contracts";
 import {
+  AttemptRepositoryError,
   DraftImportRepositoryError,
   ProfileRepositoryError,
+  type AttemptRepository,
   type CatalogRepository,
   type ExamReviewRepository,
   type UserProfileRepository,
@@ -29,29 +29,19 @@ import {
   type TokenVerifier,
   UnconfiguredTokenVerifier,
 } from "./auth";
-import { demoAnswerKey, demoExam } from "./fixtures";
+import { demoExam } from "./fixtures";
 import {
   ExamImportError,
   type ExamImportService,
   type UploadedArchive,
   UnconfiguredExamImportService,
 } from "./import-service";
+import { MemoryAttemptRepository } from "./memory-attempt-repository";
 import { openApiDocument } from "./openapi";
 import {
   type QuestionImageReader,
   UnconfiguredQuestionImageReader,
 } from "./question-image-reader";
-
-interface StoredAttempt {
-  id: string;
-  examId: string;
-  deviceId: string;
-  startedAt: string;
-  expiresAt: string;
-  answers: Record<string, number[]>;
-  sequences: Record<string, number>;
-  result?: AttemptResult;
-}
 
 interface AppDependencies {
   catalog: CatalogRepository;
@@ -60,6 +50,7 @@ interface AppDependencies {
   imports: ExamImportService;
   reviews: ExamReviewRepository;
   images: QuestionImageReader;
+  attempts: AttemptRepository;
 }
 
 const demoCatalogRepository: CatalogRepository = {
@@ -86,6 +77,9 @@ const unavailableReviewRepository: ExamReviewRepository = {
     throw new Error("Review storage is not configured");
   },
   markReady: async () => {
+    throw new Error("Review storage is not configured");
+  },
+  publish: async () => {
     throw new Error("Review storage is not configured");
   },
 };
@@ -174,10 +168,9 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     imports: new UnconfiguredExamImportService(),
     reviews: unavailableReviewRepository,
     images: new UnconfiguredQuestionImageReader(),
+    attempts: new MemoryAttemptRepository(),
     ...overrides,
   };
-  const attempts = new Map<string, StoredAttempt>();
-  const activeAttemptByDevice = new Map<string, string>();
   const app = new Hono<AppEnvironment>();
 
   app.use("*", requestId());
@@ -278,6 +271,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
 
   const requireProfile = profileRequiredMiddleware(dependencies.profiles);
   const requireContributor = roleRequiredMiddleware("contributor", "admin");
+  const requireAdmin = roleRequiredMiddleware("admin");
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
   app.use("/v1/attempts", requireProfile);
@@ -447,6 +441,25 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }
   });
 
+  app.post("/v1/admin/exams/:examId/publish", requireAdmin, async (context) => {
+    try {
+      const result = await dependencies.reviews.publish(
+        context.req.param("examId"),
+        context.get("profile").id,
+      );
+      return context.json({ data: result });
+    } catch (error) {
+      if (error instanceof DraftImportRepositoryError) {
+        const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
+  });
+
   app.get("/v1/catalog", async (context) =>
     context.json({
       data: await dependencies.catalog.listPublished({
@@ -466,94 +479,29 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       return context.json({ error: "EXAM_NOT_FOUND" }, 404);
     }
 
-    return context.json({ data: exam });
-  });
-
-  app.post("/v1/attempts", async (context) => {
-    const parsed = createAttemptSchema.safeParse(await context.req.json());
-
-    if (!parsed.success) {
-      return context.json(
-        { error: "INVALID_INPUT", details: parsed.error.flatten() },
-        400,
-      );
-    }
-
-    if (parsed.data.examId !== demoExam.id) {
-      return context.json({ error: "EXAM_NOT_FOUND" }, 404);
-    }
-
-    const activeAttemptId = activeAttemptByDevice.get(parsed.data.deviceId);
-    if (activeAttemptId) {
-      const activeAttempt = attempts.get(activeAttemptId);
-      if (activeAttempt && !activeAttempt.result) {
-        return context.json({ data: activeAttempt, resumed: true });
-      }
-    }
-
-    const id = crypto.randomUUID();
-    const startedAt = new Date();
-    const attempt: StoredAttempt = {
-      id,
-      examId: parsed.data.examId,
-      deviceId: parsed.data.deviceId,
-      startedAt: startedAt.toISOString(),
-      expiresAt: new Date(
-        startedAt.getTime() + demoExam.durationMinutes * 60_000,
-      ).toISOString(),
-      answers: {},
-      sequences: {},
-    };
-    attempts.set(id, attempt);
-    activeAttemptByDevice.set(parsed.data.deviceId, id);
-
-    return context.json({ data: attempt, resumed: false }, 201);
-  });
-
-  app.put("/v1/attempts/:attemptId/answers", async (context) => {
-    const attempt = attempts.get(context.req.param("attemptId"));
-    if (!attempt) {
-      return context.json({ error: "ATTEMPT_NOT_FOUND" }, 404);
-    }
-    if (attempt.result) {
-      return context.json({ error: "ATTEMPT_CLOSED" }, 409);
-    }
-    if (new Date(attempt.expiresAt).getTime() <= Date.now()) {
-      return context.json({ error: "ATTEMPT_EXPIRED" }, 409);
-    }
-
-    const parsed = saveAnswerSchema.safeParse(await context.req.json());
-    if (!parsed.success) {
-      return context.json(
-        { error: "INVALID_INPUT", details: parsed.error.flatten() },
-        400,
-      );
-    }
-
-    const currentSequence = attempt.sequences[parsed.data.questionId] ?? -1;
-    if (parsed.data.sequence >= currentSequence) {
-      attempt.answers[parsed.data.questionId] = parsed.data.selectedOptions;
-      attempt.sequences[parsed.data.questionId] = parsed.data.sequence;
-    }
-
+    const apiOrigin = new URL(context.req.url).origin;
     return context.json({
       data: {
-        savedAt: new Date().toISOString(),
-        sequence: attempt.sequences[parsed.data.questionId],
+        ...exam,
+        questions: exam.questions.map((question) => ({
+          ...question,
+          imageUrl: question.imageUrl.startsWith("/")
+            ? `${apiOrigin}${question.imageUrl}`
+            : question.imageUrl,
+        })),
       },
     });
   });
 
-  app.post("/v1/attempts/:attemptId/submit", async (context) => {
-    const attempt = attempts.get(context.req.param("attemptId"));
-    if (!attempt) {
-      return context.json({ error: "ATTEMPT_NOT_FOUND" }, 404);
+  app.post("/v1/attempts", async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
     }
-    if (attempt.result) {
-      return context.json({ data: attempt.result, idempotent: true });
-    }
+    const parsed = createAttemptSchema.safeParse(body);
 
-    const parsed = submitAttemptSchema.safeParse(await context.req.json());
     if (!parsed.success) {
       return context.json(
         { error: "INVALID_INPUT", details: parsed.error.flatten() },
@@ -561,21 +509,109 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       );
     }
 
-    const score = calculateScore(attempt.answers, demoAnswerKey);
-    const result: AttemptResult = {
-      attemptId: attempt.id,
-      status: parsed.data.reason === "timeout" ? "auto_submitted" : "submitted",
-      ...score,
-      submittedAt: new Date().toISOString(),
-    };
-    attempt.result = result;
-    activeAttemptByDevice.delete(attempt.deviceId);
-
-    return context.json({ data: result, idempotent: false });
+    try {
+      const launch = await dependencies.attempts.createOrResume({
+        userId: context.get("profile").id,
+        ...parsed.data,
+      });
+      return context.json({ data: launch }, launch.resumed ? 200 : 201);
+    } catch (error) {
+      if (error instanceof AttemptRepositoryError) {
+        const status =
+          error.code === "EXAM_NOT_FOUND"
+            ? 404
+            : error.code === "DAILY_LIMIT_REACHED"
+              ? 429
+              : 409;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
   });
 
-  app.get("/v1/attempts/:attemptId", (context) => {
-    const attempt = attempts.get(context.req.param("attemptId"));
+  app.put("/v1/attempts/:attemptId/answers", async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    const parsed = saveAnswerSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
+    }
+
+    try {
+      const saved = await dependencies.attempts.saveAnswer({
+        attemptId: context.req.param("attemptId"),
+        userId: context.get("profile").id,
+        answer: parsed.data,
+      });
+      return context.json({ data: saved });
+    } catch (error) {
+      if (error instanceof AttemptRepositoryError) {
+        const status =
+          error.code === "ATTEMPT_NOT_FOUND" ||
+          error.code === "QUESTION_NOT_FOUND"
+            ? 404
+            : 409;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
+  });
+
+  app.post("/v1/attempts/:attemptId/submit", async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    const parsed = submitAttemptSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
+    }
+
+    try {
+      const submission = await dependencies.attempts.submit({
+        attemptId: context.req.param("attemptId"),
+        userId: context.get("profile").id,
+        reason: parsed.data.reason,
+      });
+      return context.json({
+        data: submission.result,
+        idempotent: submission.idempotent,
+      });
+    } catch (error) {
+      if (error instanceof AttemptRepositoryError) {
+        const status = error.code === "ATTEMPT_NOT_FOUND" ? 404 : 409;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/attempts/:attemptId", async (context) => {
+    const attempt = await dependencies.attempts.findForUser(
+      context.req.param("attemptId"),
+      context.get("profile").id,
+    );
     if (!attempt) {
       return context.json({ error: "ATTEMPT_NOT_FOUND" }, 404);
     }

@@ -7,23 +7,60 @@ import {
   Filter,
   MapPin,
   Search,
-  SlidersHorizontal,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ExamSummary } from "@onthilab/contracts";
+import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
+import { getCatalog } from "../lib/api";
 
 export function CatalogPage() {
+  const { configured, session } = useAuth();
+  const [exams, setExams] = useState<ExamSummary[]>(
+    configured ? [] : catalogExams,
+  );
+  const [loading, setLoading] = useState(Boolean(session));
+  const [loadError, setLoadError] = useState("");
+  const [loadVersion, setLoadVersion] = useState(0);
   const [query, setQuery] = useState("");
   const [campus, setCampus] = useState("Tất cả campus");
   const [semester, setSemester] = useState("Tất cả kỳ học");
 
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    setLoading(true);
+    setLoadError("");
+    void getCatalog(session.idToken)
+      .then((result) => {
+        if (active) setExams(result);
+      })
+      .catch(() => {
+        if (active) setLoadError("Không thể tải kho đề thi từ hệ thống.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadVersion, session]);
+
+  const campuses = useMemo(
+    () => [...new Set(exams.map((exam) => exam.campus))].sort(),
+    [exams],
+  );
+  const semesters = useMemo(
+    () => [...new Set(exams.map((exam) => exam.semester))].sort().reverse(),
+    [exams],
+  );
   const results = useMemo(
     () =>
-      catalogExams.filter((exam) => {
+      exams.filter((exam) => {
         const searchText =
           `${exam.courseCode} ${exam.courseName} ${exam.code}`.toLowerCase();
         return (
@@ -32,7 +69,7 @@ export function CatalogPage() {
           (semester === "Tất cả kỳ học" || exam.semester === semester)
         );
       }),
-    [campus, query, semester],
+    [campus, exams, query, semester],
   );
 
   return (
@@ -57,7 +94,7 @@ export function CatalogPage() {
       </header>
 
       <Card className="p-4 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_200px_200px_auto]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
           <label className="relative block">
             <span className="sr-only">Tìm theo mã hoặc tên môn</span>
             <Search
@@ -81,9 +118,9 @@ export function CatalogPage() {
               className="input-base w-full appearance-none pr-10"
             >
               <option>Tất cả campus</option>
-              <option>Hòa Lạc</option>
-              <option>Hồ Chí Minh</option>
-              <option>Đà Nẵng</option>
+              {campuses.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
             </select>
             <ChevronDown
               className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -99,8 +136,9 @@ export function CatalogPage() {
               className="input-base w-full appearance-none pr-10"
             >
               <option>Tất cả kỳ học</option>
-              <option>Spring 2026</option>
-              <option>Fall 2025</option>
+              {semesters.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
             </select>
             <ChevronDown
               className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -108,75 +146,91 @@ export function CatalogPage() {
               aria-hidden="true"
             />
           </label>
-          <Button variant="secondary" icon={<SlidersHorizontal size={17} />}>
-            Bộ lọc khác
-          </Button>
         </div>
       </Card>
+
+      {loadError && (
+        <Card className="flex flex-col gap-4 border-red-200 bg-red-50 p-5 text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-semibold">{loadError}</p>
+          <Button
+            variant="secondary"
+            onClick={() => setLoadVersion((value) => value + 1)}
+          >
+            Thử tải lại
+          </Button>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-slate-600">
           Tìm thấy <strong className="text-foreground">{results.length}</strong>{" "}
           đề phù hợp
         </p>
-        <button
-          type="button"
-          className="inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-slate-600 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
-        >
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
           <Filter size={16} aria-hidden="true" />
           Mới nhất
-        </button>
+        </span>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {results.map((exam) => (
-          <Card
-            key={exam.id}
-            className="flex flex-col gap-5 p-5 transition-shadow duration-200 hover:shadow-panel sm:flex-row sm:items-center"
-          >
-            <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-blue-50 to-indigo-100 font-heading text-lg font-bold text-primary">
-              {exam.courseCode.slice(0, 3)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="blue">{exam.examType}</Badge>
-                <Badge tone="slate">{exam.semester}</Badge>
-                {exam.isRetake && <Badge tone="pink">Retake</Badge>}
-              </div>
-              <p className="mt-3 text-xs font-bold uppercase tracking-wider text-primary">
-                {exam.code}
-              </p>
-              <h2 className="mt-1 font-heading text-lg font-bold text-foreground">
-                {exam.courseName}
-              </h2>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <BookOpenCheck size={15} aria-hidden="true" />
-                  {exam.questionCount} câu
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock3 size={15} aria-hidden="true" />
-                  {exam.durationMinutes} phút
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={15} aria-hidden="true" />
-                  {exam.campus}
-                </span>
-              </div>
-            </div>
-            <Link
-              to="/exams/$examId"
-              params={{ examId: exam.id }}
-              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+      {loading && (
+        <div className="grid gap-4 xl:grid-cols-2" aria-label="Đang tải kho đề">
+          {[0, 1, 2, 3].map((item) => (
+            <Card key={item} className="h-36 animate-pulse bg-slate-100" />
+          ))}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {results.map((exam) => (
+            <Card
+              key={exam.id}
+              className="flex flex-col gap-5 p-5 transition-shadow duration-200 hover:shadow-panel sm:flex-row sm:items-center"
             >
-              Chi tiết
-              <ArrowRight size={17} aria-hidden="true" />
-            </Link>
-          </Card>
-        ))}
-      </div>
+              <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-blue-50 to-indigo-100 font-heading text-lg font-bold text-primary">
+                {exam.courseCode.slice(0, 3)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">{exam.examType}</Badge>
+                  <Badge tone="slate">{exam.semester}</Badge>
+                  {exam.isRetake && <Badge tone="pink">Retake</Badge>}
+                </div>
+                <p className="mt-3 text-xs font-bold uppercase tracking-wider text-primary">
+                  {exam.code}
+                </p>
+                <h2 className="mt-1 font-heading text-lg font-bold text-foreground">
+                  {exam.courseName}
+                </h2>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <BookOpenCheck size={15} aria-hidden="true" />
+                    {exam.questionCount} câu
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock3 size={15} aria-hidden="true" />
+                    {exam.durationMinutes} phút
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <MapPin size={15} aria-hidden="true" />
+                    {exam.campus}
+                  </span>
+                </div>
+              </div>
+              <Link
+                to="/exams/$examId"
+                params={{ examId: exam.id }}
+                className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+              >
+                Chi tiết
+                <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {results.length === 0 && (
+      {!loading && !loadError && results.length === 0 && (
         <Card className="grid min-h-64 place-items-center p-8 text-center">
           <div>
             <Search

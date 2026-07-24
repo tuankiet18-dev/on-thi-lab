@@ -1,3 +1,5 @@
+import type { Attempt, Exam } from "@onthilab/contracts";
+import { isExactAnswer } from "@onthilab/contracts";
 import {
   ArrowLeft,
   Check,
@@ -9,61 +11,131 @@ import {
   X,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoAnswerKey, demoExam } from "../data/demo";
-import {
-  loadAttempt,
-  resetDemoAttempt,
-  type LocalAttempt,
-} from "../lib/attempt-storage";
+import { getAttempt, getPublishedExam } from "../lib/api";
+import { loadAttempt, resetDemoAttempt } from "../lib/attempt-storage";
 
 export function ResultPage() {
   const { attemptId } = useParams({ from: "/results/$attemptId" });
   const navigate = useNavigate();
-  const [attempt] = useState<LocalAttempt | null>(() => loadAttempt(attemptId));
+  const { configured, session } = useAuth();
+  const [attempt, setAttempt] = useState<Attempt | null>(null);
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [reportedQuestion, setReportedQuestion] = useState<string | null>(null);
 
-  if (!attempt?.result) {
+  useEffect(() => {
+    let active = true;
+    if (!configured) {
+      const local = loadAttempt(attemptId);
+      if (local?.result) {
+        setAttempt({
+          id: "00000000-0000-4000-8000-000000000001",
+          examId: "00000000-0000-4000-8000-000000000002",
+          status: local.result.status,
+          startedAt: local.startedAt,
+          expiresAt: local.expiresAt,
+          answers: local.answers,
+          questionOrder: demoExam.questions.map((question) => question.id),
+          result: {
+            ...local.result,
+            attemptId: "00000000-0000-4000-8000-000000000001",
+          },
+          correctAnswers: demoAnswerKey,
+        });
+        setExam(demoExam);
+      } else {
+        setError("Bài thi này chưa được nộp hoặc dữ liệu đã bị xóa.");
+      }
+      setLoading(false);
+      return;
+    }
+    if (!session) return;
+
+    void getAttempt(session.idToken, attemptId)
+      .then(async (loadedAttempt) => {
+        if (!loadedAttempt.result) {
+          throw new Error("Attempt is not submitted");
+        }
+        const loadedExam = await getPublishedExam(
+          session.idToken,
+          loadedAttempt.examId,
+        );
+        if (!active) return;
+        setAttempt(loadedAttempt);
+        setExam(loadedExam);
+      })
+      .catch(() => {
+        if (active) setError("Chưa thể tải kết quả bài thi.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [attemptId, configured, session]);
+
+  if (loading) {
+    return (
+      <Card className="mx-auto min-h-72 max-w-5xl animate-pulse bg-slate-100" />
+    );
+  }
+
+  if (!attempt?.result || !exam || error) {
     return (
       <Card className="mx-auto max-w-lg p-8 text-center">
         <h1 className="font-heading text-2xl font-bold">Chưa có kết quả</h1>
         <p className="mt-2 text-slate-600">
-          Bài thi này chưa được nộp hoặc dữ liệu đã bị xóa.
+          {error || "Bài thi này chưa được nộp."}
         </p>
         <Link
-          to="/exams/$examId"
-          params={{ examId: demoExam.id }}
+          to="/exams"
           className="mt-6 inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white"
         >
-          Quay lại đề thi
+          Quay lại kho đề
         </Link>
       </Card>
     );
   }
 
   const result = attempt.result;
+  const answerKey = attempt.correctAnswers ?? {};
+  const questionsById = new Map(
+    exam.questions.map((question) => [question.id, question]),
+  );
+  const orderedQuestions = attempt.questionOrder
+    .map((questionId) => questionsById.get(questionId))
+    .filter((question): question is Exam["questions"][number] =>
+      Boolean(question),
+    );
+  const examIdForRetry = exam.id;
   const circumference = 2 * Math.PI * 54;
   const dashOffset = circumference * (1 - result.score / 10);
 
   function retry() {
-    resetDemoAttempt();
+    if (!configured) resetDemoAttempt();
     void navigate({
       to: "/exams/$examId",
-      params: { examId: demoExam.id },
+      params: { examId: configured ? examIdForRetry : demoExam.id },
     });
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Link
-        to="/"
-        className="inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-slate-600 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+        to="/exams"
+        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
       >
         <ArrowLeft size={17} aria-hidden="true" />
-        Về tổng quan
+        Về kho đề thi
       </Link>
 
       <Card className="overflow-hidden">
@@ -75,10 +147,10 @@ export function ResultPage() {
                 : "Đã hoàn thành"}
             </Badge>
             <h1 className="mt-5 font-heading text-3xl font-bold">
-              Kết quả thi thử {demoExam.courseCode}
+              Kết quả thi thử {exam.courseCode}
             </h1>
             <p className="mt-2 text-blue-100">
-              {demoExam.code} · Điểm số tham khảo
+              {exam.code} · Điểm số tham khảo
             </p>
             <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-blue-100">
               <span className="flex items-center gap-2">
@@ -167,17 +239,10 @@ export function ResultPage() {
           </p>
         </div>
         <div className="space-y-3">
-          {demoExam.questions.map((question, index) => {
+          {orderedQuestions.map((question, index) => {
             const selected = attempt.answers[question.id] ?? [];
-            const correct = demoAnswerKey[question.id] ?? [];
-            const isCorrect =
-              selected.length === correct.length &&
-              [...selected]
-                .sort((a, b) => a - b)
-                .every(
-                  (value, optionIndex) =>
-                    value === [...correct].sort()[optionIndex],
-                );
+            const correct = answerKey[question.id] ?? [];
+            const isCorrect = isExactAnswer(selected, correct);
 
             return (
               <Card key={question.id} className="p-5">
@@ -230,7 +295,7 @@ export function ResultPage() {
                   <button
                     type="button"
                     onClick={() => setReportedQuestion(question.id)}
-                    className="inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 sm:self-auto"
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 sm:self-auto"
                   >
                     <Flag size={16} aria-hidden="true" />
                     Báo lỗi
@@ -238,8 +303,8 @@ export function ResultPage() {
                 </div>
                 {reportedQuestion === question.id && (
                   <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                    Cảm ơn bạn. Form report chi tiết sẽ được nối với API ở
-                    sprint tiếp theo; điểm hiện tại của bạn vẫn được giữ nguyên.
+                    Cảm ơn bạn. Điểm của lần thi này vẫn được giữ nguyên khi
+                    Admin xem xét báo cáo.
                   </div>
                 )}
               </Card>

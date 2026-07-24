@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  createAttempt,
+  getAttempt,
+  getCatalog,
   getDraftExamReview,
+  getPublishedExam,
   markExamReviewReady,
   getMyProfile,
+  publishExam,
   saveMyProfile,
+  saveAttemptAnswer,
   saveQuestionReviewAnswer,
+  submitAttempt,
   uploadDraftImport,
 } from "./api";
 
@@ -137,6 +144,7 @@ describe("profile API client", () => {
       durationMinutes: 60,
       isRetake: false,
       status: "draft",
+      publishedAt: null,
       answeredCount: 0,
       questionCount: 1,
       questions: [
@@ -204,5 +212,150 @@ describe("profile API client", () => {
       `http://localhost:8787/v1/admin/exams/${examId}/questions/${questionId}/answer`,
       `http://localhost:8787/v1/admin/exams/${examId}/ready`,
     ]);
+  });
+
+  it("publishes a reviewed exam and loads it from the live catalog", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const publishedAt = "2026-07-24T06:00:00.000Z";
+    const summary = {
+      id: examId,
+      code: "SWD392-SP26-FE",
+      courseCode: "SWD392",
+      courseName: "Software Architecture and Design",
+      semester: "SP26",
+      campus: "Hòa Lạc",
+      examType: "FE",
+      isRetake: false,
+      durationMinutes: 60,
+      questionCount: 1,
+      publishedAt,
+      answerConfidence: "verified",
+    } as const;
+    const exam = {
+      ...summary,
+      instructions: ["Không thể tạm dừng."],
+      shuffleQuestions: true,
+      questions: [
+        {
+          id: "40000000-0000-4000-8000-000000000001",
+          order: 1,
+          imageUrl: "http://localhost:8787/question-images/Q1.jpg",
+          imageAlt: "Câu hỏi 1",
+          type: "single",
+          options: ["A", "B", "C", "D"],
+        },
+      ],
+    } as const;
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              examId,
+              revisionId: "30000000-0000-4000-8000-000000000001",
+              status: "published",
+              publishedAt,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [summary] }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: exam }), { status: 200 }),
+      );
+
+    await expect(
+      publishExam("signed-id-token", examId, fetcher),
+    ).resolves.toMatchObject({ status: "published" });
+    await expect(getCatalog("signed-id-token", fetcher)).resolves.toEqual([
+      summary,
+    ]);
+    await expect(
+      getPublishedExam("signed-id-token", examId, fetcher),
+    ).resolves.toEqual(exam);
+  });
+
+  it("creates, saves, submits and reloads a server attempt", async () => {
+    const attemptId = "50000000-0000-4000-8000-000000000001";
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const questionId = "40000000-0000-4000-8000-000000000001";
+    const startedAt = "2026-07-24T06:00:00.000Z";
+    const expiresAt = "2026-07-24T07:00:00.000Z";
+    const submittedAt = "2026-07-24T06:20:00.000Z";
+    const activeAttempt = {
+      id: attemptId,
+      examId,
+      status: "in_progress",
+      startedAt,
+      expiresAt,
+      answers: {},
+      questionOrder: [questionId],
+      result: null,
+    } as const;
+    const result = {
+      attemptId,
+      status: "submitted",
+      correctCount: 1,
+      questionCount: 1,
+      score: 10,
+      submittedAt,
+    } as const;
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { attempt: activeAttempt, resumed: false },
+          }),
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { savedAt: startedAt, sequence: 1 },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: result }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              ...activeAttempt,
+              status: "submitted",
+              answers: { [questionId]: [1] },
+              result,
+              correctAnswers: { [questionId]: [1] },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    await expect(
+      createAttempt("signed-id-token", examId, "device-0001", fetcher),
+    ).resolves.toMatchObject({ resumed: false });
+    await expect(
+      saveAttemptAnswer(
+        "signed-id-token",
+        attemptId,
+        { questionId, selectedOptions: [1], sequence: 1 },
+        fetcher,
+      ),
+    ).resolves.toMatchObject({ sequence: 1 });
+    await expect(
+      submitAttempt("signed-id-token", attemptId, "user", fetcher),
+    ).resolves.toEqual(result);
+    await expect(
+      getAttempt("signed-id-token", attemptId, fetcher),
+    ).resolves.toMatchObject({ status: "submitted" });
   });
 });

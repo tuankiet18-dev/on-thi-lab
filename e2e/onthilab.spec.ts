@@ -64,6 +64,15 @@ test("desktop student can complete a practice exam", async ({
   await page.getByRole("button", { name: "Bắt đầu làm bài" }).click();
   await expect(page).toHaveURL(/\/attempts\/demo-attempt$/);
 
+  await page.getByRole("button", { name: "Phóng to ảnh câu 1" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Ảnh phóng to câu 1" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Ảnh phóng to câu 1" }),
+  ).toHaveCount(0);
+
   await page.getByRole("radio", { name: /Đáp án B/ }).click();
   await page.getByRole("button", { name: "Câu tiếp" }).click();
   await page.getByRole("radio", { name: /Đáp án C/ }).click();

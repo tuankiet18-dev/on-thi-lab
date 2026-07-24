@@ -2,6 +2,7 @@ import type {
   CreateDraftImportInput,
   DraftExamReview,
   DraftImportResult,
+  PublishExamResult,
   ReviewQuestion,
   ReviewReadinessResult,
   UpdateQuestionAnswerInput,
@@ -36,6 +37,7 @@ export type DraftImportRepositoryErrorCode =
   | "EXAM_ALREADY_EXISTS"
   | "EXAM_NOT_EDITABLE"
   | "EXAM_NOT_FOUND"
+  | "EXAM_NOT_READY"
   | "QUESTION_NOT_FOUND";
 
 export class DraftImportRepositoryError extends Error {
@@ -69,6 +71,7 @@ export interface ExamReviewRepository {
     answer: UpdateQuestionAnswerInput;
   }): Promise<StoredReviewQuestion>;
   markReady(examId: string, changedBy: string): Promise<ReviewReadinessResult>;
+  publish(examId: string, approvedBy: string): Promise<PublishExamResult>;
 }
 
 export function buildExamCode(
@@ -208,17 +211,26 @@ export class PostgresDraftImportRepository
         durationMinutes: exams.durationMinutes,
         isRetake: exams.isRetake,
         status: exams.status,
+        publishedAt: exams.publishedAt,
       })
       .from(exams)
       .innerJoin(courses, eq(exams.courseId, courses.id))
       .innerJoin(campuses, eq(exams.campusId, campuses.id))
       .innerJoin(examRevisions, eq(examRevisions.examId, exams.id))
       .where(
-        and(eq(exams.id, examId), inArray(exams.status, ["draft", "review"])),
+        and(
+          eq(exams.id, examId),
+          inArray(exams.status, ["draft", "review", "published"]),
+        ),
       )
       .orderBy(desc(examRevisions.revision))
       .limit(1);
-    if (!exam || (exam.status !== "draft" && exam.status !== "review")) {
+    if (
+      !exam ||
+      (exam.status !== "draft" &&
+        exam.status !== "review" &&
+        exam.status !== "published")
+    ) {
       return null;
     }
 
@@ -246,6 +258,7 @@ export class PostgresDraftImportRepository
       durationMinutes: exam.durationMinutes,
       isRetake: exam.isRetake,
       status: exam.status,
+      publishedAt: exam.publishedAt?.toISOString() ?? null,
       answeredCount: questionRows.filter(
         (question) => question.correctOptions.length > 0,
       ).length,
@@ -400,6 +413,100 @@ export class PostgresDraftImportRepository
         status: "review",
         answeredCount,
         questionCount: answers.length,
+      };
+    });
+  }
+
+  async publish(
+    examId: string,
+    approvedBy: string,
+  ): Promise<PublishExamResult> {
+    return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({
+          id: exams.id,
+          status: exams.status,
+          publishedAt: exams.publishedAt,
+        })
+        .from(exams)
+        .where(eq(exams.id, examId))
+        .limit(1);
+      if (!exam) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy đề thi.",
+        );
+      }
+
+      const [revision] = await transaction
+        .select({
+          id: examRevisions.id,
+          approvedAt: examRevisions.approvedAt,
+        })
+        .from(examRevisions)
+        .where(eq(examRevisions.examId, examId))
+        .orderBy(desc(examRevisions.revision))
+        .limit(1);
+      if (!revision) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Đề chưa có phiên bản để xuất bản.",
+        );
+      }
+
+      if (exam.status === "published" && exam.publishedAt) {
+        return {
+          examId,
+          revisionId: revision.id,
+          status: "published",
+          publishedAt: exam.publishedAt.toISOString(),
+        };
+      }
+      if (exam.status !== "review") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_READY",
+          "Đề phải hoàn tất duyệt đáp án trước khi xuất bản.",
+        );
+      }
+
+      const answerRows = await transaction
+        .select({ correctOptions: questions.correctOptions })
+        .from(questions)
+        .where(eq(questions.revisionId, revision.id));
+      if (
+        answerRows.length === 0 ||
+        answerRows.some((question) => question.correctOptions.length === 0)
+      ) {
+        throw new DraftImportRepositoryError(
+          "ANSWERS_INCOMPLETE",
+          "Đề vẫn còn câu chưa có đáp án.",
+        );
+      }
+
+      const publishedAt = new Date();
+      await transaction
+        .update(examRevisions)
+        .set({
+          approvedBy,
+          approvedAt: publishedAt,
+          answerConfidence: "verified",
+          updatedAt: publishedAt,
+        })
+        .where(eq(examRevisions.id, revision.id));
+      await transaction
+        .update(exams)
+        .set({
+          status: "published",
+          publishedAt,
+          updatedAt: publishedAt,
+        })
+        .where(eq(exams.id, examId));
+
+      return {
+        examId,
+        revisionId: revision.id,
+        status: "published",
+        publishedAt: publishedAt.toISOString(),
       };
     });
   }

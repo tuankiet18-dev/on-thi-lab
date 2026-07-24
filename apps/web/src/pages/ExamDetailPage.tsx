@@ -1,5 +1,4 @@
 import {
-  AlertCircle,
   ArrowLeft,
   BookOpenCheck,
   CheckCircle2,
@@ -11,25 +10,100 @@ import {
   Shuffle,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import type { Exam } from "@onthilab/contracts";
+import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { catalogExams, demoExam } from "../data/demo";
+import { demoExam } from "../data/demo";
+import { ApiError, createAttempt, getPublishedExam } from "../lib/api";
 import { createOrResumeAttempt } from "../lib/attempt-storage";
+import { getOrCreateDeviceId } from "../lib/device";
 
 export function ExamDetailPage() {
   const { examId } = useParams({ from: "/exams/$examId" });
   const navigate = useNavigate();
-  const exam =
-    catalogExams.find((candidate) => candidate.id === examId) ?? demoExam;
-  const isDemoReady = exam.id === demoExam.id;
+  const { configured, session } = useAuth();
+  const [exam, setExam] = useState<Exam | null>(configured ? null : demoExam);
+  const [loading, setLoading] = useState(Boolean(session));
+  const [loadError, setLoadError] = useState("");
+  const [startError, setStartError] = useState("");
+  const [starting, setStarting] = useState(false);
 
-  function startExam() {
-    const attempt = createOrResumeAttempt();
-    void navigate({
-      to: "/attempts/$attemptId",
-      params: { attemptId: attempt.id },
-    });
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    setLoading(true);
+    void getPublishedExam(session.idToken, examId)
+      .then((result) => {
+        if (active) setExam(result);
+      })
+      .catch(() => {
+        if (active) setLoadError("Không tìm thấy đề đã xuất bản.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [examId, session]);
+
+  async function startExam() {
+    if (!configured) {
+      const localAttempt = createOrResumeAttempt();
+      await navigate({
+        to: "/attempts/$attemptId",
+        params: { attemptId: localAttempt.id },
+      });
+      return;
+    }
+    if (!session || !exam) return;
+    setStarting(true);
+    setStartError("");
+    try {
+      const launch = await createAttempt(
+        session.idToken,
+        exam.id,
+        getOrCreateDeviceId(),
+      );
+      await navigate({
+        to: "/attempts/$attemptId",
+        params: { attemptId: launch.attempt.id },
+      });
+    } catch (reason) {
+      setStartError(
+        reason instanceof ApiError && reason.code === "DAILY_LIMIT_REACHED"
+          ? "Bạn đã dùng hết 2 lượt thi miễn phí hôm nay."
+          : "Chưa thể bắt đầu bài thi. Vui lòng thử lại.",
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card className="mx-auto min-h-72 max-w-5xl animate-pulse bg-slate-100" />
+    );
+  }
+
+  if (!exam || loadError) {
+    return (
+      <Card className="mx-auto max-w-lg p-8 text-center">
+        <h1 className="font-heading text-2xl font-bold">Chưa thể mở đề</h1>
+        <p className="mt-2 text-slate-600">
+          {loadError || "Đề thi không tồn tại."}
+        </p>
+        <Link
+          to="/exams"
+          className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 font-bold text-white"
+        >
+          Quay lại kho đề
+        </Link>
+      </Card>
+    );
   }
 
   return (
@@ -126,24 +200,26 @@ export function ExamDetailPage() {
             </div>
             <div className="mt-5 flex items-center justify-between text-sm">
               <span className="text-slate-500">Lượt miễn phí hôm nay</span>
-              <strong className="text-foreground">2 lượt còn lại</strong>
+              <strong className="text-foreground">Tối đa 2 lượt/ngày</strong>
             </div>
             <Button
-              onClick={startExam}
-              disabled={!isDemoReady}
+              onClick={() => void startExam()}
+              disabled={starting}
               className="mt-5 w-full"
               icon={<Play size={18} fill="currentColor" />}
             >
-              {isDemoReady ? "Bắt đầu làm bài" : "Đề demo chưa khả dụng"}
+              {starting ? "Đang tạo lượt thi..." : "Bắt đầu làm bài"}
             </Button>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
               Timer bắt đầu ngay sau khi bạn nhấn nút.
             </p>
-            {!isDemoReady && (
-              <div className="mt-4 flex gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-                <AlertCircle size={17} className="mt-0.5 shrink-0" />
-                Chỉ đề SWD392 được nối với luồng thi ở bản demo.
-              </div>
+            {startError && (
+              <p
+                className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700"
+                role="alert"
+              >
+                {startError}
+              </p>
             )}
           </Card>
         </aside>

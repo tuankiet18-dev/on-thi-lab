@@ -1,5 +1,6 @@
 import {
   createDatabase,
+  PostgresAttemptRepository,
   PostgresCatalogRepository,
   PostgresDraftImportRepository,
   PostgresUserProfileRepository,
@@ -41,6 +42,7 @@ export function createRuntimeApp(
     }),
     profiles: new PostgresUserProfileRepository(database),
     reviews: draftRepository,
+    attempts: new PostgresAttemptRepository(database),
     imports: new LocalExamImportService(draftRepository, imageStorageRoot),
     images: new LocalQuestionImageReader(imageStorageRoot),
   });

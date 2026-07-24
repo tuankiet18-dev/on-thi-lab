@@ -11,9 +11,9 @@ Phiên bản khởi tạo chứng minh trọn vẹn một luồng quan trọng:
 5. Hệ thống nộp thủ công hoặc tự nộp khi hết giờ.
 6. Kết quả dùng exact-match cho câu nhiều đáp án và thang điểm 10.
 
-Onboarding đã dùng API Hono và PostgreSQL làm nguồn dữ liệu chính. Exam engine
-demo vẫn dùng local storage để có thể chạy độc lập; bước tiếp theo là thay
-adapter attempt/catalog bằng HTTP client và repository production.
+Onboarding, catalog, publish và exam engine đều dùng API Hono và PostgreSQL làm
+nguồn dữ liệu chính. Dữ liệu demo/local storage chỉ còn là fallback để bộ UI
+test có thể chạy độc lập khi Cognito và database không được cấu hình.
 
 ## Luồng xác thực development
 
@@ -59,6 +59,9 @@ API Gateway ── Lambda/Hono ── Aurora PostgreSQL (Data API)
 - Submit là idempotent.
 - Attempt luôn trỏ tới một `exam_revision`; sửa đáp án không làm đổi điểm lịch sử.
 - Đề chỉ được publish khi revision đã có người duyệt.
+- Chỉ Admin được approve revision và publish; Contributor chỉ nhập/duyệt đáp án.
+- Free user tạo tối đa 2 attempt mới mỗi ngày theo múi giờ Việt Nam; attempt
+  đang hoạt động được resume mà không trừ thêm lượt.
 - Ảnh gốc và ảnh phát hành dùng object key bất biến, checksum để chống trùng.
 
 ## Chi phí AWS

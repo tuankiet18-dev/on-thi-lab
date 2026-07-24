@@ -1,14 +1,27 @@
 import {
+  attemptLaunchSchema,
+  attemptResultSchema,
+  attemptSchema,
   draftExamReviewSchema,
   draftImportResultSchema,
+  examSchema,
+  examSummarySchema,
   profileOptionsSchema,
+  publishExamResultSchema,
   reviewReadinessResultSchema,
+  saveAnswerResultSchema,
   savedReviewQuestionSchema,
   studentProfileSchema,
+  type Attempt,
+  type AttemptLaunch,
+  type AttemptResult,
   type CreateDraftImportInput,
   type DraftExamReview,
   type DraftImportResult,
+  type Exam,
+  type ExamSummary,
   type ProfileOptions,
+  type PublishExamResult,
   type ReviewReadinessResult,
   type SavedReviewQuestion,
   type StudentProfile,
@@ -158,4 +171,106 @@ export async function markExamReviewReady(
     fetcher,
   );
   return reviewReadinessResultSchema.parse(result);
+}
+
+export async function publishExam(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PublishExamResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/publish`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return publishExamResultSchema.parse(result);
+}
+
+export async function getCatalog(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ExamSummary[]> {
+  const result = await request("/v1/catalog", idToken, {}, fetcher);
+  return examSummarySchema.array().parse(result);
+}
+
+export async function getPublishedExam(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Exam> {
+  const result = await request(
+    `/v1/exams/${encodeURIComponent(examId)}`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return examSchema.parse(result);
+}
+
+export async function createAttempt(
+  idToken: string,
+  examId: string,
+  deviceId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AttemptLaunch> {
+  const result = await request(
+    "/v1/attempts",
+    idToken,
+    {
+      method: "POST",
+      body: JSON.stringify({ examId, deviceId }),
+    },
+    fetcher,
+  );
+  return attemptLaunchSchema.parse(result);
+}
+
+export async function getAttempt(
+  idToken: string,
+  attemptId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Attempt> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(attemptId)}`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return attemptSchema.parse(result);
+}
+
+export async function saveAttemptAnswer(
+  idToken: string,
+  attemptId: string,
+  input: {
+    questionId: string;
+    selectedOptions: number[];
+    sequence: number;
+  },
+  fetcher: typeof fetch = fetch,
+): Promise<{ savedAt: string; sequence: number }> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(attemptId)}/answers`,
+    idToken,
+    { method: "PUT", body: JSON.stringify(input) },
+    fetcher,
+  );
+  return saveAnswerResultSchema.parse(result);
+}
+
+export async function submitAttempt(
+  idToken: string,
+  attemptId: string,
+  reason: "user" | "timeout",
+  fetcher: typeof fetch = fetch,
+): Promise<AttemptResult> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(attemptId)}/submit`,
+    idToken,
+    { method: "POST", body: JSON.stringify({ reason }) },
+    fetcher,
+  );
+  return attemptResultSchema.parse(result);
 }

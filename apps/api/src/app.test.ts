@@ -8,6 +8,7 @@ import type {
   ProfileIdentity,
   UserProfileRepository,
 } from "@onthilab/database";
+import { AttemptRepositoryError } from "@onthilab/database";
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity, TokenVerifier } from "./auth";
 import { app, createApp } from "./app";
@@ -127,6 +128,7 @@ describe("attempt API", () => {
     expect(response.status).toBe(200);
     expect(document.openapi).toBe("3.1.0");
     expect(document.paths["/v1/attempts"]).toBeDefined();
+    expect(document.paths["/v1/admin/exams/{examId}/publish"]).toBeDefined();
   });
 
   it("loads profile options and persists onboarding by Cognito subject", async () => {
@@ -317,6 +319,7 @@ describe("attempt API", () => {
           durationMinutes: 60,
           isRetake: false,
           status: "draft",
+          publishedAt: null,
           answeredCount: 0,
           questionCount: 1,
           questions: [
@@ -346,6 +349,12 @@ describe("attempt API", () => {
           status: "review",
           answeredCount: 1,
           questionCount: 1,
+        }),
+        publish: async () => ({
+          examId,
+          revisionId: "30000000-0000-4000-8000-000000000001",
+          status: "published",
+          publishedAt: "2026-07-24T06:00:00.000Z",
         }),
       },
     });
@@ -394,6 +403,50 @@ describe("attempt API", () => {
     });
   });
 
+  it("allows only admins to publish a reviewed exam", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const reviews = {
+      findReview: async () => null,
+      saveAnswer: async () => {
+        throw new Error("not used");
+      },
+      markReady: async () => {
+        throw new Error("not used");
+      },
+      publish: async (_examId: string, approvedBy: string) => ({
+        examId,
+        revisionId: "30000000-0000-4000-8000-000000000001",
+        status: "published" as const,
+        publishedAt: "2026-07-24T06:00:00.000Z",
+        approvedBy,
+      }),
+    };
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      reviews,
+    });
+    const forbidden = await contributorApp.request(
+      `/v1/admin/exams/${examId}/publish`,
+      { method: "POST", headers: authorization },
+    );
+    expect(forbidden.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      reviews,
+    });
+    const published = await adminApp.request(
+      `/v1/admin/exams/${examId}/publish`,
+      { method: "POST", headers: authorization },
+    );
+    expect(published.status).toBe(200);
+    await expect(published.json()).resolves.toMatchObject({
+      data: { status: "published" },
+    });
+  });
+
   it("serves local question images with a safe content type", async () => {
     const isolatedApp = createApp({
       images: {
@@ -436,11 +489,19 @@ describe("attempt API", () => {
     });
     expect(createResponse.status).toBe(201);
     const created = (await createResponse.json()) as {
-      data: { id: string };
+      data: { attempt: { id: string } };
     };
+    const activeResponse = await isolatedApp.request(
+      `/v1/attempts/${created.data.attempt.id}`,
+      { headers: authorization },
+    );
+    const activeBody = (await activeResponse.json()) as {
+      data: { correctAnswers?: unknown };
+    };
+    expect(activeBody.data.correctAnswers).toBeUndefined();
 
     const answerResponse = await isolatedApp.request(
-      `/v1/attempts/${created.data.id}/answers`,
+      `/v1/attempts/${created.data.attempt.id}/answers`,
       {
         method: "PUT",
         headers: {
@@ -457,7 +518,7 @@ describe("attempt API", () => {
     expect(answerResponse.status).toBe(200);
 
     const submitResponse = await isolatedApp.request(
-      `/v1/attempts/${created.data.id}/submit`,
+      `/v1/attempts/${created.data.attempt.id}/submit`,
       {
         method: "POST",
         headers: {
@@ -470,7 +531,7 @@ describe("attempt API", () => {
     expect(submitResponse.status).toBe(200);
 
     const secondSubmitResponse = await isolatedApp.request(
-      `/v1/attempts/${created.data.id}/submit`,
+      `/v1/attempts/${created.data.attempt.id}/submit`,
       {
         method: "POST",
         headers: {
@@ -484,5 +545,54 @@ describe("attempt API", () => {
       idempotent: boolean;
     };
     expect(secondBody.idempotent).toBe(true);
+
+    const submittedResponse = await isolatedApp.request(
+      `/v1/attempts/${created.data.attempt.id}`,
+      { headers: authorization },
+    );
+    await expect(submittedResponse.json()).resolves.toMatchObject({
+      data: {
+        status: "submitted",
+        correctAnswers: { q1: [1] },
+      },
+    });
+  });
+
+  it("returns a clear limit response after two free attempts", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      attempts: {
+        createOrResume: async () => {
+          throw new AttemptRepositoryError(
+            "DAILY_LIMIT_REACHED",
+            "Bạn đã dùng hết 2 lượt thi miễn phí hôm nay.",
+          );
+        },
+        findForUser: async () => null,
+        saveAnswer: async () => {
+          throw new Error("not used");
+        },
+        submit: async () => {
+          throw new Error("not used");
+        },
+      },
+    });
+    const response = await isolatedApp.request("/v1/attempts", {
+      method: "POST",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        examId: "20000000-0000-4000-8000-000000000001",
+        deviceId: "test-device-0001",
+      }),
+    });
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "DAILY_LIMIT_REACHED",
+    });
   });
 });
