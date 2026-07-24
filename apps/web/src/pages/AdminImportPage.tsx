@@ -8,15 +8,29 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ApiError, uploadDraftImport } from "../lib/api";
 
 export function AdminImportPage() {
-  const [fileName, setFileName] = useState("");
   const { configured, session, studentProfile } = useAuth();
+  const [archive, setArchive] = useState<File | null>(null);
+  const [courseCode, setCourseCode] = useState("SWD392");
+  const [semester, setSemester] = useState("SP26");
+  const [campusCode, setCampusCode] = useState(
+    studentProfile?.campus.code ?? "HL",
+  );
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [isRetake, setIsRetake] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [createdDraft, setCreatedDraft] = useState<{
+    examCode: string;
+    questionCount: number;
+  } | null>(null);
   const canContribute =
     !configured ||
     studentProfile?.role === "admin" ||
@@ -28,6 +42,50 @@ export function AdminImportPage() {
   if (!canContribute) {
     return <Navigate to="/" replace />;
   }
+
+  const submitImport = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setCreatedDraft(null);
+    if (!archive || !session) {
+      setError("Bạn cần đăng nhập và chọn file ZIP trước khi nhập đề.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await uploadDraftImport(
+        session.idToken,
+        {
+          courseCode,
+          semester,
+          campusCode,
+          examType: "FE",
+          isRetake,
+          durationMinutes,
+        },
+        archive,
+      );
+      setCreatedDraft(result);
+    } catch (reason) {
+      if (reason instanceof ApiError) {
+        const messages: Record<string, string> = {
+          CAMPUS_NOT_FOUND: "Campus không tồn tại trong hệ thống.",
+          COURSE_NOT_FOUND: "Mã môn chưa có trong danh mục.",
+          EXAM_ALREADY_EXISTS: "Đề thi này đã tồn tại.",
+          INVALID_ARCHIVE:
+            "ZIP không hợp lệ. Cần đúng 60 ảnh Q1–Q60 và không có file lạ.",
+        };
+        setError(
+          messages[reason.code] ?? "Không thể nhập đề. Vui lòng thử lại.",
+        );
+      } else {
+        setError("Không thể nhập đề. Vui lòng thử lại.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -72,76 +130,132 @@ export function AdminImportPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_310px]">
         <Card className="p-6 sm:p-8">
-          <h2 className="font-heading text-xl font-bold text-foreground">
-            1. Thông tin và nguồn ảnh
-          </h2>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <label className="form-field">
-              <span>Mã môn</span>
-              <input className="input-base" defaultValue="SWD392" />
-            </label>
-            <label className="form-field">
-              <span>Kỳ học</span>
-              <input className="input-base" defaultValue="Spring 2026" />
-            </label>
-            <label className="form-field">
-              <span>Campus</span>
-              <select className="input-base">
-                <option>Hòa Lạc</option>
-                <option>Hồ Chí Minh</option>
-                <option>Đà Nẵng</option>
-              </select>
-            </label>
-            <label className="form-field">
-              <span>Loại thi</span>
-              <select className="input-base">
-                <option>FE</option>
-              </select>
-            </label>
-            <label className="form-field">
-              <span>Thời gian (phút)</span>
+          <form onSubmit={submitImport}>
+            <h2 className="font-heading text-xl font-bold text-foreground">
+              1. Thông tin và nguồn ảnh
+            </h2>
+            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+              <label className="form-field">
+                <span>Mã môn</span>
+                <input
+                  className="input-base"
+                  value={courseCode}
+                  onChange={(event) => setCourseCode(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>Kỳ học</span>
+                <input
+                  className="input-base"
+                  value={semester}
+                  onChange={(event) => setSemester(event.target.value)}
+                  placeholder="SP26"
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>Campus</span>
+                <select
+                  className="input-base"
+                  value={campusCode}
+                  onChange={(event) => setCampusCode(event.target.value)}
+                >
+                  <option value="HL">Hòa Lạc</option>
+                  <option value="HCM">Hồ Chí Minh</option>
+                  <option value="DN">Đà Nẵng</option>
+                  <option value="CT">Cần Thơ</option>
+                  <option value="QN">Quy Nhơn</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Loại thi</span>
+                <select className="input-base">
+                  <option>FE</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Thời gian (phút)</span>
+                <input
+                  className="input-base"
+                  type="number"
+                  min="15"
+                  max="240"
+                  value={durationMinutes}
+                  onChange={(event) =>
+                    setDurationMinutes(Number(event.target.value))
+                  }
+                  required
+                />
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-border p-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={isRetake}
+                  onChange={(event) => setIsRetake(event.target.checked)}
+                />
+                Đây là đề thi lại (retake)
+              </label>
+            </div>
+
+            <label className="mt-7 block cursor-pointer rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-8 text-center transition-colors hover:border-primary hover:bg-primary-soft focus-within:ring-3 focus-within:ring-primary/20">
               <input
-                className="input-base"
-                type="number"
-                min="1"
-                defaultValue="60"
+                type="file"
+                accept=".zip"
+                className="sr-only"
+                onChange={(event) =>
+                  setArchive(event.target.files?.[0] ?? null)
+                }
               />
+              <span className="mx-auto grid size-12 place-items-center rounded-xl bg-white text-primary shadow-sm">
+                {archive ? (
+                  <CheckCircle2 size={23} aria-hidden="true" />
+                ) : (
+                  <FileUp size={23} aria-hidden="true" />
+                )}
+              </span>
+              <span className="mt-4 block font-heading text-lg font-bold text-foreground">
+                {archive?.name || "Chọn file ZIP chứa ảnh câu hỏi"}
+              </span>
+              <span className="mt-2 block text-sm text-slate-500">
+                Đúng 60 ảnh · JPG, PNG hoặc WebP · 20 MB mỗi ảnh
+              </span>
             </label>
-            <label className="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-border p-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-              <input type="checkbox" className="size-4 accent-primary" />
-              Đây là đề thi lại (retake)
-            </label>
-          </div>
 
-          <label className="mt-7 block cursor-pointer rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-8 text-center transition-colors hover:border-primary hover:bg-primary-soft focus-within:ring-3 focus-within:ring-primary/20">
-            <input
-              type="file"
-              accept=".zip"
-              className="sr-only"
-              onChange={(event) =>
-                setFileName(event.target.files?.[0]?.name ?? "")
-              }
-            />
-            <span className="mx-auto grid size-12 place-items-center rounded-xl bg-white text-primary shadow-sm">
-              {fileName ? (
-                <CheckCircle2 size={23} aria-hidden="true" />
-              ) : (
-                <FileUp size={23} aria-hidden="true" />
-              )}
-            </span>
-            <span className="mt-4 block font-heading text-lg font-bold text-foreground">
-              {fileName || "Chọn file ZIP chứa ảnh câu hỏi"}
-            </span>
-            <span className="mt-2 block text-sm text-slate-500">
-              Đúng 60 ảnh · JPG, PNG hoặc WebP · 20 MB mỗi ảnh
-            </span>
-          </label>
+            {error && (
+              <p
+                className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
+            {createdDraft && (
+              <div
+                className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+                role="status"
+              >
+                <p className="font-bold">
+                  Đã tạo đề nháp {createdDraft.examCode}
+                </p>
+                <p className="mt-1">
+                  {createdDraft.questionCount} ảnh đã được lưu. Bước tiếp theo
+                  là duyệt đáp án trước khi xuất bản.
+                </p>
+              </div>
+            )}
 
-          <div className="mt-6 flex justify-end">
-            <Button disabled={!fileName} icon={<ArrowRight size={17} />}>
-              Kiểm tra và tải lên
-            </Button>
-          </div>
+            <div className="mt-6 flex justify-end">
+              <Button
+                type="submit"
+                disabled={!archive || submitting}
+                icon={<ArrowRight size={17} />}
+              >
+                {submitting ? "Đang kiểm tra..." : "Kiểm tra và tạo đề nháp"}
+              </Button>
+            </div>
+          </form>
         </Card>
 
         <aside className="space-y-4">

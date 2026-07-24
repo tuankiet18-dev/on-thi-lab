@@ -1,4 +1,5 @@
 import type {
+  CreateDraftImportInput,
   ProfileOptions,
   StudentProfile,
   UpsertStudentProfileInput,
@@ -236,6 +237,65 @@ describe("attempt API", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "FORBIDDEN" });
+  });
+
+  it("creates a 60-question draft from an admin ZIP upload", async () => {
+    let receivedMetadata: CreateDraftImportInput | undefined;
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      imports: {
+        createDraft: async (input) => {
+          receivedMetadata = input.metadata;
+          expect(input.archive.name).toBe("questions.zip");
+          expect(input.creator.role).toBe("admin");
+          return {
+            examId: "20000000-0000-4000-8000-000000000001",
+            revisionId: "30000000-0000-4000-8000-000000000001",
+            examCode: "SWD392-SP26-FE",
+            questionCount: 60,
+            status: "draft",
+          };
+        },
+      },
+    });
+    const form = new FormData();
+    form.set(
+      "metadata",
+      JSON.stringify({
+        courseCode: "swd392",
+        semester: "sp26",
+        campusCode: "HL",
+        examType: "FE",
+        isRetake: false,
+        durationMinutes: 60,
+      }),
+    );
+    form.set(
+      "archive",
+      new File([new Uint8Array([80, 75])], "questions.zip", {
+        type: "application/zip",
+      }),
+    );
+
+    const response = await isolatedApp.request("/v1/admin/imports", {
+      method: "POST",
+      headers: authorization,
+      body: form,
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        examCode: "SWD392-SP26-FE",
+        questionCount: 60,
+        status: "draft",
+      },
+    });
+    expect(receivedMetadata).toMatchObject({
+      courseCode: "SWD392",
+      semester: "SP26",
+    });
   });
 
   it("creates, saves and submits an attempt idempotently", async () => {

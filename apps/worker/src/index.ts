@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export * from "./zip-validator.js";
+export * from "@onthilab/importer";
 
 const aiAnswerSchema = z.object({
   questionType: z.enum(["single", "multiple"]),

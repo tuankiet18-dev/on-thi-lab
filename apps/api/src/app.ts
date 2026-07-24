@@ -1,6 +1,7 @@
 import {
   calculateScore,
   createAttemptSchema,
+  createDraftImportSchema,
   feZipImportConstraints,
   saveAnswerSchema,
   submitAttemptSchema,
@@ -10,11 +11,13 @@ import {
   type UserRole,
 } from "@onthilab/contracts";
 import {
+  DraftImportRepositoryError,
   ProfileRepositoryError,
   type CatalogRepository,
   type UserProfileRepository,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
@@ -25,6 +28,12 @@ import {
   UnconfiguredTokenVerifier,
 } from "./auth";
 import { demoAnswerKey, demoExam } from "./fixtures";
+import {
+  ExamImportError,
+  type ExamImportService,
+  type UploadedArchive,
+  UnconfiguredExamImportService,
+} from "./import-service";
 import { openApiDocument } from "./openapi";
 
 interface StoredAttempt {
@@ -42,6 +51,7 @@ interface AppDependencies {
   catalog: CatalogRepository;
   auth: TokenVerifier;
   profiles: UserProfileRepository;
+  imports: ExamImportService;
 }
 
 const demoCatalogRepository: CatalogRepository = {
@@ -68,6 +78,19 @@ type AppEnvironment = {
     profile: StudentProfile;
   };
 };
+
+function isUploadedArchive(value: unknown): value is UploadedArchive {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  );
+}
 
 function authenticationMiddleware(
   verifier: TokenVerifier,
@@ -130,6 +153,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     catalog: demoCatalogRepository,
     auth: new UnconfiguredTokenVerifier(),
     profiles: unavailableProfileRepository,
+    imports: new UnconfiguredExamImportService(),
     ...overrides,
   };
   const attempts = new Map<string, StoredAttempt>();
@@ -226,6 +250,73 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       },
     }),
   );
+
+  app.use(
+    "/v1/admin/imports",
+    bodyLimit({
+      maxSize: feZipImportConstraints.maxArchiveBytes + 1024 * 1024,
+      onError: (context) => context.json({ error: "ARCHIVE_TOO_LARGE" }, 413),
+    }),
+  );
+
+  app.post("/v1/admin/imports", async (context) => {
+    let form: Record<string, string | File>;
+    try {
+      form = await context.req.parseBody();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+
+    const metadataValue = form.metadata;
+    const archive = form.archive;
+    if (typeof metadataValue !== "string" || !isUploadedArchive(archive)) {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+
+    let metadata: unknown;
+    try {
+      metadata = JSON.parse(metadataValue);
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    const parsed = createDraftImportSchema.safeParse(metadata);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
+    }
+
+    try {
+      const result = await dependencies.imports.createDraft({
+        metadata: parsed.data,
+        archive,
+        creator: context.get("profile"),
+      });
+      return context.json({ data: result }, 201);
+    } catch (error) {
+      if (error instanceof DraftImportRepositoryError) {
+        const status = error.code === "EXAM_ALREADY_EXISTS" ? 409 : 400;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      if (error instanceof ExamImportError) {
+        const status =
+          error.code === "IMPORT_NOT_CONFIGURED"
+            ? 503
+            : error.code === "ARCHIVE_TOO_LARGE"
+              ? 413
+              : 400;
+        return context.json(
+          { error: error.code, message: error.message },
+          status,
+        );
+      }
+      throw error;
+    }
+  });
 
   app.get("/v1/catalog", async (context) =>
     context.json({

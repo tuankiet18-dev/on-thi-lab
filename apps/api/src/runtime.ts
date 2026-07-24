@@ -1,10 +1,13 @@
 import {
   createDatabase,
   PostgresCatalogRepository,
+  PostgresDraftImportRepository,
   PostgresUserProfileRepository,
 } from "@onthilab/database";
+import { resolve } from "node:path";
 import { createApp } from "./app";
 import { CognitoIdTokenVerifier } from "./auth";
+import { LocalExamImportService } from "./import-service";
 
 export function createRuntimeApp(
   environment: Record<string, string | undefined> = process.env,
@@ -21,6 +24,10 @@ export function createRuntimeApp(
 
   const database = createDatabase(databaseUrl);
   const imageBaseUrl = environment.QUESTION_IMAGE_BASE_URL?.replace(/\/$/, "");
+  const imageStorageRoot = resolve(
+    environment.QUESTION_IMAGE_STORAGE_PATH ??
+      resolve(process.cwd(), ".local-storage/question-images"),
+  );
 
   return createApp({
     ...authDependencies,
@@ -30,5 +37,9 @@ export function createRuntimeApp(
         : undefined,
     }),
     profiles: new PostgresUserProfileRepository(database),
+    imports: new LocalExamImportService(
+      new PostgresDraftImportRepository(database),
+      imageStorageRoot,
+    ),
   });
 }

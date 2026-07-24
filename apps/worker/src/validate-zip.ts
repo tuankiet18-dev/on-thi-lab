@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { validateZipArchive, ZipValidationError } from "./zip-validator.js";
+import { validateZipArchive, ZipValidationError } from "@onthilab/importer";
 
 const archiveArgument = process.argv[2];
 if (!archiveArgument) {
