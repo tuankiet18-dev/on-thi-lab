@@ -27,8 +27,15 @@ export function StatisticsPage() {
       <div className="mx-auto max-w-5xl">
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-900">
           <h3 className="font-semibold">Đã có lỗi xảy ra</h3>
-          <p className="mt-2 text-sm">{error instanceof Error ? error.message : "Không thể tải thống kê."}</p>
-          <button onClick={() => refetch()} className="mt-4 rounded-lg bg-rose-100 px-4 py-2 text-sm font-medium hover:bg-rose-200">Thử lại</button>
+          <p className="mt-2 text-sm">
+            {error instanceof Error ? error.message : "Không thể tải thống kê."}
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 rounded-lg bg-rose-100 px-4 py-2 text-sm font-medium hover:bg-rose-200"
+          >
+            Thử lại
+          </button>
         </div>
       </div>
     );
@@ -108,9 +115,14 @@ export function StatisticsPage() {
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/50">
             <ul className="divide-y divide-slate-100">
               {stats.recentAttempts.map((attempt) => (
-                <li key={attempt.id} className="flex items-center justify-between p-4 hover:bg-slate-50">
+                <li
+                  key={attempt.id}
+                  className="flex items-center justify-between p-4 hover:bg-slate-50"
+                >
                   <div>
-                    <p className="font-medium text-slate-900">{attempt.examCode}</p>
+                    <p className="font-medium text-slate-900">
+                      {attempt.examCode}
+                    </p>
                     <p className="text-sm text-slate-500">
                       Nộp lúc:{" "}
                       {attempt.submittedAt

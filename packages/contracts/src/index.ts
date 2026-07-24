@@ -415,7 +415,7 @@ export const studentStatisticsSchema = z.object({
       examCode: z.string(),
       score: z.number().nullable(),
       submittedAt: z.string().datetime().nullable(),
-    })
+    }),
   ),
 });
 

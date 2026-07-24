@@ -595,9 +595,11 @@ export class PostgresAttemptRepository implements AttemptRepository {
 
     return {
       totalAttempts: stats?.totalAttempts ?? 0,
-      averageScore: stats?.averageScore !== null ? Number(stats!.averageScore) : null,
-      highestScore: stats?.highestScore !== null ? Number(stats!.highestScore) : null,
-      recentAttempts: recent.map(r => ({
+      averageScore:
+        stats?.averageScore !== null ? Number(stats!.averageScore) : null,
+      highestScore:
+        stats?.highestScore !== null ? Number(stats!.highestScore) : null,
+      recentAttempts: recent.map((r) => ({
         id: r.id,
         examCode: r.examCode,
         score: r.score !== null ? Number(r.score) : null,
