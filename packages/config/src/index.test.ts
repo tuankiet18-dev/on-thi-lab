@@ -40,6 +40,28 @@ describe("runtime configuration", () => {
     expect(config.flags.monetizationEnabled).toBe(true);
   });
 
+  it("requires a server-side model and key before AI suggestions are enabled", () => {
+    expect(() =>
+      readServerConfig({
+        ...baseServerEnvironment,
+        FEATURE_AI_IMPORT_ENABLED: "true",
+        AI_PROVIDER: "openai-compatible",
+      }),
+    ).toThrow();
+
+    const config = readServerConfig({
+      ...baseServerEnvironment,
+      FEATURE_AI_IMPORT_ENABLED: "true",
+      AI_PROVIDER: "openai-compatible",
+      AI_MODEL: "vision-test",
+      AI_API_KEY: "server-only",
+      AI_BASE_URL: "https://ai.example.test/v1",
+      AI_LOCAL_CONCURRENCY: "3",
+    });
+    expect(config.flags.aiImportEnabled).toBe(true);
+    expect(config.aiLocalConcurrency).toBe(3);
+  });
+
   it("keeps browser configuration free of server secrets", () => {
     expect(
       readPublicWebConfig({

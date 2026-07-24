@@ -5,8 +5,13 @@ import {
   PostgresDraftImportRepository,
   PostgresUserProfileRepository,
 } from "@onthilab/database";
+import { OpenAiCompatibleVisionProvider } from "@onthilab/worker";
 import { resolve } from "node:path";
 import { createApp } from "./app";
+import {
+  LocalAsyncAnswerSuggestionService,
+  SqsAnswerSuggestionService,
+} from "./answer-suggestion-service";
 import { CognitoIdTokenVerifier } from "./auth";
 import { LocalExamImportService } from "./import-service";
 import { LocalQuestionImageReader } from "./question-image-reader";
@@ -32,6 +37,34 @@ export function createRuntimeApp(
   );
 
   const draftRepository = new PostgresDraftImportRepository(database);
+  const imageReader = new LocalQuestionImageReader(imageStorageRoot);
+  const aiEnabled = environment.FEATURE_AI_IMPORT_ENABLED === "true";
+  const providerName =
+    environment.AI_PROVIDER && environment.AI_PROVIDER !== "disabled"
+      ? environment.AI_PROVIDER
+      : undefined;
+  const queueUrl = environment.AI_SUGGESTION_QUEUE_URL;
+  const apiKey = environment.AI_API_KEY;
+  const model = environment.AI_MODEL;
+  const suggestions =
+    aiEnabled && providerName && queueUrl
+      ? new SqsAnswerSuggestionService(draftRepository, queueUrl)
+      : aiEnabled && providerName && apiKey && model
+        ? new LocalAsyncAnswerSuggestionService(
+            draftRepository,
+            imageReader,
+            new OpenAiCompatibleVisionProvider({
+              apiKey,
+              model,
+              baseUrl: environment.AI_BASE_URL,
+              providerName,
+            }),
+            Math.min(
+              5,
+              Math.max(1, Number(environment.AI_LOCAL_CONCURRENCY) || 2),
+            ),
+          )
+        : undefined;
 
   return createApp({
     ...authDependencies,
@@ -42,8 +75,9 @@ export function createRuntimeApp(
     }),
     profiles: new PostgresUserProfileRepository(database),
     reviews: draftRepository,
+    ...(suggestions ? { suggestions } : {}),
     attempts: new PostgresAttemptRepository(database),
     imports: new LocalExamImportService(draftRepository, imageStorageRoot),
-    images: new LocalQuestionImageReader(imageStorageRoot),
+    images: imageReader,
   });
 }

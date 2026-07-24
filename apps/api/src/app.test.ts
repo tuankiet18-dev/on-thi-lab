@@ -129,6 +129,9 @@ describe("attempt API", () => {
     expect(document.openapi).toBe("3.1.0");
     expect(document.paths["/v1/attempts"]).toBeDefined();
     expect(document.paths["/v1/admin/exams/{examId}/publish"]).toBeDefined();
+    expect(
+      document.paths["/v1/admin/exams/{examId}/ai-suggestions"],
+    ).toBeDefined();
   });
 
   it("loads profile options and persists onboarding by Cognito subject", async () => {
@@ -330,6 +333,7 @@ describe("attempt API", () => {
               type: "single",
               options: ["A", "B", "C", "D"],
               correctOptions: [],
+              aiSuggestion: null,
             },
           ],
         }),
@@ -342,6 +346,7 @@ describe("attempt API", () => {
             type: input.answer.type,
             options: ["A", "B", "C", "D"],
             correctOptions: input.answer.correctOptions,
+            aiSuggestion: null,
           };
         },
         markReady: async () => ({
@@ -444,6 +449,42 @@ describe("attempt API", () => {
     expect(published.status).toBe(200);
     await expect(published.json()).resolves.toMatchObject({
       data: { status: "published" },
+    });
+  });
+
+  it("allows only admins to queue cost-bearing AI suggestions", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    let queuedExamId = "";
+    const suggestions = {
+      queueExam: async (inputExamId: string) => {
+        queuedExamId = inputExamId;
+        return { examId: inputExamId, queuedCount: 58, skippedCount: 2 };
+      },
+    };
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      suggestions,
+    });
+    const forbidden = await contributorApp.request(
+      `/v1/admin/exams/${examId}/ai-suggestions`,
+      { method: "POST", headers: authorization },
+    );
+    expect(forbidden.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      suggestions,
+    });
+    const queued = await adminApp.request(
+      `/v1/admin/exams/${examId}/ai-suggestions`,
+      { method: "POST", headers: authorization },
+    );
+    expect(queued.status).toBe(202);
+    expect(queuedExamId).toBe(examId);
+    await expect(queued.json()).resolves.toEqual({
+      data: { examId, queuedCount: 58, skippedCount: 2 },
     });
   });
 

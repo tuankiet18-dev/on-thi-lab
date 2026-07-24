@@ -34,9 +34,12 @@ Phase 3 đã có validator ZIP an toàn, giải nén đúng 60 ảnh, checksum b
 multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
 local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
 hoặc nhiều đáp án, xem tiến độ 60 câu và chuyển đề sang trạng thái `review`.
-Mọi lần sửa đáp án đều có audit trước/sau. Các phần còn lại là presigned S3 +
-SQS và đề xuất đáp án AI. Admin đã có bước xác nhận cuối, khóa revision và xuất
-bản đề vào catalog.
+Mọi lần sửa đáp án đều có audit trước/sau. Pipeline gợi ý đáp án AI đã có
+provider server-side, validation JSON, trạng thái queued/processing/suggested/
+failed/confirmed, local concurrency queue, SQS producer và UI Admin xác nhận
+chi phí. AI không ghi thẳng đáp án; người duyệt phải áp dụng và lưu từng câu.
+Admin đã có bước xác nhận cuối, khóa revision và xuất bản đề vào catalog. Phần
+còn lại của phase là presigned S3 và deploy SQS consumer worker trên AWS.
 
 Phase 4 đã thay catalog và exam demo bằng API PostgreSQL. Attempt lưu revision,
 thứ tự câu đã trộn, timer server, autosave có sequence, submit idempotent và

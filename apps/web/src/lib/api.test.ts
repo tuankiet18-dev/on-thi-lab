@@ -9,6 +9,7 @@ import {
   markExamReviewReady,
   getMyProfile,
   publishExam,
+  queueAiAnswerSuggestions,
   saveMyProfile,
   saveAttemptAnswer,
   saveQuestionReviewAnswer,
@@ -155,6 +156,7 @@ describe("profile API client", () => {
           type: "single",
           options: ["A", "B", "C", "D"],
           correctOptions: [],
+          aiSuggestion: null,
         },
       ],
     } as const;
@@ -172,6 +174,7 @@ describe("profile API client", () => {
               type: "single",
               options: ["A", "B", "C", "D"],
               correctOptions: [1],
+              aiSuggestion: null,
             },
           }),
           { status: 200 },
@@ -277,6 +280,31 @@ describe("profile API client", () => {
     await expect(
       getPublishedExam("signed-id-token", examId, fetcher),
     ).resolves.toEqual(exam);
+  });
+
+  it("queues AI suggestions without sending provider credentials to the browser", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { examId, queuedCount: 60, skippedCount: 0 },
+        }),
+        { status: 202 },
+      ),
+    );
+
+    await expect(
+      queueAiAnswerSuggestions("signed-id-token", examId, fetcher),
+    ).resolves.toEqual({ examId, queuedCount: 60, skippedCount: 0 });
+    expect(fetcher).toHaveBeenCalledWith(
+      `http://localhost:8787/v1/admin/exams/${examId}/ai-suggestions`,
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer signed-id-token",
+        }),
+      }),
+    );
   });
 
   it("creates, saves, submits and reloads a server attempt", async () => {

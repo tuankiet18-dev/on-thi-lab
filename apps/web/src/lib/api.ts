@@ -8,6 +8,7 @@ import {
   examSummarySchema,
   profileOptionsSchema,
   publishExamResultSchema,
+  queueAiSuggestionsResultSchema,
   reviewReadinessResultSchema,
   saveAnswerResultSchema,
   savedReviewQuestionSchema,
@@ -22,6 +23,7 @@ import {
   type ExamSummary,
   type ProfileOptions,
   type PublishExamResult,
+  type QueueAiSuggestionsResult,
   type ReviewReadinessResult,
   type SavedReviewQuestion,
   type StudentProfile,
@@ -185,6 +187,20 @@ export async function publishExam(
     fetcher,
   );
   return publishExamResultSchema.parse(result);
+}
+
+export async function queueAiAnswerSuggestions(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<QueueAiSuggestionsResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/ai-suggestions`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return queueAiSuggestionsResultSchema.parse(result);
 }
 
 export async function getCatalog(

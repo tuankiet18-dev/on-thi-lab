@@ -51,7 +51,9 @@ Cognito ID token qua bearer header; API dùng `COGNITO_USER_POOL_ID` và
 Kiểm tra trước khi bật flag:
 
 - `FEATURE_GOOGLE_AUTH_ENABLED=true` yêu cầu Cognito IDs.
-- `FEATURE_AI_IMPORT_ENABLED=true` yêu cầu AI provider/model/key phù hợp.
+- `FEATURE_AI_IMPORT_ENABLED=true` yêu cầu `AI_PROVIDER`, `AI_MODEL`,
+  `AI_API_KEY` và tùy chọn `AI_BASE_URL`. `AI_SUGGESTION_QUEUE_URL` chuyển API
+  từ hàng đợi local sang SQS; chỉ bật khi consumer AWS đã được deploy.
 - `FEATURE_MONETIZATION_ENABLED=true` yêu cầu đủ ba payOS key và webhook HTTPS.
 
 ## AWS staging/production

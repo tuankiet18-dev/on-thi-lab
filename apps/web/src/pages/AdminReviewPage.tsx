@@ -15,6 +15,7 @@ import {
   Rocket,
   Save,
   ShieldCheck,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
@@ -28,6 +29,7 @@ import {
   getDraftExamReview,
   markExamReviewReady,
   publishExam,
+  queueAiAnswerSuggestions,
   saveQuestionReviewAnswer,
 } from "../lib/api";
 import { cn } from "../lib/cn";
@@ -44,9 +46,12 @@ export function AdminReviewPage() {
   const [saving, setSaving] = useState(false);
   const [markingReady, setMarkingReady] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [queuingAi, setQueuingAi] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
+  const [showAiConfirmation, setShowAiConfirmation] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [aiError, setAiError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
   const canContribute =
@@ -99,7 +104,12 @@ export function AdminReviewPage() {
     setOptionCount(currentQuestion.options.length);
     setSelectedOptions(currentQuestion.correctOptions);
     setError("");
-  }, [currentQuestion]);
+  }, [
+    currentQuestion?.correctOptions.join(","),
+    currentQuestion?.id,
+    currentQuestion?.options.length,
+    currentQuestion?.type,
+  ]);
 
   useEffect(() => {
     if (!imageExpanded) return;
@@ -119,6 +129,15 @@ export function AdminReviewPage() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [publishing, showPublishConfirmation]);
 
+  useEffect(() => {
+    if (!showAiConfirmation || queuingAi) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowAiConfirmation(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [queuingAi, showAiConfirmation]);
+
   const isReadOnly = review?.status !== "draft";
   const isDirty = useMemo(() => {
     if (!currentQuestion) return false;
@@ -129,6 +148,36 @@ export function AdminReviewPage() {
         [...selectedOptions].sort().join(",")
     );
   }, [currentQuestion, optionCount, questionType, selectedOptions]);
+  const aiCounts = useMemo(
+    () =>
+      (review?.questions ?? []).reduce(
+        (counts, question) => {
+          const status = question.aiSuggestion?.status;
+          if (status === "queued" || status === "processing") {
+            counts.processing += 1;
+          } else if (status === "suggested") {
+            counts.suggested += 1;
+          } else if (status === "failed") {
+            counts.failed += 1;
+          } else if (status === "confirmed") {
+            counts.confirmed += 1;
+          }
+          return counts;
+        },
+        { processing: 0, suggested: 0, failed: 0, confirmed: 0 },
+      ),
+    [review],
+  );
+
+  useEffect(() => {
+    if (!session || aiCounts.processing === 0) return;
+    const interval = window.setInterval(() => {
+      void getDraftExamReview(session.idToken, examId)
+        .then((result) => setReview(result))
+        .catch(() => undefined);
+    }, 2_000);
+    return () => window.clearInterval(interval);
+  }, [aiCounts.processing, examId, session]);
 
   if (!canContribute) {
     return <Navigate to="/" replace />;
@@ -253,6 +302,59 @@ export function AdminReviewPage() {
     } finally {
       setPublishing(false);
     }
+  };
+
+  const queueSuggestions = async () => {
+    if (!session || !review || !isAdmin || review.status !== "draft") return;
+    setQueuingAi(true);
+    setAiError("");
+    setFeedback("");
+    try {
+      const result = await queueAiAnswerSuggestions(
+        session.idToken,
+        review.examId,
+      );
+      const refreshed = await getDraftExamReview(
+        session.idToken,
+        review.examId,
+      );
+      setReview(refreshed);
+      setShowAiConfirmation(false);
+      setFeedback(
+        result.queuedCount > 0
+          ? `Đã đưa ${result.queuedCount} câu vào hàng đợi AI.`
+          : "Không còn câu nào cần tạo lại gợi ý.",
+      );
+    } catch (reason) {
+      setAiError(
+        reason instanceof ApiError && reason.code === "AI_NOT_CONFIGURED"
+          ? "Chưa cấu hình AI_API_KEY, AI_MODEL và bật FEATURE_AI_IMPORT_ENABLED."
+          : reason instanceof ApiError && reason.code === "QUEUE_FAILED"
+            ? "Không thể đưa câu hỏi vào hàng đợi AI."
+            : "Không thể bắt đầu tạo gợi ý AI.",
+      );
+      setShowAiConfirmation(false);
+    } finally {
+      setQueuingAi(false);
+    }
+  };
+
+  const applyCurrentSuggestion = () => {
+    const suggestion = currentQuestion?.aiSuggestion;
+    if (
+      !suggestion ||
+      suggestion.status !== "suggested" ||
+      !suggestion.proposedType ||
+      !suggestion.optionCount ||
+      !suggestion.proposedAnswers
+    ) {
+      return;
+    }
+    setQuestionType(suggestion.proposedType);
+    setOptionCount(suggestion.optionCount);
+    setSelectedOptions(suggestion.proposedAnswers);
+    setError("");
+    setFeedback("Đã điền gợi ý AI. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
   };
 
   if (loading) {
@@ -387,6 +489,87 @@ export function AdminReviewPage() {
           </Card>
 
           <Card className="p-5 sm:p-6">
+            {currentQuestion.aiSuggestion && (
+              <div
+                className={cn(
+                  "mb-6 rounded-xl border p-4",
+                  currentQuestion.aiSuggestion.status === "suggested"
+                    ? "border-violet-200 bg-violet-50"
+                    : currentQuestion.aiSuggestion.status === "failed"
+                      ? "border-red-200 bg-red-50"
+                      : currentQuestion.aiSuggestion.status === "confirmed"
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-blue-200 bg-blue-50",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {["queued", "processing"].includes(
+                    currentQuestion.aiSuggestion.status,
+                  ) ? (
+                    <LoaderCircle
+                      className="mt-0.5 animate-spin text-primary"
+                      size={19}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Sparkles
+                      className="mt-0.5 text-violet-700"
+                      size={19}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-sm font-bold">
+                      {currentQuestion.aiSuggestion.status === "suggested"
+                        ? "AI đã tạo đáp án tham khảo"
+                        : currentQuestion.aiSuggestion.status === "confirmed"
+                          ? "Gợi ý AI đã được người duyệt xác nhận"
+                          : currentQuestion.aiSuggestion.status === "failed"
+                            ? "AI chưa xử lý được câu này"
+                            : "AI đang phân tích ảnh"}
+                    </p>
+                    {currentQuestion.aiSuggestion.status === "suggested" &&
+                      currentQuestion.aiSuggestion.proposedAnswers && (
+                        <p className="mt-1 text-sm text-slate-700">
+                          Đề xuất:{" "}
+                          <strong>
+                            {currentQuestion.aiSuggestion.proposedAnswers
+                              .map((answer) => String.fromCharCode(65 + answer))
+                              .join(", ")}
+                          </strong>
+                          {" · "}
+                          độ tin cậy{" "}
+                          <strong>
+                            {Math.round(
+                              (currentQuestion.aiSuggestion.confidence ?? 0) *
+                                100,
+                            )}
+                            %
+                          </strong>
+                        </p>
+                      )}
+                    {currentQuestion.aiSuggestion.status === "failed" && (
+                      <p className="mt-1 text-sm text-red-700">
+                        {currentQuestion.aiSuggestion.error ??
+                          "Có lỗi trong quá trình phân tích."}
+                      </p>
+                    )}
+                    {currentQuestion.aiSuggestion.status === "suggested" &&
+                      !isReadOnly && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-3"
+                          onClick={applyCurrentSuggestion}
+                          icon={<Sparkles size={16} aria-hidden="true" />}
+                        >
+                          Áp dụng vào biểu mẫu
+                        </Button>
+                      )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="grid gap-5 sm:grid-cols-2">
               <fieldset disabled={isReadOnly}>
                 <legend className="text-sm font-bold text-slate-700">
@@ -542,6 +725,73 @@ export function AdminReviewPage() {
         </main>
 
         <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+          {review.status === "draft" && (
+            <Card className="border-violet-200 bg-violet-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-violet-700 shadow-sm">
+                  <Sparkles size={19} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="font-heading font-bold">
+                    Gợi ý đáp án bằng AI
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    AI chỉ điền đề xuất. Mỗi câu vẫn phải được kiểm tra và lưu
+                    thủ công.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="rounded-lg bg-white px-3 py-2">
+                  Đang xử lý: <strong>{aiCounts.processing}</strong>
+                </span>
+                <span className="rounded-lg bg-white px-3 py-2">
+                  Có gợi ý: <strong>{aiCounts.suggested}</strong>
+                </span>
+                <span className="rounded-lg bg-white px-3 py-2">
+                  Đã xác nhận: <strong>{aiCounts.confirmed}</strong>
+                </span>
+                <span className="rounded-lg bg-white px-3 py-2">
+                  Lỗi: <strong>{aiCounts.failed}</strong>
+                </span>
+              </div>
+              {isAdmin ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3 w-full"
+                  disabled={queuingAi || aiCounts.processing > 0}
+                  onClick={() => setShowAiConfirmation(true)}
+                  icon={
+                    queuingAi ? (
+                      <LoaderCircle
+                        size={17}
+                        className="animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Sparkles size={17} aria-hidden="true" />
+                    )
+                  }
+                >
+                  {aiCounts.failed > 0 ? "Thử lại câu bị lỗi" : "Tạo gợi ý AI"}
+                </Button>
+              ) : (
+                <p className="mt-3 text-xs font-semibold text-slate-600">
+                  Chỉ Admin được bắt đầu tác vụ có phát sinh chi phí AI.
+                </p>
+              )}
+              {aiError && (
+                <p
+                  className="mt-3 text-sm font-semibold text-red-700"
+                  role="alert"
+                >
+                  {aiError}
+                </p>
+              )}
+            </Card>
+          )}
+
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-heading font-bold">Danh sách câu</h2>
@@ -552,6 +802,7 @@ export function AdminReviewPage() {
             <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10 xl:grid-cols-6">
               {review.questions.map((question, index) => {
                 const answered = question.correctOptions.length > 0;
+                const suggested = question.aiSuggestion?.status === "suggested";
                 const active = index === currentIndex;
                 return (
                   <button
@@ -564,7 +815,9 @@ export function AdminReviewPage() {
                         ? "border-primary bg-primary text-white"
                         : answered
                           ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                          : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
+                          : suggested
+                            ? "border-violet-300 bg-violet-50 text-violet-800"
+                            : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
                     )}
                     aria-label={`Câu ${question.order}${answered ? ", đã có đáp án" : ", chưa có đáp án"}`}
                     aria-current={active ? "step" : undefined}
@@ -573,6 +826,13 @@ export function AdminReviewPage() {
                     {answered && !active && (
                       <Check
                         size={10}
+                        className="absolute right-0.5 top-0.5"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {suggested && !answered && !active && (
+                      <Sparkles
+                        size={9}
                         className="absolute right-0.5 top-0.5"
                         aria-hidden="true"
                       />
@@ -790,6 +1050,71 @@ export function AdminReviewPage() {
                 }
               >
                 {publishing ? "Đang xuất bản..." : "Xác nhận xuất bản"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showAiConfirmation && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target && !queuingAi) {
+              setShowAiConfirmation(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-confirmation-title"
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-modal sm:p-7"
+          >
+            <span className="grid size-12 place-items-center rounded-xl bg-violet-50 text-violet-700">
+              <Sparkles size={23} aria-hidden="true" />
+            </span>
+            <h2
+              id="ai-confirmation-title"
+              className="mt-5 font-heading text-2xl font-bold"
+            >
+              Tạo gợi ý đáp án bằng AI?
+            </h2>
+            <p className="mt-2 leading-7 text-slate-600">
+              Hệ thống sẽ xử lý các câu chưa có đáp án hoặc từng bị lỗi. Tác vụ
+              gọi dịch vụ AI bên ngoài và có thể phát sinh chi phí.
+            </p>
+            <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              Gợi ý không được xem là đáp án chính thức. Đề chỉ đủ điều kiện
+              xuất bản sau khi người duyệt kiểm tra ảnh và lưu từng câu.
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={queuingAi}
+                onClick={() => setShowAiConfirmation(false)}
+              >
+                Hủy
+              </Button>
+              <Button
+                type="button"
+                disabled={queuingAi}
+                onClick={() => void queueSuggestions()}
+                icon={
+                  queuingAi ? (
+                    <LoaderCircle
+                      size={17}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Sparkles size={17} aria-hidden="true" />
+                  )
+                }
+              >
+                {queuingAi ? "Đang tạo hàng đợi..." : "Xác nhận tạo gợi ý"}
               </Button>
             </div>
           </section>
