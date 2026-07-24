@@ -101,7 +101,8 @@ export const draftExamReviewSchema = z.object({
   campus: profileOptionSchema,
   durationMinutes: z.number().int().positive(),
   isRetake: z.boolean(),
-  status: z.enum(["draft", "review"]),
+  status: z.enum(["draft", "review", "published"]),
+  publishedAt: z.string().datetime().nullable(),
   answeredCount: z.number().int().nonnegative(),
   questionCount: z.number().int().positive(),
   questions: z.array(reviewQuestionSchema),
@@ -145,6 +146,13 @@ export const reviewReadinessResultSchema = z.object({
   questionCount: z.number().int().positive(),
 });
 
+export const publishExamResultSchema = z.object({
+  examId: z.string().uuid(),
+  revisionId: z.string().uuid(),
+  status: z.literal("published"),
+  publishedAt: z.string().datetime(),
+});
+
 export const questionSchema = z.object({
   id: z.string(),
   order: z.number().int().positive(),
@@ -186,8 +194,44 @@ export const saveAnswerSchema = z.object({
   sequence: z.number().int().nonnegative(),
 });
 
+export const saveAnswerResultSchema = z.object({
+  savedAt: z.string().datetime(),
+  sequence: z.number().int().nonnegative(),
+});
+
 export const submitAttemptSchema = z.object({
   reason: z.enum(["user", "timeout"]),
+});
+
+export const attemptResultSchema = z.object({
+  attemptId: z.string().uuid(),
+  status: z.enum(["submitted", "auto_submitted"]),
+  correctCount: z.number().int().nonnegative(),
+  questionCount: z.number().int().positive(),
+  score: z.number().min(0).max(10),
+  submittedAt: z.string().datetime(),
+});
+
+const attemptAnswersSchema = z.record(
+  z.string(),
+  z.array(z.number().int().nonnegative()).max(6),
+);
+
+export const attemptSchema = z.object({
+  id: z.string().uuid(),
+  examId: z.string().uuid(),
+  status: z.enum(attemptStatuses),
+  startedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  answers: attemptAnswersSchema,
+  questionOrder: z.array(z.string()).min(1),
+  result: attemptResultSchema.nullable(),
+  correctAnswers: attemptAnswersSchema.optional(),
+});
+
+export const attemptLaunchSchema = z.object({
+  attempt: attemptSchema,
+  resumed: z.boolean(),
 });
 
 export type Question = z.infer<typeof questionSchema>;
@@ -195,6 +239,7 @@ export type ExamSummary = z.infer<typeof examSummarySchema>;
 export type Exam = z.infer<typeof examSchema>;
 export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
+export type SaveAnswerResult = z.infer<typeof saveAnswerResultSchema>;
 export type AttemptStatus = (typeof attemptStatuses)[number];
 export type QuestionType = (typeof questionTypes)[number];
 export type UserRole = (typeof userRoles)[number];
@@ -213,15 +258,10 @@ export type UpdateQuestionAnswerInput = z.infer<
   typeof updateQuestionAnswerSchema
 >;
 export type ReviewReadinessResult = z.infer<typeof reviewReadinessResultSchema>;
-
-export interface AttemptResult {
-  attemptId: string;
-  status: Extract<AttemptStatus, "submitted" | "auto_submitted">;
-  correctCount: number;
-  questionCount: number;
-  score: number;
-  submittedAt: string;
-}
+export type PublishExamResult = z.infer<typeof publishExamResultSchema>;
+export type AttemptResult = z.infer<typeof attemptResultSchema>;
+export type Attempt = z.infer<typeof attemptSchema>;
+export type AttemptLaunch = z.infer<typeof attemptLaunchSchema>;
 
 export function isExactAnswer(
   selectedOptions: readonly number[],

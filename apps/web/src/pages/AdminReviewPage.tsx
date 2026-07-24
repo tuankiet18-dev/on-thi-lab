@@ -12,6 +12,7 @@ import {
   ChevronRight,
   LoaderCircle,
   Maximize2,
+  Rocket,
   Save,
   ShieldCheck,
   X,
@@ -26,6 +27,7 @@ import {
   ApiError,
   getDraftExamReview,
   markExamReviewReady,
+  publishExam,
   saveQuestionReviewAnswer,
 } from "../lib/api";
 import { cn } from "../lib/cn";
@@ -41,6 +43,9 @@ export function AdminReviewPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [markingReady, setMarkingReady] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
@@ -51,6 +56,10 @@ export function AdminReviewPage() {
     session?.user.groups.some((group) =>
       ["admin", "contributor"].includes(group),
     );
+  const isAdmin =
+    !configured ||
+    studentProfile?.role === "admin" ||
+    session?.user.groups.includes("admin") === true;
 
   useEffect(() => {
     if (!session) {
@@ -61,7 +70,10 @@ export function AdminReviewPage() {
     let active = true;
     void getDraftExamReview(session.idToken, examId)
       .then((result) => {
-        if (active) setReview(result);
+        if (active) {
+          setReview(result);
+          setPublishedAt(result.publishedAt);
+        }
       })
       .catch((reason) => {
         if (!active) return;
@@ -98,7 +110,16 @@ export function AdminReviewPage() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [imageExpanded]);
 
-  const isReadOnly = review?.status === "review";
+  useEffect(() => {
+    if (!showPublishConfirmation || publishing) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowPublishConfirmation(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [publishing, showPublishConfirmation]);
+
+  const isReadOnly = review?.status !== "draft";
   const isDirty = useMemo(() => {
     if (!currentQuestion) return false;
     return (
@@ -213,6 +234,27 @@ export function AdminReviewPage() {
     }
   };
 
+  const publishReviewedExam = async () => {
+    if (!session || !review || !isAdmin) return;
+    setPublishing(true);
+    setError("");
+    try {
+      const result = await publishExam(session.idToken, review.examId);
+      setPublishedAt(result.publishedAt);
+      setShowPublishConfirmation(false);
+      setFeedback("Đề đã được xuất bản và xuất hiện trong kho đề thi.");
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError && reason.code === "EXAM_NOT_READY"
+          ? "Đề chưa hoàn tất duyệt đáp án."
+          : "Không thể xuất bản đề. Vui lòng thử lại.",
+      );
+      setShowPublishConfirmation(false);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="grid min-h-[55vh] place-items-center">
@@ -270,8 +312,12 @@ export function AdminReviewPage() {
       <header className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={review.status === "review" ? "green" : "amber"}>
-              {review.status === "review" ? "Chờ xuất bản" : "Đang duyệt"}
+            <Badge tone={review.status === "draft" ? "amber" : "green"}>
+              {review.status === "published"
+                ? "Đã xuất bản"
+                : review.status === "review"
+                  ? "Chờ xuất bản"
+                  : "Đang duyệt"}
             </Badge>
             <span className="text-sm text-slate-500">
               {review.courseCode} · {review.semester} · {review.campus.name}
@@ -556,16 +602,20 @@ export function AdminReviewPage() {
               />
               <div>
                 <h2 className="font-heading font-bold">
-                  {review.status === "review"
-                    ? "Đã hoàn tất duyệt"
-                    : "Hoàn tất bước duyệt"}
+                  {review.status === "published"
+                    ? "Đề đã xuất bản"
+                    : review.status === "review"
+                      ? "Đã hoàn tất duyệt"
+                      : "Hoàn tất bước duyệt"}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  {review.status === "review"
-                    ? "Đề đang chờ Admin kiểm tra lần cuối và xuất bản."
-                    : review.answeredCount === review.questionCount
-                      ? "Tất cả câu đã có đáp án. Hãy chuyển đề sang bước xuất bản."
-                      : `Còn ${review.questionCount - review.answeredCount} câu chưa có đáp án.`}
+                  {review.status === "published"
+                    ? "Sinh viên có thể tìm và làm đề này trong kho thi."
+                    : review.status === "review"
+                      ? "Đề đang chờ Admin kiểm tra lần cuối và xuất bản."
+                      : review.answeredCount === review.questionCount
+                        ? "Tất cả câu đã có đáp án. Hãy chuyển đề sang bước xuất bản."
+                        : `Còn ${review.questionCount - review.answeredCount} câu chưa có đáp án.`}
                 </p>
               </div>
             </div>
@@ -591,6 +641,37 @@ export function AdminReviewPage() {
               >
                 {markingReady ? "Đang hoàn tất..." : "Hoàn tất duyệt đáp án"}
               </Button>
+            )}
+            {review.status === "review" && !publishedAt && isAdmin && (
+              <Button
+                type="button"
+                className="mt-4 w-full"
+                onClick={() => setShowPublishConfirmation(true)}
+                icon={<Rocket size={17} aria-hidden="true" />}
+              >
+                Kiểm tra cuối & xuất bản
+              </Button>
+            )}
+            {review.status === "review" && !publishedAt && !isAdmin && (
+              <p className="mt-4 rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-600">
+                Chỉ Admin có thể thực hiện bước xuất bản cuối cùng.
+              </p>
+            )}
+            {publishedAt && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+                <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                  <CheckCircle2 size={17} aria-hidden="true" />
+                  Đã xuất bản thành công
+                </p>
+                <Link
+                  to="/exams/$examId"
+                  params={{ examId: review.examId }}
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                >
+                  Mở đề trong kho thi
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
             )}
           </Card>
         </aside>
@@ -630,6 +711,87 @@ export function AdminReviewPage() {
               height={620}
               className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
             />
+          </section>
+        </div>
+      )}
+
+      {showPublishConfirmation && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target && !publishing) {
+              setShowPublishConfirmation(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="publish-title"
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-modal sm:p-7"
+          >
+            <span className="grid size-12 place-items-center rounded-xl bg-blue-50 text-primary">
+              <Rocket size={23} aria-hidden="true" />
+            </span>
+            <h2
+              id="publish-title"
+              className="mt-5 font-heading text-2xl font-bold"
+            >
+              Xuất bản đề {review.examCode}?
+            </h2>
+            <p className="mt-2 leading-7 text-slate-600">
+              Sau khi xác nhận, đề sẽ xuất hiện trong kho thi và sinh viên có
+              thể bắt đầu làm bài ngay.
+            </p>
+            <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
+              <div>
+                <dt className="text-slate-500">Số câu</dt>
+                <dd className="mt-1 font-bold">{review.questionCount} câu</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Thời gian</dt>
+                <dd className="mt-1 font-bold">
+                  {review.durationMinutes} phút
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Campus</dt>
+                <dd className="mt-1 font-bold">{review.campus.name}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Đáp án</dt>
+                <dd className="mt-1 font-bold text-emerald-700">Đã duyệt đủ</dd>
+              </div>
+            </dl>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={publishing}
+                onClick={() => setShowPublishConfirmation(false)}
+              >
+                Chưa xuất bản
+              </Button>
+              <Button
+                type="button"
+                disabled={publishing}
+                onClick={() => void publishReviewedExam()}
+                icon={
+                  publishing ? (
+                    <LoaderCircle
+                      size={17}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Rocket size={17} aria-hidden="true" />
+                  )
+                }
+              >
+                {publishing ? "Đang xuất bản..." : "Xác nhận xuất bản"}
+              </Button>
+            </div>
           </section>
         </div>
       )}

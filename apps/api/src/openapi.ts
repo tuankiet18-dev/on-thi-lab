@@ -177,6 +177,27 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/exams/{examId}/publish": {
+      post: {
+        operationId: "publishReviewedExam",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Reviewed revision approved and published" },
+          "403": { description: "Admin role required" },
+          "404": { description: "Exam not found" },
+          "409": { description: "Review or answers are incomplete" },
+        },
+      },
+    },
     "/v1/catalog": {
       get: {
         operationId: "listPublishedExams",
@@ -216,7 +237,27 @@ export const openApiDocument = {
         responses: {
           "201": { description: "Attempt created" },
           "200": { description: "Active attempt resumed" },
+          "429": { description: "Daily free attempt limit reached" },
           "409": { description: "Attempt conflict" },
+        },
+      },
+    },
+    "/v1/attempts/{attemptId}": {
+      get: {
+        operationId: "getAttempt",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "attemptId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Attempt state and submitted review data" },
+          "404": { description: "Attempt not found" },
         },
       },
     },

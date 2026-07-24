@@ -15,10 +15,10 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | Phase | Phạm vi                                    | Trạng thái  | Exit gate                                      |
 | ----- | ------------------------------------------ | ----------- | ---------------------------------------------- |
 | 0     | Config, flags, seed, CI, tài liệu vận hành | Done        | `pnpm validate`, CDK synth và E2E đạt          |
-| 1     | PostgreSQL persistence và API thật         | In progress | Không còn in-memory API trong luồng production |
+| 1     | PostgreSQL persistence và API thật         | Done        | Không còn in-memory API trong luồng production |
 | 2     | Cognito, Google OAuth, onboarding, RBAC    | Done        | Auth/RBAC integration tests đạt                |
 | 3     | ZIP, S3, SQS, AI Vision, review, publish   | In progress | Import và duyệt được đề tối thiểu 60 ảnh       |
-| 4     | Exam engine production                     | Planned     | Autosave/timeout/idempotency/concurrency đạt   |
+| 4     | Exam engine production                     | In progress | Autosave/timeout/idempotency/concurrency đạt   |
 | 5     | History, stats, bookmark, report, admin    | Planned     | Acceptance criteria User/Admin đạt             |
 | 6     | AWS staging/prod, CI/CD, observability     | Planned     | Staging deploy/rollback/restore đạt            |
 | 7     | Security, legal, launch data, closed beta  | Planned     | Không còn P0/P1, UAT đạt                       |
@@ -35,7 +35,14 @@ multipart API tạo exam/revision/question ở trạng thái draft và storage a
 local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
 hoặc nhiều đáp án, xem tiến độ 60 câu và chuyển đề sang trạng thái `review`.
 Mọi lần sửa đáp án đều có audit trước/sau. Các phần còn lại là presigned S3 +
-SQS, đề xuất đáp án AI và publish chỉ dành cho admin.
+SQS và đề xuất đáp án AI. Admin đã có bước xác nhận cuối, khóa revision và xuất
+bản đề vào catalog.
+
+Phase 4 đã thay catalog và exam demo bằng API PostgreSQL. Attempt lưu revision,
+thứ tự câu đã trộn, timer server, autosave có sequence, submit idempotent và
+exact-match score. Đáp án đúng chỉ được trả về sau khi nộp. Free user bị giới
+hạn tối đa 2 lượt mới mỗi ngày; subscription đang active không áp dụng giới hạn
+này. Còn lại là integration/load test concurrency và lịch sử làm bài.
 
 ## Data waves
 

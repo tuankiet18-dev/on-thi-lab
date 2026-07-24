@@ -3,6 +3,7 @@ import {
   calculateScore,
   createDraftImportSchema,
   isExactAnswer,
+  publishExamResultSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
 } from "./index";
@@ -100,5 +101,16 @@ describe("answer review input", () => {
         correctOptions: [4],
       }),
     ).toThrow();
+  });
+
+  it("accepts a timestamped published result", () => {
+    expect(
+      publishExamResultSchema.parse({
+        examId: "10000000-0000-4000-8000-000000000001",
+        revisionId: "20000000-0000-4000-8000-000000000002",
+        status: "published",
+        publishedAt: "2026-07-24T06:00:00.000Z",
+      }),
+    ).toMatchObject({ status: "published" });
   });
 });

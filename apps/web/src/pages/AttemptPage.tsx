@@ -1,3 +1,4 @@
+import type { Attempt, Exam } from "@onthilab/contracts";
 import {
   AlertTriangle,
   Bookmark,
@@ -7,20 +8,28 @@ import {
   Clock3,
   Flag,
   GraduationCap,
+  Maximize2,
   Save,
   Send,
   X,
 } from "lucide-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
+import {
+  getAttempt,
+  getPublishedExam,
+  saveAttemptAnswer,
+  submitAttempt as submitRemoteAttempt,
+} from "../lib/api";
 import {
   createOrResumeAttempt,
   loadAttempt,
-  saveAttempt,
-  submitAttempt,
-  type LocalAttempt,
+  saveAttempt as saveLocalAttempt,
+  submitAttempt as submitLocalAttempt,
 } from "../lib/attempt-storage";
 import { cn } from "../lib/cn";
 
@@ -36,112 +45,272 @@ function formatTime(totalSeconds: number): string {
 export function AttemptPage() {
   const { attemptId } = useParams({ from: "/attempts/$attemptId" });
   const navigate = useNavigate();
-  const [attempt, setAttempt] = useState<LocalAttempt>(() => {
-    return loadAttempt(attemptId) ?? createOrResumeAttempt();
-  });
+  const { configured, session } = useAuth();
+  const [attempt, setAttempt] = useState<Attempt | null>(null);
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [flagged, setFlagged] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [remainingSeconds, setRemainingSeconds] = useState(() =>
-    Math.max(0, Math.ceil((Date.parse(attempt.expiresAt) - Date.now()) / 1000)),
-  );
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [showSubmit, setShowSubmit] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [imageExpanded, setImageExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const sequence = useRef(0);
+  const pendingSaves = useRef<Promise<void>>(Promise.resolve());
   const didAutoSubmit = useRef(false);
 
-  const finishAttempt = useCallback(
-    (reason: "user" | "timeout") => {
-      const submitted = submitAttempt(attempt, reason);
-      setAttempt(submitted);
-      void navigate({
-        to: "/results/$attemptId",
-        params: { attemptId: submitted.id },
-        replace: true,
+  useEffect(() => {
+    let active = true;
+    if (!configured) {
+      const local = loadAttempt(attemptId) ?? createOrResumeAttempt();
+      const localAttempt: Attempt = {
+        id: "00000000-0000-4000-8000-000000000001",
+        examId: "00000000-0000-4000-8000-000000000002",
+        status: local.result?.status ?? "in_progress",
+        startedAt: local.startedAt,
+        expiresAt: local.expiresAt,
+        answers: local.answers,
+        questionOrder: demoExam.questions.map((question) => question.id),
+        result: local.result ?? null,
+      };
+      setAttempt(localAttempt);
+      setExam(demoExam);
+      setFlagged(local.flagged);
+      setRemainingSeconds(
+        Math.max(
+          0,
+          Math.ceil((Date.parse(local.expiresAt) - Date.now()) / 1_000),
+        ),
+      );
+      setLoading(false);
+      return;
+    }
+    if (!session) return;
+
+    void getAttempt(session.idToken, attemptId)
+      .then(async (loadedAttempt) => {
+        const loadedExam = await getPublishedExam(
+          session.idToken,
+          loadedAttempt.examId,
+        );
+        if (!active) return;
+        setAttempt(loadedAttempt);
+        setExam(loadedExam);
+        setRemainingSeconds(
+          Math.max(
+            0,
+            Math.ceil(
+              (Date.parse(loadedAttempt.expiresAt) - Date.now()) / 1_000,
+            ),
+          ),
+        );
+        if (loadedAttempt.result) {
+          void navigate({
+            to: "/results/$attemptId",
+            params: { attemptId: loadedAttempt.id },
+            replace: true,
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setError("Không thể tải lượt thi này.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
+
+    return () => {
+      active = false;
+    };
+  }, [attemptId, configured, navigate, session]);
+
+  const questions = useMemo(() => {
+    if (!attempt || !exam) return [];
+    const byId = new Map(
+      exam.questions.map((question) => [question.id, question]),
+    );
+    return attempt.questionOrder
+      .map((questionId) => byId.get(questionId))
+      .filter((question): question is Exam["questions"][number] =>
+        Boolean(question),
+      );
+  }, [attempt, exam]);
+  const question = questions[currentIndex];
+  const answeredCount = attempt
+    ? Object.values(attempt.answers).filter((answer) => answer.length > 0)
+        .length
+    : 0;
+  const selectedOptions =
+    attempt && question ? (attempt.answers[question.id] ?? []) : [];
+  const progress =
+    questions.length === 0
+      ? 0
+      : Math.round((answeredCount / questions.length) * 100);
+  const isLowTime = remainingSeconds <= 300;
+
+  const finishAttempt = useCallback(
+    async (reason: "user" | "timeout") => {
+      if (!attempt || submitting) return;
+      setSubmitting(true);
+      setError("");
+      try {
+        await pendingSaves.current;
+        if (!configured) {
+          const local = loadAttempt(attemptId) ?? createOrResumeAttempt();
+          const submitted = submitLocalAttempt(
+            { ...local, answers: attempt.answers, flagged },
+            reason,
+          );
+          await navigate({
+            to: "/results/$attemptId",
+            params: { attemptId: submitted.id },
+            replace: true,
+          });
+          return;
+        }
+        if (!session) return;
+        await submitRemoteAttempt(session.idToken, attempt.id, reason);
+        await navigate({
+          to: "/results/$attemptId",
+          params: { attemptId: attempt.id },
+          replace: true,
+        });
+      } catch {
+        setError("Không thể nộp bài. Hệ thống sẽ tiếp tục giữ đáp án đã lưu.");
+        setSubmitting(false);
+      }
     },
-    [attempt, navigate],
+    [attempt, attemptId, configured, flagged, navigate, session, submitting],
   );
 
   useEffect(() => {
+    if (!attempt || attempt.result) return;
     const interval = window.setInterval(() => {
       const next = Math.max(
         0,
-        Math.ceil((Date.parse(attempt.expiresAt) - Date.now()) / 1000),
+        Math.ceil((Date.parse(attempt.expiresAt) - Date.now()) / 1_000),
       );
       setRemainingSeconds(next);
-      if (next === 0 && !didAutoSubmit.current && !attempt.result) {
+      if (next === 0 && !didAutoSubmit.current) {
         didAutoSubmit.current = true;
-        finishAttempt("timeout");
+        void finishAttempt("timeout");
       }
     }, 1_000);
-
     return () => window.clearInterval(interval);
-  }, [attempt.expiresAt, attempt.result, finishAttempt]);
+  }, [attempt, finishAttempt]);
 
   useEffect(() => {
     const warnBeforeLeave = (event: BeforeUnloadEvent) => {
-      if (!attempt.result) {
-        event.preventDefault();
-      }
+      if (attempt && !attempt.result) event.preventDefault();
     };
     window.addEventListener("beforeunload", warnBeforeLeave);
     return () => window.removeEventListener("beforeunload", warnBeforeLeave);
-  }, [attempt.result]);
+  }, [attempt]);
 
-  useEffect(
-    () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!showSubmit || submitting) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowSubmit(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [showSubmit, submitting]);
 
-  const question = demoExam.questions[currentIndex] ?? demoExam.questions[0]!;
-  const answeredCount = Object.values(attempt.answers).filter(
-    (answer) => answer.length > 0,
-  ).length;
-  const selectedOptions = attempt.answers[question.id] ?? [];
-  const isLowTime = remainingSeconds <= 300;
+  useEffect(() => {
+    if (!imageExpanded) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setImageExpanded(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [imageExpanded]);
 
-  const progress = useMemo(
-    () => Math.round((answeredCount / demoExam.questionCount) * 100),
-    [answeredCount],
-  );
-
-  function updateAttempt(nextAttempt: LocalAttempt) {
-    setAttempt(nextAttempt);
-    saveAttempt(nextAttempt);
-    setSaveState(navigator.onLine ? "saving" : "offline");
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setSaveState(navigator.onLine ? "saved" : "offline");
-    }, 450);
+  function persistLocalAnswers(nextAttempt: Attempt, nextFlagged = flagged) {
+    const local = loadAttempt(attemptId) ?? createOrResumeAttempt();
+    saveLocalAttempt({
+      ...local,
+      answers: nextAttempt.answers,
+      flagged: nextFlagged,
+    });
   }
 
   function chooseOption(optionIndex: number) {
+    if (!attempt || !question) return;
     const current = attempt.answers[question.id] ?? [];
     const nextSelection =
       question.type === "single"
         ? [optionIndex]
         : current.includes(optionIndex)
           ? current.filter((index) => index !== optionIndex)
-          : [...current, optionIndex].sort((a, b) => a - b);
-    updateAttempt({
+          : [...current, optionIndex].sort((left, right) => left - right);
+    const nextAttempt = {
       ...attempt,
       answers: { ...attempt.answers, [question.id]: nextSelection },
-    });
+    };
+    setAttempt(nextAttempt);
+    setSaveState("saving");
+
+    if (!configured) {
+      persistLocalAnswers(nextAttempt);
+      window.setTimeout(() => setSaveState("saved"), 250);
+      return;
+    }
+    if (!session) return;
+    sequence.current = Math.max(
+      sequence.current + 1,
+      Math.floor(Date.now() / 1_000),
+    );
+    const currentSequence = sequence.current;
+    pendingSaves.current = pendingSaves.current
+      .then(async () => {
+        await saveAttemptAnswer(session.idToken, attempt.id, {
+          questionId: question.id,
+          selectedOptions: nextSelection,
+          sequence: currentSequence,
+        });
+        setSaveState("saved");
+      })
+      .catch(() => {
+        setSaveState("offline");
+      });
   }
 
   function toggleFlag() {
-    const isFlagged = attempt.flagged.includes(question.id);
-    updateAttempt({
-      ...attempt,
-      flagged: isFlagged
-        ? attempt.flagged.filter((id) => id !== question.id)
-        : [...attempt.flagged, question.id],
-    });
+    if (!attempt || !question) return;
+    const nextFlagged = flagged.includes(question.id)
+      ? flagged.filter((id) => id !== question.id)
+      : [...flagged, question.id];
+    setFlagged(nextFlagged);
+    if (!configured) persistLocalAnswers(attempt, nextFlagged);
+  }
+
+  if (loading) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-slate-50">
+        <p className="font-semibold text-slate-600">Đang chuẩn bị bài thi...</p>
+      </div>
+    );
+  }
+
+  if (!attempt || !exam || !question) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-slate-50 p-4">
+        <Card className="max-w-md p-7 text-center">
+          <h1 className="font-heading text-2xl font-bold">
+            Chưa thể mở bài thi
+          </h1>
+          <p className="mt-2 text-slate-600">
+            {error || "Dữ liệu bài thi không đầy đủ."}
+          </p>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-foreground">
+    <div className="min-h-dvh bg-slate-50 text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
@@ -150,14 +319,13 @@ export function AttemptPage() {
             </span>
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-xs font-semibold text-slate-500">
-                {demoExam.courseCode} · {demoExam.semester}
+                {exam.courseCode} · {exam.semester}
               </p>
               <h1 className="truncate font-heading text-sm font-bold">
                 Thi thử FE
               </h1>
             </div>
           </div>
-
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <div
               className={cn(
@@ -203,11 +371,20 @@ export function AttemptPage() {
         </div>
       </header>
 
+      {error && (
+        <div
+          className="mx-auto mt-4 max-w-[1560px] rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+
       <div className="mx-auto grid max-w-[1600px] gap-4 p-3 sm:p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <main className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
             <p className="text-sm font-semibold text-slate-600">
-              Câu {currentIndex + 1}/{demoExam.questionCount}
+              Câu {currentIndex + 1}/{questions.length}
             </p>
             <p className="text-sm text-slate-500">{answeredCount} đã trả lời</p>
           </div>
@@ -228,19 +405,15 @@ export function AttemptPage() {
                 type="button"
                 onClick={toggleFlag}
                 className={cn(
-                  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20",
-                  attempt.flagged.includes(question.id)
+                  "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20",
+                  flagged.includes(question.id)
                     ? "bg-amber-50 text-amber-700"
                     : "text-slate-500 hover:bg-slate-100 hover:text-foreground",
                 )}
               >
                 <Flag
                   size={17}
-                  fill={
-                    attempt.flagged.includes(question.id)
-                      ? "currentColor"
-                      : "none"
-                  }
+                  fill={flagged.includes(question.id) ? "currentColor" : "none"}
                   aria-hidden="true"
                 />
                 Đánh dấu
@@ -248,7 +421,12 @@ export function AttemptPage() {
             </div>
 
             <div className="bg-white p-3 sm:p-6">
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setImageExpanded(true)}
+                className="group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                aria-label={`Phóng to ảnh câu ${currentIndex + 1}`}
+              >
                 <img
                   src={question.imageUrl}
                   alt={question.imageAlt}
@@ -256,7 +434,11 @@ export function AttemptPage() {
                   width="1200"
                   height="520"
                 />
-              </div>
+                <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white backdrop-blur-sm sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+                  <Maximize2 size={15} aria-hidden="true" />
+                  Phóng to
+                </span>
+              </button>
             </div>
 
             <div className="border-t border-border bg-slate-50/80 p-4 sm:p-6">
@@ -288,13 +470,13 @@ export function AttemptPage() {
                       >
                         <span
                           className={cn(
-                            "grid size-8 shrink-0 place-items-center border text-sm font-bold transition-colors",
+                            "grid size-8 shrink-0 place-items-center border text-sm font-bold",
                             question.type === "single"
                               ? "rounded-full"
                               : "rounded-lg",
                             selected
                               ? "border-primary bg-primary text-white"
-                              : "border-slate-300 bg-white text-slate-600 group-hover:border-primary",
+                              : "border-slate-300 bg-white text-slate-600",
                           )}
                         >
                           {selected ? (
@@ -323,10 +505,10 @@ export function AttemptPage() {
                 Câu trước
               </Button>
               <Button
-                disabled={currentIndex === demoExam.questionCount - 1}
+                disabled={currentIndex === questions.length - 1}
                 onClick={() =>
                   setCurrentIndex((index) =>
-                    Math.min(demoExam.questionCount - 1, index + 1),
+                    Math.min(questions.length - 1, index + 1),
                   )
                 }
               >
@@ -340,13 +522,13 @@ export function AttemptPage() {
             className="mt-4 flex gap-2 overflow-x-auto rounded-2xl border border-border bg-white p-3 lg:hidden"
             aria-label="Danh sách câu hỏi"
           >
-            {demoExam.questions.map((item, index) => (
+            {questions.map((item, index) => (
               <QuestionNumber
                 key={item.id}
                 number={index + 1}
                 current={currentIndex === index}
                 answered={(attempt.answers[item.id]?.length ?? 0) > 0}
-                flagged={attempt.flagged.includes(item.id)}
+                flagged={flagged.includes(item.id)}
                 onClick={() => setCurrentIndex(index)}
               />
             ))}
@@ -358,23 +540,30 @@ export function AttemptPage() {
             <div className="flex items-center justify-between">
               <h2 className="font-heading font-bold">Danh sách câu</h2>
               <span className="text-xs font-semibold text-slate-500">
-                {answeredCount}/{demoExam.questionCount}
+                {answeredCount}/{questions.length}
               </span>
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"
+              role="progressbar"
+              aria-label="Tiến độ trả lời"
+              aria-valuenow={answeredCount}
+              aria-valuemin={0}
+              aria-valuemax={questions.length}
+            >
               <div
                 className="h-full rounded-full bg-primary transition-[width] duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
             <div className="mt-5 grid grid-cols-5 gap-2">
-              {demoExam.questions.map((item, index) => (
+              {questions.map((item, index) => (
                 <QuestionNumber
                   key={item.id}
                   number={index + 1}
                   current={currentIndex === index}
                   answered={(attempt.answers[item.id]?.length ?? 0) > 0}
-                  flagged={attempt.flagged.includes(item.id)}
+                  flagged={flagged.includes(item.id)}
                   onClick={() => setCurrentIndex(index)}
                 />
               ))}
@@ -394,7 +583,7 @@ export function AttemptPage() {
                 className="mt-0.5 shrink-0"
                 aria-hidden="true"
               />
-              Câu trả lời được lưu tự động trên thiết bị này.
+              Câu trả lời được lưu tự động vào hệ thống.
             </div>
           </div>
         </aside>
@@ -405,7 +594,9 @@ export function AttemptPage() {
           className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setShowSubmit(false);
+            if (event.currentTarget === event.target && !submitting) {
+              setShowSubmit(false);
+            }
           }}
         >
           <section
@@ -420,8 +611,9 @@ export function AttemptPage() {
               </span>
               <button
                 type="button"
+                disabled={submitting}
                 onClick={() => setShowSubmit(false)}
-                className="grid size-10 cursor-pointer place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                className="grid size-11 cursor-pointer place-items-center rounded-xl text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
                 aria-label="Đóng hộp thoại"
               >
                 <X size={20} aria-hidden="true" />
@@ -436,26 +628,69 @@ export function AttemptPage() {
             <p className="mt-2 leading-6 text-slate-600">
               Bạn đã trả lời{" "}
               <strong>
-                {answeredCount}/{demoExam.questionCount}
+                {answeredCount}/{questions.length}
               </strong>{" "}
               câu. Sau khi nộp, bạn không thể thay đổi đáp án.
             </p>
-            {answeredCount < demoExam.questionCount && (
+            {answeredCount < questions.length && (
               <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
-                Còn {demoExam.questionCount - answeredCount} câu chưa trả lời.
+                Còn {questions.length - answeredCount} câu chưa trả lời.
               </p>
             )}
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button variant="secondary" onClick={() => setShowSubmit(false)}>
+              <Button
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => setShowSubmit(false)}
+              >
                 Tiếp tục làm
               </Button>
               <Button
-                onClick={() => finishAttempt("user")}
+                disabled={submitting}
+                onClick={() => void finishAttempt("user")}
                 icon={<Send size={17} />}
               >
-                Nộp bài
+                {submitting ? "Đang nộp..." : "Nộp bài"}
               </Button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {imageExpanded && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setImageExpanded(false);
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between text-white">
+            <p className="font-heading font-bold">
+              Câu {currentIndex + 1} · kéo ngang để xem toàn bộ
+            </p>
+            <button
+              type="button"
+              onClick={() => setImageExpanded(false)}
+              className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+              aria-label="Đóng ảnh phóng to"
+            >
+              <X aria-hidden="true" />
+            </button>
+          </div>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
+            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
+          >
+            <img
+              src={question.imageUrl}
+              alt={`Ảnh phóng to ${question.imageAlt}`}
+              width="1920"
+              height="620"
+              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
+            />
           </section>
         </div>
       )}
