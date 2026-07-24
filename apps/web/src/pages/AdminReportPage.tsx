@@ -1,7 +1,13 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Report } from "@onthilab/contracts";
-import { Check, CheckCircle2, Maximize2, MessageSquareWarning, X } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  Maximize2,
+  MessageSquareWarning,
+  X,
+} from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -86,16 +92,23 @@ function ReportCard({
           <div className="flex w-full flex-col justify-between border-t border-border bg-white p-4 sm:p-6 lg:w-[340px] lg:border-l lg:border-t-0">
             <div className="space-y-6">
               <div>
-                <p className="mb-2 text-sm font-semibold text-slate-700">Sinh viên phản hồi:</p>
+                <p className="mb-2 text-sm font-semibold text-slate-700">
+                  Sinh viên phản hồi:
+                </p>
                 <div className="flex gap-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 border border-amber-100/50">
-                  <MessageSquareWarning className="mt-0.5 shrink-0 text-amber-600" size={16} />
+                  <MessageSquareWarning
+                    className="mt-0.5 shrink-0 text-amber-600"
+                    size={16}
+                  />
                   <p className="leading-relaxed">{report.detail}</p>
                 </div>
               </div>
 
               {report.question && (
                 <div>
-                  <p className="mb-2 text-sm font-semibold text-slate-700">Sửa đáp án đúng:</p>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">
+                    Sửa đáp án đúng:
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {(report.question.options?.length > 0
                       ? report.question.options
@@ -259,9 +272,12 @@ export function AdminReportPage() {
             strokeWidth={1.5}
             aria-hidden="true"
           />
-          <p className="font-heading text-xl font-bold text-slate-700">Tuyệt vời!</p>
+          <p className="font-heading text-xl font-bold text-slate-700">
+            Tuyệt vời!
+          </p>
           <p className="mt-2 max-w-md text-slate-500">
-            Không có báo cáo lỗi nào đang chờ xử lý. Bạn đã hoàn thành tất cả công việc.
+            Không có báo cáo lỗi nào đang chờ xử lý. Bạn đã hoàn thành tất cả
+            công việc.
           </p>
         </Card>
       ) : (
