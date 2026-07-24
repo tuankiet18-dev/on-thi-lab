@@ -201,9 +201,16 @@ export const questions = pgTable(
     options: jsonb("options").$type<string[]>().notNull(),
     correctOptions: jsonb("correct_options").$type<number[]>().notNull(),
     aiMetadata: jsonb("ai_metadata").$type<{
+      status?: "queued" | "processing" | "suggested" | "failed" | "confirmed";
       provider?: string;
       model?: string;
       confidence?: number;
+      proposedType?: "single" | "multiple";
+      optionCount?: number;
+      proposedAnswers?: number[];
+      rationale?: string;
+      error?: string;
+      updatedAt?: string;
       raw?: unknown;
     }>(),
     ...timestamps,

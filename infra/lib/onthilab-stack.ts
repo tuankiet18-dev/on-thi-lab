@@ -122,6 +122,10 @@ export class OnThiLabStack extends Stack {
       value: questionImageBucket.bucketName,
     });
     new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
+    new CfnOutput(this, "AiSuggestionQueueUrl", {
+      value: importQueue.queueUrl,
+      description: "Set this value as AI_SUGGESTION_QUEUE_URL.",
+    });
     new CfnOutput(this, "DatabaseClusterArn", {
       value: database.clusterArn,
     });

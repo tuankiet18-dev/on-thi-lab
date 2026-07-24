@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateScore,
+  aiAnswerSuggestionSchema,
   createDraftImportSchema,
   isExactAnswer,
   publishExamResultSchema,
@@ -99,6 +100,28 @@ describe("answer review input", () => {
         type: "multiple",
         optionCount: 4,
         correctOptions: [4],
+      }),
+    ).toThrow();
+  });
+
+  it("requires complete answer data for a finished AI suggestion", () => {
+    expect(
+      aiAnswerSuggestionSchema.parse({
+        status: "suggested",
+        proposedType: "single",
+        optionCount: 4,
+        proposedAnswers: [1],
+        confidence: 0.82,
+        provider: "test",
+        model: "vision-test",
+        updatedAt: "2026-07-24T06:00:00.000Z",
+      }),
+    ).toMatchObject({ status: "suggested", proposedAnswers: [1] });
+
+    expect(() =>
+      aiAnswerSuggestionSchema.parse({
+        status: "suggested",
+        updatedAt: "2026-07-24T06:00:00.000Z",
       }),
     ).toThrow();
   });

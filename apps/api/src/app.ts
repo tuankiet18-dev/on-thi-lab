@@ -36,6 +36,11 @@ import {
   type UploadedArchive,
   UnconfiguredExamImportService,
 } from "./import-service";
+import {
+  AnswerSuggestionServiceError,
+  type AnswerSuggestionService,
+  UnconfiguredAnswerSuggestionService,
+} from "./answer-suggestion-service";
 import { MemoryAttemptRepository } from "./memory-attempt-repository";
 import { openApiDocument } from "./openapi";
 import {
@@ -51,6 +56,7 @@ interface AppDependencies {
   reviews: ExamReviewRepository;
   images: QuestionImageReader;
   attempts: AttemptRepository;
+  suggestions: AnswerSuggestionService;
 }
 
 const demoCatalogRepository: CatalogRepository = {
@@ -169,6 +175,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     reviews: unavailableReviewRepository,
     images: new UnconfiguredQuestionImageReader(),
     attempts: new MemoryAttemptRepository(),
+    suggestions: new UnconfiguredAnswerSuggestionService(),
     ...overrides,
   };
   const app = new Hono<AppEnvironment>();
@@ -459,6 +466,35 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       throw error;
     }
   });
+
+  app.post(
+    "/v1/admin/exams/:examId/ai-suggestions",
+    requireAdmin,
+    async (context) => {
+      try {
+        const result = await dependencies.suggestions.queueExam(
+          context.req.param("examId"),
+        );
+        return context.json({ data: result }, 202);
+      } catch (error) {
+        if (error instanceof DraftImportRepositoryError) {
+          const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        if (error instanceof AnswerSuggestionServiceError) {
+          const status = error.code === "AI_NOT_CONFIGURED" ? 503 : 502;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        throw error;
+      }
+    },
+  );
 
   app.get("/v1/catalog", async (context) =>
     context.json({

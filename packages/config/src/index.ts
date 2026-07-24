@@ -36,10 +36,13 @@ export const serverConfigSchema = z
     cognitoUserPoolId: z.string().optional(),
     cognitoClientId: z.string().optional(),
     aiProvider: z
-      .enum(["disabled", "gemini", "openai", "bedrock"])
+      .enum(["disabled", "openai-compatible", "gemini", "openai", "bedrock"])
       .default("disabled"),
     aiModel: z.string().optional(),
     aiApiKey: z.string().optional(),
+    aiBaseUrl: optionalUrl,
+    aiSuggestionQueueUrl: optionalUrl,
+    aiLocalConcurrency: z.coerce.number().int().min(1).max(5).default(2),
     payosClientId: z.string().optional(),
     payosApiKey: z.string().optional(),
     payosChecksumKey: z.string().optional(),
@@ -79,6 +82,13 @@ export const serverConfigSchema = z
           message: "Required for external AI providers",
         });
       }
+      if (!config.aiModel) {
+        context.addIssue({
+          code: "custom",
+          path: ["aiModel"],
+          message: "An AI model is required when AI import is enabled",
+        });
+      }
     }
 
     if (config.flags.monetizationEnabled) {
@@ -116,6 +126,9 @@ export function readServerConfig(
     aiProvider: environment.AI_PROVIDER,
     aiModel: environment.AI_MODEL,
     aiApiKey: environment.AI_API_KEY,
+    aiBaseUrl: environment.AI_BASE_URL,
+    aiSuggestionQueueUrl: environment.AI_SUGGESTION_QUEUE_URL,
+    aiLocalConcurrency: environment.AI_LOCAL_CONCURRENCY,
     payosClientId: environment.PAYOS_CLIENT_ID,
     payosApiKey: environment.PAYOS_API_KEY,
     payosChecksumKey: environment.PAYOS_CHECKSUM_KEY,

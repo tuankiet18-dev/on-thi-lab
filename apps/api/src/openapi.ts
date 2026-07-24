@@ -198,6 +198,32 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/exams/{examId}/ai-suggestions": {
+      post: {
+        operationId: "queueAiAnswerSuggestions",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "202": {
+            description:
+              "Unanswered questions queued for AI answer suggestions",
+          },
+          "403": { description: "Admin role required" },
+          "404": { description: "Exam not found" },
+          "409": { description: "Exam is no longer editable" },
+          "502": { description: "Queue provider failed" },
+          "503": { description: "AI suggestions are not configured" },
+        },
+      },
+    },
     "/v1/catalog": {
       get: {
         operationId: "listPublishedExams",

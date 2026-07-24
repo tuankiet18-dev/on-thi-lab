@@ -1,4 +1,5 @@
 import type {
+  AiAnswerSuggestion,
   CreateDraftImportInput,
   DraftExamReview,
   DraftImportResult,
@@ -74,6 +75,55 @@ export interface ExamReviewRepository {
   publish(examId: string, approvedBy: string): Promise<PublishExamResult>;
 }
 
+export interface AiSuggestionJob {
+  examId: string;
+  questionId: string;
+  imageKey: string;
+  courseCode: string;
+  optionCount: number;
+}
+
+export interface AiAnswerProposalInput {
+  proposedType: "single" | "multiple";
+  optionCount: number;
+  proposedAnswers: number[];
+  confidence: number;
+  provider: string;
+  model: string;
+  rationale?: string;
+  raw?: unknown;
+}
+
+export interface AiSuggestionRepository {
+  queueUnanswered(examId: string): Promise<{
+    jobs: AiSuggestionJob[];
+    skippedCount: number;
+  }>;
+  markProcessing(questionId: string): Promise<void>;
+  saveSuggestion(
+    questionId: string,
+    proposal: AiAnswerProposalInput,
+  ): Promise<void>;
+  markFailed(questionId: string, message: string): Promise<void>;
+}
+
+function toAiSuggestion(
+  metadata: typeof questions.$inferSelect.aiMetadata,
+): AiAnswerSuggestion | null {
+  if (!metadata?.status || !metadata.updatedAt) return null;
+  return {
+    status: metadata.status,
+    proposedType: metadata.proposedType,
+    optionCount: metadata.optionCount,
+    proposedAnswers: metadata.proposedAnswers,
+    confidence: metadata.confidence,
+    provider: metadata.provider,
+    model: metadata.model,
+    error: metadata.error,
+    updatedAt: metadata.updatedAt,
+  };
+}
+
 export function buildExamCode(
   input: Pick<
     CreateDraftImportInput,
@@ -101,7 +151,7 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 export class PostgresDraftImportRepository
-  implements DraftImportRepository, ExamReviewRepository
+  implements DraftImportRepository, ExamReviewRepository, AiSuggestionRepository
 {
   constructor(private readonly db: OnThiLabDatabase) {}
 
@@ -242,6 +292,7 @@ export class PostgresDraftImportRepository
         type: questions.type,
         options: questions.options,
         correctOptions: questions.correctOptions,
+        aiMetadata: questions.aiMetadata,
       })
       .from(questions)
       .where(eq(questions.revisionId, exam.revisionId))
@@ -263,7 +314,10 @@ export class PostgresDraftImportRepository
         (question) => question.correctOptions.length > 0,
       ).length,
       questionCount: questionRows.length,
-      questions: questionRows,
+      questions: questionRows.map(({ aiMetadata, ...question }) => ({
+        ...question,
+        aiSuggestion: toAiSuggestion(aiMetadata),
+      })),
     };
   }
 
@@ -282,6 +336,7 @@ export class PostgresDraftImportRepository
           type: questions.type,
           options: questions.options,
           correctOptions: questions.correctOptions,
+          aiMetadata: questions.aiMetadata,
           examStatus: exams.status,
         })
         .from(questions)
@@ -335,6 +390,16 @@ export class PostgresDraftImportRepository
             type: input.answer.type,
             options: nextOptions,
             correctOptions: nextCorrectOptions,
+            aiMetadata:
+              current.aiMetadata?.status === "suggested"
+                ? {
+                    ...current.aiMetadata,
+                    status: "confirmed",
+                    updatedAt: new Date().toISOString(),
+                  }
+                : current.aiMetadata?.status === "confirmed"
+                  ? current.aiMetadata
+                  : null,
             updatedAt: new Date(),
           })
           .where(eq(questions.id, current.id));
@@ -347,8 +412,156 @@ export class PostgresDraftImportRepository
         type: input.answer.type,
         options: nextOptions,
         correctOptions: nextCorrectOptions,
+        aiSuggestion:
+          current.aiMetadata?.status === "suggested"
+            ? toAiSuggestion({
+                ...current.aiMetadata,
+                status: "confirmed",
+                updatedAt: new Date().toISOString(),
+              })
+            : current.aiMetadata?.status === "confirmed"
+              ? toAiSuggestion(current.aiMetadata)
+              : null,
       };
     });
+  }
+
+  async queueUnanswered(examId: string): Promise<{
+    jobs: AiSuggestionJob[];
+    skippedCount: number;
+  }> {
+    return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({
+          id: exams.id,
+          status: exams.status,
+          courseCode: courses.code,
+        })
+        .from(exams)
+        .innerJoin(courses, eq(exams.courseId, courses.id))
+        .where(eq(exams.id, examId))
+        .limit(1);
+      if (!exam) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy đề thi.",
+        );
+      }
+      if (exam.status !== "draft") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_EDITABLE",
+          "Chỉ có thể tạo gợi ý cho đề đang ở trạng thái nháp.",
+        );
+      }
+
+      const [revision] = await transaction
+        .select({ id: examRevisions.id })
+        .from(examRevisions)
+        .where(eq(examRevisions.examId, examId))
+        .orderBy(desc(examRevisions.revision))
+        .limit(1);
+      if (!revision) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Đề chưa có phiên bản để xử lý.",
+        );
+      }
+
+      const questionRows = await transaction
+        .select({
+          id: questions.id,
+          imageKey: questions.imageKey,
+          options: questions.options,
+          correctOptions: questions.correctOptions,
+          aiMetadata: questions.aiMetadata,
+        })
+        .from(questions)
+        .where(eq(questions.revisionId, revision.id))
+        .orderBy(asc(questions.order));
+
+      const candidates = questionRows.filter(
+        (question) =>
+          question.correctOptions.length === 0 &&
+          !["queued", "processing", "suggested", "confirmed"].includes(
+            question.aiMetadata?.status ?? "",
+          ),
+      );
+      const updatedAt = new Date().toISOString();
+      for (const question of candidates) {
+        await transaction
+          .update(questions)
+          .set({
+            aiMetadata: { status: "queued", updatedAt },
+            updatedAt: new Date(updatedAt),
+          })
+          .where(eq(questions.id, question.id));
+      }
+
+      return {
+        jobs: candidates.map((question) => ({
+          examId,
+          questionId: question.id,
+          imageKey: question.imageKey,
+          courseCode: exam.courseCode,
+          optionCount: question.options.length,
+        })),
+        skippedCount: questionRows.length - candidates.length,
+      };
+    });
+  }
+
+  async markProcessing(questionId: string): Promise<void> {
+    const updatedAt = new Date();
+    await this.db
+      .update(questions)
+      .set({
+        aiMetadata: {
+          status: "processing",
+          updatedAt: updatedAt.toISOString(),
+        },
+        updatedAt,
+      })
+      .where(eq(questions.id, questionId));
+  }
+
+  async saveSuggestion(
+    questionId: string,
+    proposal: AiAnswerProposalInput,
+  ): Promise<void> {
+    const updatedAt = new Date();
+    await this.db
+      .update(questions)
+      .set({
+        aiMetadata: {
+          status: "suggested",
+          proposedType: proposal.proposedType,
+          optionCount: proposal.optionCount,
+          proposedAnswers: proposal.proposedAnswers,
+          confidence: proposal.confidence,
+          provider: proposal.provider,
+          model: proposal.model,
+          rationale: proposal.rationale,
+          raw: proposal.raw,
+          updatedAt: updatedAt.toISOString(),
+        },
+        updatedAt,
+      })
+      .where(eq(questions.id, questionId));
+  }
+
+  async markFailed(questionId: string, message: string): Promise<void> {
+    const updatedAt = new Date();
+    await this.db
+      .update(questions)
+      .set({
+        aiMetadata: {
+          status: "failed",
+          error: message.slice(0, 500),
+          updatedAt: updatedAt.toISOString(),
+        },
+        updatedAt,
+      })
+      .where(eq(questions.id, questionId));
   }
 
   async markReady(

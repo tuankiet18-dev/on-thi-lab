@@ -2,6 +2,13 @@ import { z } from "zod";
 
 export const examTypes = ["FE", "PE"] as const;
 export const questionTypes = ["single", "multiple"] as const;
+export const aiSuggestionStatuses = [
+  "queued",
+  "processing",
+  "suggested",
+  "failed",
+  "confirmed",
+] as const;
 export const attemptStatuses = [
   "in_progress",
   "submitted",
@@ -79,6 +86,37 @@ export const draftImportResultSchema = z.object({
   status: z.literal("draft"),
 });
 
+export const aiAnswerSuggestionSchema = z
+  .object({
+    status: z.enum(aiSuggestionStatuses),
+    proposedType: z.enum(questionTypes).optional(),
+    optionCount: z.number().int().min(2).max(6).optional(),
+    proposedAnswers: z
+      .array(z.number().int().min(0).max(5))
+      .min(1)
+      .max(6)
+      .optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    provider: z.string().optional(),
+    model: z.string().optional(),
+    error: z.string().optional(),
+    updatedAt: z.string().datetime(),
+  })
+  .superRefine((value, context) => {
+    if (
+      value.status === "suggested" &&
+      (!value.proposedType ||
+        !value.optionCount ||
+        !value.proposedAnswers?.length ||
+        value.confidence === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Gợi ý hoàn tất phải có đầy đủ đáp án và độ tin cậy.",
+      });
+    }
+  });
+
 export const reviewQuestionSchema = z.object({
   id: z.string().uuid(),
   order: z.number().int().positive(),
@@ -86,6 +124,7 @@ export const reviewQuestionSchema = z.object({
   type: z.enum(questionTypes),
   options: z.array(z.string()).min(2).max(6),
   correctOptions: z.array(z.number().int().min(0).max(5)).max(6),
+  aiSuggestion: aiAnswerSuggestionSchema.nullable(),
 });
 export const savedReviewQuestionSchema = reviewQuestionSchema.omit({
   imageUrl: true,
@@ -151,6 +190,12 @@ export const publishExamResultSchema = z.object({
   revisionId: z.string().uuid(),
   status: z.literal("published"),
   publishedAt: z.string().datetime(),
+});
+
+export const queueAiSuggestionsResultSchema = z.object({
+  examId: z.string().uuid(),
+  queuedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
 });
 
 export const questionSchema = z.object({
@@ -242,6 +287,8 @@ export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
 export type SaveAnswerResult = z.infer<typeof saveAnswerResultSchema>;
 export type AttemptStatus = (typeof attemptStatuses)[number];
 export type QuestionType = (typeof questionTypes)[number];
+export type AiSuggestionStatus = (typeof aiSuggestionStatuses)[number];
+export type AiAnswerSuggestion = z.infer<typeof aiAnswerSuggestionSchema>;
 export type UserRole = (typeof userRoles)[number];
 export type ProfileOption = z.infer<typeof profileOptionSchema>;
 export type StudentProfile = z.infer<typeof studentProfileSchema>;
@@ -259,6 +306,9 @@ export type UpdateQuestionAnswerInput = z.infer<
 >;
 export type ReviewReadinessResult = z.infer<typeof reviewReadinessResultSchema>;
 export type PublishExamResult = z.infer<typeof publishExamResultSchema>;
+export type QueueAiSuggestionsResult = z.infer<
+  typeof queueAiSuggestionsResultSchema
+>;
 export type AttemptResult = z.infer<typeof attemptResultSchema>;
 export type Attempt = z.infer<typeof attemptSchema>;
 export type AttemptLaunch = z.infer<typeof attemptLaunchSchema>;

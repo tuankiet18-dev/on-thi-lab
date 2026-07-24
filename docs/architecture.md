@@ -59,7 +59,10 @@ API Gateway ── Lambda/Hono ── Aurora PostgreSQL (Data API)
 - Submit là idempotent.
 - Attempt luôn trỏ tới một `exam_revision`; sửa đáp án không làm đổi điểm lịch sử.
 - Đề chỉ được publish khi revision đã có người duyệt.
+- Gợi ý AI chỉ nằm trong `ai_metadata`; không được dùng làm đáp án chính thức
+  trước khi người duyệt áp dụng và lưu.
 - Chỉ Admin được approve revision và publish; Contributor chỉ nhập/duyệt đáp án.
+- Chỉ Admin được khởi tạo batch AI vì thao tác có thể phát sinh chi phí.
 - Free user tạo tối đa 2 attempt mới mỗi ngày theo múi giờ Việt Nam; attempt
   đang hoạt động được resume mà không trừ thêm lượt.
 - Ảnh gốc và ảnh phát hành dùng object key bất biến, checksum để chống trùng.
@@ -77,3 +80,8 @@ cần:
 - thêm WAF/rate limit, log retention và cảnh báo lỗi;
 - cấu hình domain production, ACM certificate và secrets theo environment;
 - nối Lambda/API Gateway và worker vào các package ứng dụng.
+
+Trong development, pipeline AI dùng hàng đợi nền có giới hạn concurrency. Khi
+`AI_SUGGESTION_QUEUE_URL` được cấu hình, API chuyển sang producer SQS. Worker
+kiểm tra JSON có cấu trúc và lưu `suggested/failed`; browser không nhận khóa
+provider. Chi tiết vận hành nằm trong `docs/ai-answer-suggestions.md`.
