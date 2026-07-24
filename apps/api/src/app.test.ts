@@ -59,7 +59,9 @@ class MemoryProfileRepository implements UserProfileRepository {
   }
 }
 
-function createOnboardedProfiles(): MemoryProfileRepository {
+function createOnboardedProfiles(
+  role: StudentProfile["role"] = "user",
+): MemoryProfileRepository {
   const profiles = new MemoryProfileRepository();
   profiles.profile = {
     id: "10000000-0000-4000-8000-000000000001",
@@ -68,7 +70,7 @@ function createOnboardedProfiles(): MemoryProfileRepository {
     studentCode: "HE170001",
     campus: profiles.options.campuses[0]!,
     major: profiles.options.majors[0]!,
-    role: "user",
+    role,
   };
   return profiles;
 }
@@ -190,6 +192,50 @@ describe("attempt API", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "INVALID_INPUT" });
+  });
+
+  it("allows contributors to validate imports but reserves publishing for admins", async () => {
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+    });
+    const contributorResponse = await contributorApp.request(
+      "/v1/admin/imports/config",
+      { headers: authorization },
+    );
+
+    expect(contributorResponse.status).toBe(200);
+    await expect(contributorResponse.json()).resolves.toMatchObject({
+      data: {
+        examType: "FE",
+        expectedQuestionCount: 60,
+        canPublish: false,
+      },
+    });
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+    });
+    const adminResponse = await adminApp.request("/v1/admin/imports/config", {
+      headers: authorization,
+    });
+    await expect(adminResponse.json()).resolves.toMatchObject({
+      data: { canPublish: true },
+    });
+  });
+
+  it("forbids regular users from import administration", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("user"),
+    });
+    const response = await isolatedApp.request("/v1/admin/imports/config", {
+      headers: authorization,
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "FORBIDDEN" });
   });
 
   it("creates, saves and submits an attempt idempotently", async () => {

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./zip-validator.js";
+
 const aiAnswerSchema = z.object({
   questionType: z.enum(["single", "multiple"]),
   optionCount: z.number().int().min(2).max(6),

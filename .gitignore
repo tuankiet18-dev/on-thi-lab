@@ -17,6 +17,7 @@ cdk.out/
 playwright-report/
 test-results/
 *.log
+*.zip
 *.tsbuildinfo
 .DS_Store
 infra/cdk.context.json

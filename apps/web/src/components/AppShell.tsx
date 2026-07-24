@@ -39,6 +39,10 @@ export function AppShell() {
     !configured ||
     studentProfile?.role === "admin" ||
     session?.user.groups.includes("admin") === true;
+  const canContribute =
+    isAdmin ||
+    studentProfile?.role === "contributor" ||
+    session?.user.groups.includes("contributor") === true;
 
   if (isPublicAuthPage) {
     return <Outlet />;
@@ -151,7 +155,7 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {isAdmin && (
+            {canContribute && (
               <Link
                 to="/admin/import"
                 className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 md:flex"
@@ -251,7 +255,7 @@ export function AppShell() {
                   {item.label}
                 </Link>
               ))}
-              {isAdmin && (
+              {canContribute && (
                 <Link
                   to="/admin/import"
                   onClick={() => setMenuOpen(false)}
