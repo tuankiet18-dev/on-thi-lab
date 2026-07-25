@@ -154,17 +154,18 @@ async function main() {
   console.log("=".repeat(60));
   console.log(`📂 Ảnh: ${imagesDir}`);
   console.log(`📋 Đáp án: ${answersJsonPath}`);
-  console.log(`📝 Đề: ${courseCode} - ${semester} - ${campusCode} - ${examType}`);
+  console.log(
+    `📝 Đề: ${courseCode} - ${semester} - ${campusCode} - ${examType}`,
+  );
   console.log(`⏱️  Thời gian: ${durationMinutes} phút`);
   if (isDryRun) console.log(`🔍 CHẾ ĐỘ DRY-RUN (không gọi API)`);
   console.log("");
 
   // ── Step 1: Đọc và tính đáp án ──────────────────────────────────────────
   console.log("Step 1: Tính đáp án bằng majority voting...");
-  const answersRaw = JSON.parse(await readFile(answersJsonPath, "utf-8")) as Record<
-    string,
-    Array<{ author: string; content: string }>
-  >;
+  const answersRaw = JSON.parse(
+    await readFile(answersJsonPath, "utf-8"),
+  ) as Record<string, Array<{ author: string; content: string }>>;
 
   const answerResults = computeAllAnswers(answersRaw);
   printAnswerSummary(answerResults);
@@ -322,7 +323,9 @@ async function main() {
           .filter(([, v]) => v > 0)
           .map(([k, v]) => `${k.toUpperCase()}:${v}`)
           .join(", ");
-        console.log(`  Q${r.questionNumber}: ${r.disputeReason} [${breakdown}]`);
+        console.log(
+          `  Q${r.questionNumber}: ${r.disputeReason} [${breakdown}]`,
+        );
       }
       console.log(`\n🔗 Link review: ${webUrl}/admin/review/${draft.examId}`);
     }
