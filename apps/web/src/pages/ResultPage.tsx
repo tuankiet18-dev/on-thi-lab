@@ -39,6 +39,15 @@ export function ResultPage() {
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(
     null,
   );
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomedImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -430,7 +439,8 @@ export function ResultPage() {
                         src={question.imageUrl}
                         alt={question.imageAlt}
                         loading="lazy"
-                        className="max-h-[680px] w-full object-contain"
+                        className="max-h-[680px] w-full object-contain cursor-zoom-in transition-transform hover:scale-[1.01]"
+                        onClick={() => setZoomedImage(question.imageUrl)}
                       />
                     </div>
                   )}
@@ -471,6 +481,30 @@ export function ResultPage() {
           )}
         </div>
       </section>
+
+      {zoomedImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ảnh phóng to"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 sm:p-8"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 inline-flex size-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-all hover:bg-black/80 hover:scale-110 focus-visible:outline-none"
+            aria-label="Đóng ảnh"
+          >
+            <X size={28} aria-hidden="true" />
+          </button>
+          <img
+            src={zoomedImage}
+            alt="Ảnh câu hỏi phóng to"
+            className="max-h-[90dvh] max-w-[90vw] rounded-xl bg-white object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
