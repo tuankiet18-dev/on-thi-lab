@@ -18,7 +18,11 @@ import {
   questions,
   subscriptions,
 } from "./schema";
-import type { AttemptSummary, StudentStatistics } from "@onthilab/contracts";
+import type {
+  AttemptSummary,
+  DailyUsage,
+  StudentStatistics,
+} from "@onthilab/contracts";
 
 export type AttemptRepositoryErrorCode =
   | "ATTEMPT_CLOSED"
@@ -57,6 +61,7 @@ export interface AttemptRepository {
     reason: "user" | "timeout";
   }): Promise<{ result: AttemptResult; idempotent: boolean }>;
   getStatistics(userId: string): Promise<StudentStatistics>;
+  getDailyUsage(userId: string): Promise<DailyUsage>;
 }
 
 function hashDeviceId(deviceId: string): string {
@@ -223,6 +228,48 @@ export class PostgresAttemptRepository implements AttemptRepository {
     const attempt = await this.findForUser(attemptId, input.userId);
     if (!attempt) throw new Error("Không thể tải lượt thi vừa tạo.");
     return { attempt, resumed: false };
+  }
+
+  async getDailyUsage(userId: string): Promise<DailyUsage> {
+    const now = new Date();
+    const [activeSubscription, usage] = await Promise.all([
+      this.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, userId),
+            eq(subscriptions.status, "active"),
+            gt(subscriptions.expiresAt, now),
+          ),
+        )
+        .limit(1),
+      this.db
+        .select({ attemptsStarted: dailyUsage.attemptsStarted })
+        .from(dailyUsage)
+        .where(
+          and(
+            eq(dailyUsage.userId, userId),
+            eq(dailyUsage.usageDate, usageDateInVietnam(now)),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    if (activeSubscription[0]) {
+      return {
+        attemptsStarted: usage[0]?.attemptsStarted ?? 0,
+        limit: null,
+        remainingAttempts: null,
+      };
+    }
+
+    const attemptsStarted = usage[0]?.attemptsStarted ?? 0;
+    return {
+      attemptsStarted,
+      limit: 2,
+      remainingAttempts: Math.max(0, 2 - attemptsStarted),
+    };
   }
 
   async listUserAttempts(userId: string): Promise<AttemptSummary[]> {

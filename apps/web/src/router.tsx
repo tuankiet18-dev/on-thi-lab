@@ -15,6 +15,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ExamDetailPage } from "./pages/ExamDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { ResultPage } from "./pages/ResultPage";
 import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
@@ -51,6 +52,12 @@ const onboardingRoute = createRoute({
     redirect: search.redirect as string | undefined,
   }),
   component: OnboardingPage,
+});
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  component: ProfilePage,
 });
 
 const catalogRoute = createRoute({
@@ -138,6 +145,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   authCallbackRoute,
   onboardingRoute,
+  profileRoute,
   catalogRoute,
   examDetailRoute,
   attemptRoute,

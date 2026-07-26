@@ -325,6 +325,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
   app.use("/v1/me/statistics", requireProfile);
+  app.use("/v1/me/usage", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
@@ -680,6 +681,14 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.get("/v1/me/statistics", async (context) =>
     context.json({
       data: await dependencies.attempts.getStatistics(
+        context.get("profile").id,
+      ),
+    }),
+  );
+
+  app.get("/v1/me/usage", async (context) =>
+    context.json({
+      data: await dependencies.attempts.getDailyUsage(
         context.get("profile").id,
       ),
     }),

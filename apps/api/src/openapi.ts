@@ -60,6 +60,21 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/me/usage": {
+      get: {
+        operationId: "getDailyUsage",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description:
+              "Number of attempts started today and the user's current limit",
+          },
+          "401": { description: "Missing, invalid or expired token" },
+          "403": { description: "Profile onboarding is required" },
+        },
+      },
+    },
     "/v1/admin/imports/config": {
       get: {
         operationId: "getImportConstraints",

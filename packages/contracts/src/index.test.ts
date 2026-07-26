@@ -3,6 +3,7 @@ import {
   calculateScore,
   aiAnswerSuggestionSchema,
   createDraftImportSchema,
+  dailyUsageSchema,
   isExactAnswer,
   publishExamResultSchema,
   updateQuestionAnswerSchema,
@@ -41,6 +42,25 @@ describe("student profile input", () => {
       campusCode: "HL",
       majorCode: "SE",
     });
+  });
+});
+
+describe("daily usage", () => {
+  it("allows a free quota or an unlimited active subscription", () => {
+    expect(
+      dailyUsageSchema.parse({
+        attemptsStarted: 1,
+        limit: 2,
+        remainingAttempts: 1,
+      }),
+    ).toMatchObject({ remainingAttempts: 1 });
+    expect(
+      dailyUsageSchema.parse({
+        attemptsStarted: 4,
+        limit: null,
+        remainingAttempts: null,
+      }),
+    ).toMatchObject({ limit: null });
   });
 });
 

@@ -5,6 +5,7 @@ import {
   type AttemptResult,
   type SaveAnswerInput,
   type AttemptSummary,
+  type DailyUsage,
   type StudentStatistics,
 } from "@onthilab/contracts";
 import {
@@ -177,5 +178,9 @@ export class MemoryAttemptRepository implements AttemptRepository {
       highestScore,
       recentAttempts,
     };
+  }
+
+  async getDailyUsage(): Promise<DailyUsage> {
+    return { attemptsStarted: 0, limit: 2, remainingAttempts: 2 };
   }
 }
