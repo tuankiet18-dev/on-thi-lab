@@ -370,6 +370,9 @@ describe("attempt API", () => {
       auth,
       profiles: createOnboardedProfiles("contributor"),
       reviews: {
+        findDrafts: async () => [],
+        findAllExams: async () => [],
+        deleteExam: async () => {},
         findReview: async () => ({
           examId,
           revisionId: "30000000-0000-4000-8000-000000000001",
@@ -470,6 +473,9 @@ describe("attempt API", () => {
   it("allows only admins to publish a reviewed exam", async () => {
     const examId = "20000000-0000-4000-8000-000000000001";
     const reviews = {
+      findDrafts: async () => [],
+      findAllExams: async () => [],
+      deleteExam: async () => {},
       findReview: async () => null,
       saveAnswer: async () => {
         throw new Error("not used");

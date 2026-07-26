@@ -21,6 +21,12 @@ export const attemptStatuses = [
   "auto_submitted",
   "cancelled",
 ] as const;
+export const examStatuses = [
+  "draft",
+  "review",
+  "published",
+  "cancelled",
+] as const;
 export const userRoles = ["user", "contributor", "admin"] as const;
 
 export const feZipImportConstraints = {
@@ -94,6 +100,16 @@ export const upsertStudentProfileSchema = z.object({
   curriculumId: z.string().uuid().optional(),
 });
 
+export const adminExamSummarySchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  courseCode: z.string(),
+  semester: z.string(),
+  status: z.enum(examStatuses),
+  creatorName: z.string(),
+  createdAt: z.string().datetime(),
+});
+
 export const createDraftImportSchema = z.object({
   courseCode: z
     .string()
@@ -121,6 +137,17 @@ export const draftImportResultSchema = z.object({
   examCode: z.string(),
   questionCount: z.number().int().positive(),
   status: z.literal("draft"),
+  answersJson: z
+    .record(
+      z.string(),
+      z.array(
+        z.object({
+          author: z.string(),
+          content: z.string(),
+        }),
+      ),
+    )
+    .optional(),
 });
 
 export const aiAnswerSuggestionSchema = z
@@ -137,6 +164,7 @@ export const aiAnswerSuggestionSchema = z
     provider: z.string().optional(),
     model: z.string().optional(),
     error: z.string().optional(),
+    raw: z.any().optional(),
     updatedAt: z.string().datetime(),
   })
   .superRefine((value, context) => {
@@ -420,6 +448,7 @@ export const studentStatisticsSchema = z.object({
 });
 
 export type StudentStatistics = z.infer<typeof studentStatisticsSchema>;
+export type AdminExamSummary = z.infer<typeof adminExamSummarySchema>;
 
 export function isExactAnswer(
   selectedOptions: readonly number[],

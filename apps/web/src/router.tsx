@@ -112,10 +112,25 @@ const adminReviewRoute = createRoute({
   component: AdminReviewPage,
 });
 
+import { AdminDraftsPage } from "./pages/AdminDraftsPage";
+import { AdminExamsPage } from "./pages/AdminExamsPage";
+
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "users",
   component: AdminUsersPage,
+});
+
+const adminDraftsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "drafts",
+  component: AdminDraftsPage,
+});
+
+const adminExamsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "exams",
+  component: AdminExamsPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -134,6 +149,8 @@ const routeTree = rootRoute.addChildren([
     adminReviewRoute,
     adminReportsRoute,
     adminUsersRoute,
+    adminDraftsRoute,
+    adminExamsRoute,
   ]),
 ]);
 

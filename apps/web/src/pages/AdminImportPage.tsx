@@ -13,7 +13,12 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { ApiError, uploadDraftImport } from "../lib/api";
+import {
+  ApiError,
+  getDraftExamReview,
+  saveQuestionReviewAnswer,
+  uploadDraftImport,
+} from "../lib/api";
 
 export function AdminImportPage() {
   const { configured, session, studentProfile } = useAuth();
@@ -27,6 +32,7 @@ export function AdminImportPage() {
   const [isRetake, setIsRetake] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [importProgress, setImportProgress] = useState<string>("");
   const [createdDraft, setCreatedDraft] = useState<{
     examId: string;
     examCode: string;
@@ -54,6 +60,7 @@ export function AdminImportPage() {
     }
 
     setSubmitting(true);
+    setImportProgress("Đang tải file ZIP lên hệ thống...");
     try {
       const result = await uploadDraftImport(
         session.idToken,
@@ -67,9 +74,16 @@ export function AdminImportPage() {
         },
         archive,
       );
-      setCreatedDraft(result);
+
+      setImportProgress("Hoàn thành! Đang chuyển hướng...");
+
+      setCreatedDraft({
+        ...result,
+      });
     } catch (reason) {
-      if (reason instanceof ApiError) {
+      if (reason instanceof SyntaxError) {
+        setError("File answers.json không hợp lệ.");
+      } else if (reason instanceof ApiError) {
         const messages: Record<string, string> = {
           CAMPUS_NOT_FOUND: "Campus không tồn tại trong hệ thống.",
           COURSE_NOT_FOUND: "Mã môn chưa có trong danh mục.",
@@ -85,6 +99,7 @@ export function AdminImportPage() {
       }
     } finally {
       setSubmitting(false);
+      setImportProgress("");
     }
   };
 
@@ -200,29 +215,31 @@ export function AdminImportPage() {
               </label>
             </div>
 
-            <label className="mt-7 block cursor-pointer rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-8 text-center transition-colors hover:border-primary hover:bg-primary-soft focus-within:ring-3 focus-within:ring-primary/20">
-              <input
-                type="file"
-                accept=".zip"
-                className="sr-only"
-                onChange={(event) =>
-                  setArchive(event.target.files?.[0] ?? null)
-                }
-              />
-              <span className="mx-auto grid size-12 place-items-center rounded-xl bg-white text-primary shadow-sm">
-                {archive ? (
-                  <CheckCircle2 size={23} aria-hidden="true" />
-                ) : (
-                  <FileUp size={23} aria-hidden="true" />
-                )}
-              </span>
-              <span className="mt-4 block font-heading text-lg font-bold text-foreground">
-                {archive?.name || "Chọn file ZIP chứa ảnh câu hỏi"}
-              </span>
-              <span className="mt-2 block text-sm text-slate-500">
-                Đúng 60 ảnh · JPG, PNG hoặc WebP · 20 MB mỗi ảnh
-              </span>
-            </label>
+            <div className="mt-7">
+              <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-8 text-center transition-colors hover:border-primary hover:bg-primary-soft focus-within:ring-3 focus-within:ring-primary/20">
+                <input
+                  type="file"
+                  accept=".zip"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setArchive(event.target.files?.[0] ?? null)
+                  }
+                />
+                <span className="mx-auto grid size-12 place-items-center rounded-xl bg-white text-primary shadow-sm">
+                  {archive ? (
+                    <CheckCircle2 size={23} aria-hidden="true" />
+                  ) : (
+                    <FileUp size={23} aria-hidden="true" />
+                  )}
+                </span>
+                <span className="mt-4 block font-heading text-lg font-bold text-foreground">
+                  {archive?.name || "Chọn file ZIP chứa ảnh và đáp án"}
+                </span>
+                <span className="mt-2 block text-sm text-slate-500">
+                  Chứa đúng 60 ảnh, có thể kèm theo file answers.json
+                </span>
+              </label>
+            </div>
 
             {error && (
               <p
@@ -237,17 +254,18 @@ export function AdminImportPage() {
                 className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
                 role="status"
               >
-                <p className="font-bold">
+                <p className="font-bold text-base">
                   Đã tạo đề nháp {createdDraft.examCode}
                 </p>
                 <p className="mt-1">
                   {createdDraft.questionCount} ảnh đã được lưu. Bước tiếp theo
                   là duyệt đáp án trước khi xuất bản.
                 </p>
+
                 <Link
                   to="/admin/exams/$examId/review"
                   params={{ examId: createdDraft.examId }}
-                  className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-emerald-600/25"
+                  className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-emerald-600/25"
                 >
                   Duyệt đáp án ngay
                   <ArrowRight size={17} aria-hidden="true" />
@@ -261,7 +279,9 @@ export function AdminImportPage() {
                 disabled={!archive || submitting}
                 icon={<ArrowRight size={17} />}
               >
-                {submitting ? "Đang kiểm tra..." : "Kiểm tra và tạo đề nháp"}
+                {submitting
+                  ? importProgress || "Đang xử lý..."
+                  : "Kiểm tra và tạo đề nháp"}
               </Button>
             </div>
           </form>

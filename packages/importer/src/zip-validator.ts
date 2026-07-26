@@ -111,6 +111,9 @@ export function validateZipManifest(
   for (const entry of entries) {
     assertSafePath(entry.fileName);
     if (isDirectory(entry)) continue;
+    if (posix.basename(entry.fileName).toLowerCase() === "answers.json") {
+      continue;
+    }
 
     const extension = extname(entry.fileName).toLowerCase();
     if (!limits.allowedExtensions.includes(extension)) {

@@ -15,6 +15,7 @@ import {
   saveAnswerResultSchema,
   savedReviewQuestionSchema,
   studentProfileSchema,
+  adminExamSummarySchema,
   reportSchema,
   resolveReportSchema,
   type Attempt,
@@ -22,6 +23,7 @@ import {
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
+  type AdminExamSummary,
   type CreateReportInput,
   type DraftExamReview,
   type DraftImportResult,
@@ -435,4 +437,35 @@ export async function getStudentStatistics(
 ): Promise<StudentStatistics> {
   const result = await request("/v1/me/statistics", idToken, {}, fetcher);
   return studentStatisticsSchema.parse(result);
+}
+
+export async function getDraftExams(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminExamSummary[]> {
+  const result = await request("/v1/admin/drafts", idToken, {}, fetcher);
+  if (!Array.isArray(result)) return [];
+  return result.map((p) => adminExamSummarySchema.parse(p));
+}
+
+export async function getAllAdminExams(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminExamSummary[]> {
+  const result = await request("/v1/admin/exams", idToken, {}, fetcher);
+  if (!Array.isArray(result)) return [];
+  return result.map((p) => adminExamSummarySchema.parse(p));
+}
+
+export async function deleteExam(
+  examId: string,
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}`,
+    idToken,
+    { method: "DELETE" },
+    fetcher,
+  );
 }

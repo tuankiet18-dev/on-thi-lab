@@ -107,6 +107,9 @@ const unavailableProfileRepository: UserProfileRepository = {
 };
 
 const unavailableReviewRepository: ExamReviewRepository = {
+  findDrafts: async () => [],
+  findAllExams: async () => [],
+  deleteExam: async () => {},
   findReview: async () => null,
   saveAnswer: async () => {
     throw new Error("Review storage is not configured");
@@ -230,7 +233,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     cors({
       origin: dependencies.corsOrigins,
       allowHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
-      allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
 
@@ -378,6 +381,22 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       },
     }),
   );
+
+  app.get("/v1/admin/drafts", async (context) => {
+    const drafts = await dependencies.reviews.findDrafts();
+    return context.json({ data: drafts });
+  });
+
+  app.get("/v1/admin/exams", async (context) => {
+    const exams = await dependencies.reviews.findAllExams();
+    return context.json({ data: exams });
+  });
+
+  app.delete("/v1/admin/exams/:examId", async (context) => {
+    const examId = context.req.param("examId");
+    await dependencies.reviews.deleteExam(examId);
+    return context.json({ success: true });
+  });
 
   app.use(
     "/v1/admin/imports",

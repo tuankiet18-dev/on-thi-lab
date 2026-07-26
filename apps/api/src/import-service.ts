@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { createWriteStream } from "node:fs";
+import { computeAnswer } from "@onthilab/importer";
 
 export class S3ExamImportService implements ExamImportService {
   constructor(
@@ -93,18 +94,83 @@ export class S3ExamImportService implements ExamImportService {
         }),
       );
 
-      // 4. Save to DB
+      // 4. Read answers.json if extracted
+      let answersJson: any = undefined;
+      try {
+        const answersContent = await readFile(
+          join(extractedDirectory, "answers.json"),
+          "utf8",
+        );
+        answersJson = JSON.parse(answersContent);
+      } catch (err) {
+        // Ignore if file does not exist or invalid JSON
+      }
+
+      // 5. Save to DB
       const result = await this.repository.createDraft({
         ...input.metadata,
         createdBy: input.creator.id,
-        questions: images.map((image) => ({
-          order: image.order,
-          imageKey: posix.join(storagePrefix, image.fileName),
-          imageHash: image.sha256,
-          optionCount: 4,
-        })),
+        questions: images.map((image) => {
+          let aiMetadata: any = undefined;
+          let correctOptions: number[] | undefined = undefined;
+
+          if (answersJson) {
+            const ext = extname(image.fileName);
+            const votes =
+              answersJson[`Q${image.order}${ext}`] ||
+              answersJson[`${image.order}${ext}`] ||
+              answersJson[`Q${image.order}.jpg`] ||
+              answersJson[`${image.order}.jpg`];
+
+            if (Array.isArray(votes) && votes.length > 0) {
+              // Using computeAnswer
+              const computed = computeAnswer(image.order, votes);
+
+              if (!computed.disputed) {
+                const letterToIndex: Record<string, number> = {
+                  a: 0,
+                  b: 1,
+                  c: 2,
+                  d: 3,
+                  e: 4,
+                  f: 5,
+                };
+                correctOptions = [letterToIndex[computed.answer] ?? 0];
+              }
+
+              aiMetadata = {
+                status: "suggested",
+                provider: "fuoverflow",
+                confidence: computed.confidence,
+                proposedType: "single",
+                optionCount: 4,
+                proposedAnswers: computed.disputed ? undefined : correctOptions,
+                updatedAt: new Date().toISOString(),
+                raw: {
+                  disputed: computed.disputed,
+                  disputeReason: computed.disputeReason,
+                  votes: computed.totalVotes,
+                  voteBreakdown: computed.voteBreakdown,
+                },
+              };
+            }
+          }
+
+          return {
+            order: image.order,
+            imageKey: posix.join(storagePrefix, image.fileName),
+            imageHash: image.sha256,
+            optionCount: 4,
+            correctOptions,
+            aiMetadata,
+          };
+        }),
       });
-      return result;
+
+      return {
+        ...result,
+        answersJson,
+      };
     } catch (error) {
       if (error instanceof ZipValidationError) {
         throw new ExamImportError("INVALID_ARCHIVE", error.message);
@@ -129,7 +195,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, posix } from "node:path";
+import { extname, join, posix } from "node:path";
 
 export interface UploadedArchive {
   name: string;

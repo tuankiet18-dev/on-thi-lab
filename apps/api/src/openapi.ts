@@ -73,6 +73,54 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/drafts": {
+      get: {
+        operationId: "listDraftExams",
+        tags: ["Admin imports"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description: "List of drafted exams",
+          },
+          "403": { description: "Contributor or admin role required" },
+        },
+      },
+    },
+    "/v1/admin/exams": {
+      get: {
+        operationId: "listAllExams",
+        tags: ["Admin exams"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description: "List of all exams",
+          },
+          "403": { description: "Contributor or admin role required" },
+        },
+      },
+    },
+    "/v1/admin/exams/{examId}": {
+      delete: {
+        operationId: "deleteExam",
+        tags: ["Admin exams"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            name: "examId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Exam deleted or cancelled",
+          },
+          "403": { description: "Contributor or admin role required" },
+          "404": { description: "Exam not found" },
+        },
+      },
+    },
     "/v1/admin/imports": {
       post: {
         operationId: "createDraftExamImport",
