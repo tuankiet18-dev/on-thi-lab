@@ -75,9 +75,11 @@ export function OnboardingPage() {
     <main className="grid min-h-screen bg-app lg:grid-cols-[420px_1fr]">
       <aside className="hidden bg-linear-to-br from-[#173b8f] to-primary p-10 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-white/15">
-            <GraduationCap size={25} aria-hidden="true" />
-          </span>
+          <img
+            src="/logo.png"
+            alt="OnThiLab Mascot"
+            className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
+          />
           <span className="font-heading text-2xl font-bold">OnThiLab</span>
         </div>
         <div>

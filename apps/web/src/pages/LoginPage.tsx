@@ -61,9 +61,11 @@ export function LoginPage() {
     <main className="grid min-h-screen bg-app lg:grid-cols-[1.05fr_0.95fr]">
       <section className="relative hidden overflow-hidden bg-linear-to-br from-[#15377f] via-primary to-[#5b7ff0] p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="relative z-10 flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-white/15">
-            <GraduationCap size={25} aria-hidden="true" />
-          </span>
+          <img
+            src="/logo.png"
+            alt="OnThiLab Mascot"
+            className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
+          />
           <span className="font-heading text-2xl font-bold">
             OnThi<span className="text-blue-200">Lab</span>
           </span>
@@ -104,9 +106,11 @@ export function LoginPage() {
       <section className="flex items-center justify-center p-5 sm:p-8 lg:p-12">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="grid size-10 place-items-center rounded-xl bg-primary text-white">
-              <GraduationCap size={22} aria-hidden="true" />
-            </span>
+            <img
+              src="/logo.png"
+              alt="OnThiLab Mascot"
+              className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
+            />
             <span className="font-heading text-2xl font-bold text-foreground">
               OnThi<span className="text-primary">Lab</span>
             </span>
