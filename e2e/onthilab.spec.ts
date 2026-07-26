@@ -73,9 +73,9 @@ test("desktop student can complete a practice exam", async ({
     page.getByRole("dialog", { name: "Ảnh phóng to câu 1" }),
   ).toHaveCount(0);
 
-  await page.getByRole("radio", { name: /Đáp án B/ }).click();
+  await page.getByRole("radio", { name: "Chọn đáp án B" }).click();
   await page.getByRole("button", { name: "Câu tiếp" }).click();
-  await page.getByRole("radio", { name: /Đáp án C/ }).click();
+  await page.getByRole("radio", { name: "Chọn đáp án C" }).click();
   await page.getByRole("button", { name: "Nộp bài", exact: true }).click();
   await page
     .getByRole("dialog")
@@ -120,11 +120,17 @@ test("student can preview a published exam without starting an attempt", async (
     }),
   ).toBeVisible();
   await expect(
-    page.getByText("Đây là chế độ chỉ đọc:", { exact: false }),
+    page.getByRole("img", {
+      name: "Câu hỏi về software modeling với bốn lựa chọn A đến D",
+    }),
   ).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(0);
   await page.getByRole("button", { name: "Câu sau" }).click();
-  await expect(page.getByText("Câu 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("img", {
+      name: "Câu hỏi về software design concept với bốn lựa chọn",
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Bắt đầu thi thử" }),
   ).toBeVisible();
