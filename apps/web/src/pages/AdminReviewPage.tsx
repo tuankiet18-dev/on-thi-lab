@@ -354,6 +354,23 @@ export function AdminReviewPage() {
     }
   };
 
+  const applyCurrentSuggestion = () => {
+    const suggestion = currentQuestion?.aiSuggestion;
+    if (
+      !suggestion ||
+      suggestion.status !== "suggested" ||
+      !suggestion.proposedType ||
+      !suggestion.optionCount ||
+      !suggestion.proposedAnswers
+    ) {
+      return;
+    }
+    setQuestionType(suggestion.proposedType);
+    setOptionCount(suggestion.optionCount);
+    setSelectedOptions(suggestion.proposedAnswers);
+    setError("");
+    setFeedback("Đã điền gợi ý. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
+  };
   if (loading) {
     return (
       <div className="grid min-h-[55vh] place-items-center">
