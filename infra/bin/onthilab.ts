@@ -11,7 +11,7 @@ const region = process.env.CDK_DEFAULT_REGION ?? "ap-southeast-1";
 const domainPrefix =
   app.node.tryGetContext("cognitoDomainPrefix") ??
   `onthilab-${stage}-${account ?? "local"}`;
-const databaseSecretName = app.node.tryGetContext("databaseSecretName");
+const databaseParameterName = app.node.tryGetContext("databaseParameterName");
 const webDomainName = app.node.tryGetContext("webDomainName");
 const webCertificateArn = app.node.tryGetContext("webCertificateArn");
 const webBaseUrl =
@@ -24,10 +24,10 @@ const webBaseUrl =
 
 if (
   stage === "prod" &&
-  (!databaseSecretName || !webDomainName || !webCertificateArn)
+  (!databaseParameterName || !webDomainName || !webCertificateArn)
 ) {
   throw new Error(
-    "Production requires databaseSecretName, webDomainName and webCertificateArn CDK context values.",
+    "Production requires databaseParameterName, webDomainName and webCertificateArn CDK context values.",
   );
 }
 if (!webBaseUrl) {
@@ -60,7 +60,7 @@ new OnThiLabStack(app, `OnThiLab-${stage}`, {
   stage,
   cognitoUserPoolId: authStack.userPool.userPoolId,
   cognitoClientId: authStack.userPoolClient.userPoolClientId,
-  databaseSecretName,
+  databaseParameterName,
   webDomainName,
   webCertificateArn,
   description: `OnThiLab ${stage} serverless foundation`,

@@ -26,7 +26,8 @@ React SPA
 ```
 
 - Google client secret chỉ tồn tại trong AWS Secrets Manager tại
-  `/onthilab/dev/google/oauth`.
+  `/onthilab/<stage>/google/oauth`; Cognito cần Secrets Manager dynamic
+  reference vì không hỗ trợ SSM SecureString trực tiếp.
 - Browser chỉ nhận Cognito public client ID; không có client secret.
 - OAuth transaction và token được lưu trong `sessionStorage`; mã xác minh PKCE
   và `state` được kiểm tra trước khi đổi code lấy token.
@@ -70,7 +71,7 @@ API Gateway ── Lambda/Hono ── Supabase PostgreSQL
 ## Chi phí AWS và Supabase
 
 Supabase PostgreSQL Free là database cho closed beta, kết nối từ Lambda chỉ qua
-`DATABASE_URL` lấy từ AWS Secrets Manager. CDK không còn provision Aurora hay
+`DATABASE_URL` đọc lúc cold start từ SSM Parameter Store SecureString. CDK không còn provision Aurora hay
 VPC, tránh chi phí nền không cần thiết. S3 private qua CloudFront OAC, SQS có
 DLQ và tài nguyên dev có thể xóa. Trước khi deploy production cần:
 

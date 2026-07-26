@@ -58,7 +58,7 @@ Kiểm tra trước khi bật flag:
 
 ## AWS staging/production
 
-Tên secret dự kiến:
+Tên secret/parameter trên AWS:
 
 ```text
 /onthilab/staging/google/oauth
@@ -68,11 +68,18 @@ Tên secret dự kiến:
 /onthilab/staging/ai/api-key
 
 /onthilab/prod/google/oauth
-/onthilab/prod/database
 /onthilab/prod/payos/client-id
 /onthilab/prod/payos/api-key
 /onthilab/prod/payos/checksum-key
 /onthilab/prod/ai/api-key
+```
+
+Database connection string dùng SSM Parameter Store `SecureString` tier
+`Standard` để tránh phí lưu secret cố định:
+
+```text
+/onthilab/staging/database
+/onthilab/prod/database
 ```
 
 Secret được tham chiếu bằng ARN/name trong CDK, không đọc rồi ghi lại vào
@@ -87,7 +94,8 @@ Google OAuth dùng một JSON secret để giảm số secret phải trả phí:
 }
 ```
 
-Supabase connection string cũng được lưu server-side, chỉ cho Lambda đọc:
+Supabase connection string cũng được lưu server-side trong Parameter Store,
+chỉ cho Lambda đọc:
 
 ```json
 {

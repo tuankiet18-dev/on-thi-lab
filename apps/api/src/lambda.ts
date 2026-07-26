@@ -1,8 +1,42 @@
 import { handle } from "hono/aws-lambda";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { createRuntimeApp } from "./runtime";
 
 /**
  * Production Lambda entrypoint. Runtime configuration is validated once during
  * cold start, before Hono accepts any request.
  */
-export const handler = handle(createRuntimeApp());
+const ssmClient = new SSMClient({});
+type LambdaHandler = ReturnType<typeof handle>;
+
+let handlerPromise: Promise<LambdaHandler> | undefined;
+
+async function getHandler(): Promise<LambdaHandler> {
+  if (!handlerPromise) {
+    handlerPromise = (async () => {
+      const environment = { ...process.env };
+      const parameterName = environment.DATABASE_PARAMETER_NAME;
+
+      if (parameterName) {
+        const response = await ssmClient.send(
+          new GetParameterCommand({
+            Name: parameterName,
+            WithDecryption: true,
+          }),
+        );
+        const databaseUrl = response.Parameter?.Value;
+        if (!databaseUrl) {
+          throw new Error("DATABASE_PARAMETER_NAME did not resolve to a value");
+        }
+        environment.DATABASE_URL = databaseUrl;
+      }
+
+      return handle(createRuntimeApp(environment));
+    })();
+  }
+
+  return handlerPromise;
+}
+
+export const handler = async (...args: Parameters<LambdaHandler>) =>
+  (await getHandler())(...args);
