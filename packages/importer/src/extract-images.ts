@@ -63,6 +63,7 @@ export async function extractValidatedQuestionImages(
   const expectedByName = new Map(
     validation.images.map((image) => [image.fileName, image]),
   );
+  const answersJsonName = validation.answersJson?.fileName;
 
   await mkdir(outputDirectory, { recursive: false });
   let completed = false;
@@ -83,7 +84,7 @@ export async function extractValidatedQuestionImages(
 
         zipFile.on("error", fail);
         zipFile.on("entry", (entry: Entry) => {
-          if (posix.basename(entry.fileName).toLowerCase() === "answers.json") {
+          if (answersJsonName && entry.fileName === answersJsonName) {
             void (async () => {
               const destination = join(outputDirectory, "answers.json");
               const source = await openEntryStream(zipFile, entry);

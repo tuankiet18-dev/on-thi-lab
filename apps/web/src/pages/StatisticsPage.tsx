@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { Badge } from "../components/ui/Badge";
 import { getStudentStatistics } from "../lib/api";
 import { useAuth } from "../auth/AuthContext";
@@ -15,6 +15,8 @@ import {
 export function StatisticsPage() {
   const { session } = useAuth();
 
+  if (!session) return <Navigate to="/login" replace />;
+
   const {
     data: stats,
     isPending,
@@ -27,7 +29,7 @@ export function StatisticsPage() {
       if (!session) throw new Error("Unauthorized");
       return getStudentStatistics(session.idToken);
     },
-    enabled: !!session,
+    enabled: true,
   });
 
   if (isError) {

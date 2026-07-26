@@ -108,6 +108,33 @@ describe("attempt API", () => {
     await expect(response.json()).resolves.toEqual({ error: "UNAUTHORIZED" });
   });
 
+  it("requires an onboarded contributor before issuing an upload URL", async () => {
+    const imports = {
+      createPresignedUploadUrl: async () => ({
+        uploadUrl: "https://example.test/upload",
+        key: "uploads/10000000-0000-4000-8000-000000000001/questions.zip",
+      }),
+      createDraft: async () => {
+        throw new Error("not used");
+      },
+    };
+    const isolatedApp = createApp({ auth, imports: imports as any });
+
+    expect(
+      (await isolatedApp.request("/v1/admin/imports/presign")).status,
+    ).toBe(401);
+
+    const contributorApp = createApp({
+      auth,
+      imports: imports as any,
+      profiles: createOnboardedProfiles("contributor"),
+    });
+    const response = await contributorApp.request("/v1/admin/imports/presign", {
+      headers: authorization,
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("requires onboarding before catalog and exam routes", async () => {
     const isolatedApp = createApp({
       auth,
@@ -501,6 +528,12 @@ describe("attempt API", () => {
       { method: "POST", headers: authorization },
     );
     expect(forbidden.status).toBe(403);
+
+    const deleteForbidden = await contributorApp.request(
+      `/v1/admin/exams/${examId}`,
+      { method: "DELETE", headers: authorization },
+    );
+    expect(deleteForbidden.status).toBe(403);
 
     const adminApp = createApp({
       auth,

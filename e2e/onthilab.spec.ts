@@ -23,7 +23,7 @@ test("login route renders a safe unconfigured state in CI", async ({
 test("short pages keep the footer at the viewport bottom", async ({ page }) => {
   await page.goto("/statistics");
   await expect(
-    page.getByRole("heading", { name: "Thống kê học tập" }),
+    page.getByRole("heading", { name: "Chào mừng bạn" }),
   ).toBeVisible();
 
   const footer = await page.locator("footer").boundingBox();

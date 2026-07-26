@@ -136,6 +136,11 @@ function toAiSuggestion(
     provider: metadata.provider,
     model: metadata.model,
     error: metadata.error,
+    validVotes: metadata.validVotes,
+    totalComments: metadata.totalComments,
+    voteBreakdown: metadata.voteBreakdown,
+    requiresReview: metadata.requiresReview,
+    disputeReason: metadata.disputeReason,
     updatedAt: metadata.updatedAt,
   };
 }
@@ -313,18 +318,23 @@ export class PostgresDraftImportRepository
       if (!exam) return;
 
       if (exam.status === "draft" || exam.status === "review") {
-        // Hard delete: delete questions, exam_revisions, then the exam itself
+        const revisionIds = tx
+          .select({ id: examRevisions.id })
+          .from(examRevisions)
+          .where(eq(examRevisions.examId, examId));
+        const questionIds = tx
+          .select({ id: questions.id })
+          .from(questions)
+          .where(inArray(questions.revisionId, revisionIds));
+
+        // An answer can be saved while a draft is being reviewed, which creates
+        // an audit row. Delete that dependent data before the draft questions.
+        await tx
+          .delete(questionAnswerAudits)
+          .where(inArray(questionAnswerAudits.questionId, questionIds));
         await tx
           .delete(questions)
-          .where(
-            inArray(
-              questions.revisionId,
-              tx
-                .select({ id: examRevisions.id })
-                .from(examRevisions)
-                .where(eq(examRevisions.examId, examId)),
-            ),
-          );
+          .where(inArray(questions.revisionId, revisionIds));
         await tx.delete(examRevisions).where(eq(examRevisions.examId, examId));
         await tx.delete(exams).where(eq(exams.id, examId));
       } else {

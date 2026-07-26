@@ -126,6 +126,27 @@ describe("answer review input", () => {
     ).toThrow();
   });
 
+  it("exposes aggregate community evidence without raw comments", () => {
+    const suggestion = aiAnswerSuggestionSchema.parse({
+      status: "suggested",
+      proposedType: "multiple",
+      optionCount: 4,
+      proposedAnswers: [0, 1],
+      confidence: 0.8,
+      provider: "community-comments",
+      model: "exact-consensus-v1",
+      validVotes: 8,
+      totalComments: 10,
+      voteBreakdown: { ab: 8, c: 2 },
+      requiresReview: false,
+      updatedAt: "2026-07-24T06:00:00.000Z",
+      raw: { author: "must-not-be-exposed" },
+    });
+
+    expect(suggestion).toMatchObject({ validVotes: 8, totalComments: 10 });
+    expect(suggestion).not.toHaveProperty("raw");
+  });
+
   it("accepts a timestamped published result", () => {
     expect(
       publishExamResultSchema.parse({

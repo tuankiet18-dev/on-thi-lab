@@ -221,6 +221,7 @@ export function AdminImportPage() {
                   type="file"
                   accept=".zip"
                   className="sr-only"
+                  aria-label="Chọn file ZIP chứa ảnh câu hỏi"
                   onChange={(event) =>
                     setArchive(event.target.files?.[0] ?? null)
                   }

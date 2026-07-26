@@ -4,6 +4,7 @@ import type {
   ReviewQuestion,
 } from "@onthilab/contracts";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -354,7 +355,7 @@ export function AdminReviewPage() {
     setOptionCount(suggestion.optionCount);
     setSelectedOptions(suggestion.proposedAnswers);
     setError("");
-    setFeedback("Đã điền gợi ý AI. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
+    setFeedback("Đã điền gợi ý. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
   };
 
   if (loading) {
@@ -520,8 +521,9 @@ export function AdminReviewPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-sm font-bold">
-                      {currentQuestion.aiSuggestion.provider === "fuoverflow"
-                        ? "Đề xuất từ Cộng đồng (fuoverflow)"
+                      {currentQuestion.aiSuggestion.provider ===
+                      "community-comments"
+                        ? "Gợi ý đáp án từ comments đã crawl"
                         : currentQuestion.aiSuggestion.status === "suggested"
                           ? "AI đã tạo đáp án tham khảo"
                           : currentQuestion.aiSuggestion.status === "confirmed"
@@ -549,17 +551,27 @@ export function AdminReviewPage() {
                             %
                           </strong>
                           {currentQuestion.aiSuggestion.provider ===
-                            "fuoverflow" &&
-                            (currentQuestion.aiSuggestion.raw as any)
-                              ?.disputeReason && (
-                              <p className="mt-1 text-amber-700 font-medium">
-                                ⚠️{" "}
-                                {
-                                  (currentQuestion.aiSuggestion.raw as any)
-                                    .disputeReason
-                                }
+                            "community-comments" &&
+                            currentQuestion.aiSuggestion.validVotes !==
+                              undefined && (
+                              <p className="mt-2 text-xs text-slate-600">
+                                {currentQuestion.aiSuggestion.validVotes}/
+                                {currentQuestion.aiSuggestion.totalComments ??
+                                  currentQuestion.aiSuggestion.validVotes}{" "}
+                                comments có đáp án rõ ràng
                               </p>
                             )}
+                          {currentQuestion.aiSuggestion.requiresReview && (
+                            <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
+                              <AlertTriangle
+                                className="mt-0.5 shrink-0"
+                                size={15}
+                                aria-hidden="true"
+                              />
+                              {currentQuestion.aiSuggestion.disputeReason ??
+                                "Gợi ý chưa đủ đồng thuận; cần kiểm tra ảnh trước khi lưu."}
+                            </p>
+                          )}
                         </div>
                       )}
                     {currentQuestion.aiSuggestion.status === "failed" && (

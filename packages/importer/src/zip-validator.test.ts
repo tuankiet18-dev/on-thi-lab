@@ -90,4 +90,37 @@ describe("validateZipManifest", () => {
       }),
     );
   });
+
+  it("limits and validates the optional answers.json entry", () => {
+    const result = validateZipManifest(
+      [image("Q1.jpg"), image("metadata/answers.json", 100)],
+      900,
+      { expectedQuestionCount: 1 },
+    );
+    expect(result.answersJson?.fileName).toBe("metadata/answers.json");
+    expect(result.totalUncompressedBytes).toBe(1_100);
+
+    expect(() =>
+      validateZipManifest(
+        [image("Q1.jpg"), image("answers.json"), image("copy/answers.json")],
+        900,
+        { expectedQuestionCount: 1 },
+      ),
+    ).toThrowError(
+      expect.objectContaining<Partial<ZipValidationError>>({
+        code: "DUPLICATE_ANSWERS_FILE",
+      }),
+    );
+
+    expect(() =>
+      validateZipManifest([image("Q1.jpg"), image("answers.json", 101)], 900, {
+        expectedQuestionCount: 1,
+        maxAnswersBytes: 100,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<ZipValidationError>>({
+        code: "ANSWERS_TOO_LARGE",
+      }),
+    );
+  });
 });

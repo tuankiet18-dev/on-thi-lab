@@ -210,6 +210,11 @@ export const questions = pgTable(
       proposedAnswers?: number[];
       rationale?: string;
       error?: string;
+      validVotes?: number;
+      totalComments?: number;
+      voteBreakdown?: Record<string, number>;
+      requiresReview?: boolean;
+      disputeReason?: string;
       updatedAt?: string;
       raw?: unknown;
     }>(),
