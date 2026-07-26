@@ -214,18 +214,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   };
   const app = new Hono<AppEnvironment>();
 
-  app.get("/v1/admin/imports/presign", async (context) => {
-    if (!dependencies.imports.createPresignedUploadUrl) {
-      return context.json({ error: "IMPORT_NOT_CONFIGURED" }, 503);
-    }
-    try {
-      const data = await dependencies.imports.createPresignedUploadUrl();
-      return context.json({ data });
-    } catch (error) {
-      return context.json({ error: "INTERNAL_SERVER_ERROR" }, 500);
-    }
-  });
-
   app.use("*", requestId());
   app.use("*", secureHeaders({ crossOriginResourcePolicy: false }));
   app.use(
@@ -382,6 +370,19 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }),
   );
 
+  app.get("/v1/admin/imports/presign", async (context) => {
+    if (!dependencies.imports.createPresignedUploadUrl) {
+      return context.json({ error: "IMPORT_NOT_CONFIGURED" }, 503);
+    }
+    try {
+      return context.json({
+        data: await dependencies.imports.createPresignedUploadUrl(),
+      });
+    } catch {
+      return context.json({ error: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  });
+
   app.get("/v1/admin/drafts", async (context) => {
     const drafts = await dependencies.reviews.findDrafts();
     return context.json({ data: drafts });
@@ -392,7 +393,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     return context.json({ data: exams });
   });
 
-  app.delete("/v1/admin/exams/:examId", async (context) => {
+  app.delete("/v1/admin/exams/:examId", requireAdmin, async (context) => {
     const examId = context.req.param("examId");
     await dependencies.reviews.deleteExam(examId);
     return context.json({ success: true });

@@ -180,7 +180,6 @@ export async function uploadDraftImport(
     },
     fetcher,
   );
-  console.error("RESULT:", result);
   return draftImportResultSchema.parse(result);
 }
 

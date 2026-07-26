@@ -1,201 +1,34 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "node:stream";
-import { readFile } from "node:fs/promises";
-import { pipeline } from "node:stream/promises";
-import { createWriteStream } from "node:fs";
-import { computeAnswer } from "@onthilab/importer";
-
-export class S3ExamImportService implements ExamImportService {
-  constructor(
-    private readonly repository: DraftImportRepository,
-    private readonly s3Client: S3Client,
-    private readonly bucket: string,
-  ) {}
-
-  async createPresignedUploadUrl(): Promise<{
-    uploadUrl: string;
-    key: string;
-  }> {
-    const assetId = randomUUID();
-    const key = `drafts/${assetId}/questions.zip`;
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: "application/zip",
-    });
-    const uploadUrl = await getSignedUrl(this.s3Client, command, {
-      expiresIn: 3600,
-    });
-    return { uploadUrl, key };
-  }
-
-  async createDraft(
-    input: CreateDraftFromArchiveInput,
-  ): Promise<DraftImportResult> {
-    if (!input.archiveKey) {
-      throw new ExamImportError(
-        "INVALID_ARCHIVE",
-        "Yêu cầu upload file qua presigned URL trước.",
-      );
-    }
-    const assetId = randomUUID();
-    const storagePrefix = posix.join("drafts", assetId);
-
-    const temporaryDirectory = await mkdtemp(
-      join(tmpdir(), "onthilab-import-"),
-    );
-    const archivePath = join(temporaryDirectory, "questions.zip");
-    const extractedDirectory = join(temporaryDirectory, "extracted");
-
-    let imagesExtracted = false;
-
-    try {
-      // 1. Download ZIP from S3
-      const getObject = new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: input.archiveKey,
-      });
-      const { Body } = await this.s3Client.send(getObject);
-      if (Body instanceof Readable) {
-        await pipeline(Body, createWriteStream(archivePath));
-      } else {
-        throw new Error("Unable to read S3 object body as stream");
-      }
-
-      await mkdir(extractedDirectory, { recursive: true });
-
-      // 2. Extract images locally
-      const images = await extractValidatedQuestionImages(
-        archivePath,
-        extractedDirectory,
-      );
-      imagesExtracted = true;
-
-      // 3. Upload extracted images to S3
-      await Promise.all(
-        images.map(async (image) => {
-          const imageFilePath = join(extractedDirectory, image.fileName);
-          const fileData = await readFile(imageFilePath);
-          await this.s3Client.send(
-            new PutObjectCommand({
-              Bucket: this.bucket,
-              Key: posix.join(storagePrefix, image.fileName),
-              Body: fileData,
-              ContentType: image.fileName.endsWith(".png")
-                ? "image/png"
-                : "image/jpeg",
-            }),
-          );
-        }),
-      );
-
-      // 4. Read answers.json if extracted
-      let answersJson: any = undefined;
-      try {
-        const answersContent = await readFile(
-          join(extractedDirectory, "answers.json"),
-          "utf8",
-        );
-        answersJson = JSON.parse(answersContent);
-      } catch (err) {
-        // Ignore if file does not exist or invalid JSON
-      }
-
-      // 5. Save to DB
-      const result = await this.repository.createDraft({
-        ...input.metadata,
-        createdBy: input.creator.id,
-        questions: images.map((image) => {
-          let aiMetadata: any = undefined;
-          let correctOptions: number[] | undefined = undefined;
-
-          if (answersJson) {
-            const ext = extname(image.fileName);
-            const votes =
-              answersJson[`Q${image.order}${ext}`] ||
-              answersJson[`${image.order}${ext}`] ||
-              answersJson[`Q${image.order}.jpg`] ||
-              answersJson[`${image.order}.jpg`];
-
-            if (Array.isArray(votes) && votes.length > 0) {
-              // Using computeAnswer
-              const computed = computeAnswer(image.order, votes);
-
-              if (!computed.disputed) {
-                const letterToIndex: Record<string, number> = {
-                  a: 0,
-                  b: 1,
-                  c: 2,
-                  d: 3,
-                  e: 4,
-                  f: 5,
-                };
-                correctOptions = [letterToIndex[computed.answer] ?? 0];
-              }
-
-              aiMetadata = {
-                status: "suggested",
-                provider: "fuoverflow",
-                confidence: computed.confidence,
-                proposedType: "single",
-                optionCount: 4,
-                proposedAnswers: computed.disputed ? undefined : correctOptions,
-                updatedAt: new Date().toISOString(),
-                raw: {
-                  disputed: computed.disputed,
-                  disputeReason: computed.disputeReason,
-                  votes: computed.totalVotes,
-                  voteBreakdown: computed.voteBreakdown,
-                },
-              };
-            }
-          }
-
-          return {
-            order: image.order,
-            imageKey: posix.join(storagePrefix, image.fileName),
-            imageHash: image.sha256,
-            optionCount: 4,
-            correctOptions,
-            aiMetadata,
-          };
-        }),
-      });
-
-      return {
-        ...result,
-        answersJson,
-      };
-    } catch (error) {
-      if (error instanceof ZipValidationError) {
-        throw new ExamImportError("INVALID_ARCHIVE", error.message);
-      }
-      throw error;
-    } finally {
-      await rm(temporaryDirectory, { recursive: true, force: true });
-    }
-  }
-}
 import type {
   CreateDraftImportInput,
   DraftImportResult,
   StudentProfile,
 } from "@onthilab/contracts";
-import type { DraftImportRepository } from "@onthilab/database";
+import type {
+  DraftImportRepository,
+  DraftQuestionInput,
+} from "@onthilab/database";
 import {
+  computeAllAnswers,
   defaultZipValidationLimits,
   extractValidatedQuestionImages,
   ZipValidationError,
+  type ExtractedQuestionImage,
+  type RawVote,
 } from "@onthilab/importer";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join, posix } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 export interface UploadedArchive {
   name: string;
@@ -237,6 +70,134 @@ export class UnconfiguredExamImportService implements ExamImportService {
   }
 }
 
+type CommunityAnswers = Record<string, RawVote[]>;
+
+function parseCommunityAnswers(content: string): CommunityAnswers {
+  let value: unknown;
+  try {
+    value = JSON.parse(content);
+  } catch {
+    throw new ExamImportError(
+      "INVALID_ARCHIVE",
+      "answers.json không phải JSON hợp lệ.",
+    );
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ExamImportError(
+      "INVALID_ARCHIVE",
+      "answers.json phải là một đối tượng.",
+    );
+  }
+
+  const result: CommunityAnswers = {};
+  for (const [fileName, votes] of Object.entries(value)) {
+    if (fileName.length > 160 || !Array.isArray(votes) || votes.length > 100) {
+      throw new ExamImportError(
+        "INVALID_ARCHIVE",
+        "answers.json có dữ liệu không hợp lệ.",
+      );
+    }
+    result[fileName] = votes.flatMap((vote) => {
+      if (!vote || typeof vote !== "object" || !("content" in vote)) return [];
+      const content = (vote as { content?: unknown }).content;
+      const author = (vote as { author?: unknown }).author;
+      if (typeof content !== "string" || content.length > 4_000) return [];
+      return [
+        {
+          content,
+          ...(typeof author === "string"
+            ? { author: author.slice(0, 200) }
+            : {}),
+        },
+      ];
+    });
+  }
+  return result;
+}
+
+async function readOptionalCommunityAnswers(
+  extractedDirectory: string,
+): Promise<CommunityAnswers | undefined> {
+  try {
+    return parseCommunityAnswers(
+      await readFile(join(extractedDirectory, "answers.json"), "utf8"),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+function draftQuestionsFromImages(
+  images: readonly ExtractedQuestionImage[],
+  storagePrefix: string,
+  answers?: CommunityAnswers,
+): DraftQuestionInput[] {
+  const suggestions = new Map(
+    answers
+      ? computeAllAnswers(answers).map((answer) => [
+          answer.questionNumber,
+          answer,
+        ])
+      : [],
+  );
+  const updatedAt = new Date().toISOString();
+
+  return images.map((image) => {
+    const suggestion = suggestions.get(image.order);
+    const aiMetadata = suggestion
+      ? suggestion.validVotes > 0
+        ? {
+            status: "suggested" as const,
+            provider: "community-comments",
+            model: "exact-consensus-v1",
+            confidence: suggestion.confidence,
+            proposedType: suggestion.proposedType,
+            optionCount: suggestion.optionCount,
+            proposedAnswers: suggestion.answers.map((answer) =>
+              "abcdef".indexOf(answer),
+            ),
+            validVotes: suggestion.validVotes,
+            totalComments: suggestion.totalComments,
+            voteBreakdown: suggestion.voteBreakdown,
+            requiresReview: suggestion.disputed,
+            disputeReason: suggestion.disputeReason,
+            updatedAt,
+          }
+        : {
+            status: "failed" as const,
+            provider: "community-comments",
+            error: suggestion.disputeReason,
+            totalComments: suggestion.totalComments,
+            updatedAt,
+          }
+      : undefined;
+
+    return {
+      order: image.order,
+      imageKey: posix.join(storagePrefix, image.fileName),
+      imageHash: image.sha256,
+      optionCount: suggestion?.optionCount ?? 4,
+      aiMetadata,
+    };
+  });
+}
+
+function contentTypeFor(fileName: string): string {
+  const extension = extname(fileName).toLowerCase();
+  return extension === ".png"
+    ? "image/png"
+    : extension === ".webp"
+      ? "image/webp"
+      : "image/jpeg";
+}
+
+function isExpectedArchiveKey(key: string): boolean {
+  return /^uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/questions\.zip$/i.test(
+    key,
+  );
+}
+
 export class LocalExamImportService implements ExamImportService {
   constructor(
     private readonly repository: DraftImportRepository,
@@ -271,8 +232,7 @@ export class LocalExamImportService implements ExamImportService {
     const archivePath = join(temporaryDirectory, "questions.zip");
     const assetId = randomUUID();
     const storagePrefix = posix.join("drafts", assetId);
-    const storageParent = join(this.imageStorageRoot, "drafts");
-    const storageDirectory = join(storageParent, assetId);
+    const storageDirectory = join(this.imageStorageRoot, "drafts", assetId);
     let imagesExtracted = false;
 
     try {
@@ -280,33 +240,130 @@ export class LocalExamImportService implements ExamImportService {
         archivePath,
         Buffer.from(await input.archive.arrayBuffer()),
       );
-      await mkdir(storageParent, { recursive: true });
+      await mkdir(join(this.imageStorageRoot, "drafts"), { recursive: true });
       const images = await extractValidatedQuestionImages(
         archivePath,
         storageDirectory,
       );
       imagesExtracted = true;
-
-      const result = await this.repository.createDraft({
+      const answers = await readOptionalCommunityAnswers(storageDirectory);
+      return await this.repository.createDraft({
         ...input.metadata,
         createdBy: input.creator.id,
-        questions: images.map((image) => ({
-          order: image.order,
-          imageKey: posix.join(storagePrefix, image.fileName),
-          imageHash: image.sha256,
-          optionCount: 4,
-        })),
+        questions: draftQuestionsFromImages(images, storagePrefix, answers),
       });
-      return result;
     } catch (error) {
-      if (imagesExtracted) {
+      if (imagesExtracted)
         await rm(storageDirectory, { recursive: true, force: true });
-      }
       if (error instanceof ZipValidationError) {
         throw new ExamImportError("INVALID_ARCHIVE", error.message);
       }
       throw error;
     } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
+}
+
+export class S3ExamImportService implements ExamImportService {
+  constructor(
+    private readonly repository: DraftImportRepository,
+    private readonly s3Client: S3Client,
+    private readonly bucket: string,
+  ) {}
+
+  async createPresignedUploadUrl(): Promise<{
+    uploadUrl: string;
+    key: string;
+  }> {
+    const key = `uploads/${randomUUID()}/questions.zip`;
+    const uploadUrl = await getSignedUrl(
+      this.s3Client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: "application/zip",
+      }),
+      { expiresIn: 600 },
+    );
+    return { uploadUrl, key };
+  }
+
+  async createDraft(
+    input: CreateDraftFromArchiveInput,
+  ): Promise<DraftImportResult> {
+    if (!input.archiveKey || !isExpectedArchiveKey(input.archiveKey)) {
+      throw new ExamImportError(
+        "INVALID_ARCHIVE",
+        "Khóa upload ZIP không hợp lệ.",
+      );
+    }
+
+    const temporaryDirectory = await mkdtemp(
+      join(tmpdir(), "onthilab-import-"),
+    );
+    const archivePath = join(temporaryDirectory, "questions.zip");
+    const extractedDirectory = join(temporaryDirectory, "extracted");
+    const assetId = randomUUID();
+    const storagePrefix = posix.join("drafts", assetId);
+    const uploadedImageKeys: string[] = [];
+
+    try {
+      const { Body } = await this.s3Client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: input.archiveKey }),
+      );
+      if (!(Body instanceof Readable)) {
+        throw new ExamImportError(
+          "INVALID_ARCHIVE",
+          "Không thể đọc file ZIP từ kho lưu trữ.",
+        );
+      }
+      await pipeline(Body, createWriteStream(archivePath));
+
+      const images = await extractValidatedQuestionImages(
+        archivePath,
+        extractedDirectory,
+      );
+      const answers = await readOptionalCommunityAnswers(extractedDirectory);
+      for (const image of images) {
+        const key = posix.join(storagePrefix, image.fileName);
+        await this.s3Client.send(
+          new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: key,
+            Body: await readFile(join(extractedDirectory, image.fileName)),
+            ContentType: contentTypeFor(image.fileName),
+          }),
+        );
+        uploadedImageKeys.push(key);
+      }
+
+      return await this.repository.createDraft({
+        ...input.metadata,
+        createdBy: input.creator.id,
+        questions: draftQuestionsFromImages(images, storagePrefix, answers),
+      });
+    } catch (error) {
+      await Promise.all(
+        uploadedImageKeys.map((Key) =>
+          this.s3Client
+            .send(new DeleteObjectCommand({ Bucket: this.bucket, Key }))
+            .catch(() => undefined),
+        ),
+      );
+      if (error instanceof ZipValidationError) {
+        throw new ExamImportError("INVALID_ARCHIVE", error.message);
+      }
+      throw error;
+    } finally {
+      await this.s3Client
+        .send(
+          new DeleteObjectCommand({
+            Bucket: this.bucket,
+            Key: input.archiveKey,
+          }),
+        )
+        .catch(() => undefined);
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
   }

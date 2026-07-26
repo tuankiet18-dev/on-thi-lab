@@ -137,17 +137,6 @@ export const draftImportResultSchema = z.object({
   examCode: z.string(),
   questionCount: z.number().int().positive(),
   status: z.literal("draft"),
-  answersJson: z
-    .record(
-      z.string(),
-      z.array(
-        z.object({
-          author: z.string(),
-          content: z.string(),
-        }),
-      ),
-    )
-    .optional(),
 });
 
 export const aiAnswerSuggestionSchema = z
@@ -164,7 +153,13 @@ export const aiAnswerSuggestionSchema = z
     provider: z.string().optional(),
     model: z.string().optional(),
     error: z.string().optional(),
-    raw: z.any().optional(),
+    validVotes: z.number().int().nonnegative().optional(),
+    totalComments: z.number().int().nonnegative().optional(),
+    voteBreakdown: z
+      .record(z.string(), z.number().int().nonnegative())
+      .optional(),
+    requiresReview: z.boolean().optional(),
+    disputeReason: z.string().max(500).optional(),
     updatedAt: z.string().datetime(),
   })
   .superRefine((value, context) => {

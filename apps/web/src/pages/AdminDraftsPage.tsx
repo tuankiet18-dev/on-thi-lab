@@ -39,6 +39,10 @@ export function AdminDraftsPage() {
     session?.user.groups.some((group) =>
       ["admin", "contributor"].includes(group),
     );
+  const isAdmin =
+    !configured ||
+    studentProfile?.role === "admin" ||
+    session?.user.groups.includes("admin") === true;
 
   useEffect(() => {
     if (!session || !canContribute) return;
@@ -152,19 +156,21 @@ export function AdminDraftsPage() {
                       >
                         Tiếp tục duyệt <ArrowRight size={16} />
                       </Link>
-                      <button
-                        type="button"
-                        title="Xóa đề này"
-                        disabled={deletingId === draft.id}
-                        onClick={() => handleDelete(draft.id, draft.code)}
-                        className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
-                      >
-                        {deletingId === draft.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={18} />
-                        )}
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          title="Xóa đề này"
+                          disabled={deletingId === draft.id}
+                          onClick={() => handleDelete(draft.id, draft.code)}
+                          className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+                        >
+                          {deletingId === draft.id ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={18} />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

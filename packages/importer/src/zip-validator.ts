@@ -6,6 +6,7 @@ export const defaultZipValidationLimits = {
   expectedQuestionCount: 60,
   maxArchiveBytes: 250 * 1024 * 1024,
   maxImageBytes: 20 * 1024 * 1024,
+  maxAnswersBytes: 1024 * 1024,
   maxTotalUncompressedBytes: 500 * 1024 * 1024,
   maxCompressionRatio: 100,
   allowedExtensions: [".jpg", ".jpeg", ".png", ".webp"],
@@ -15,6 +16,7 @@ export interface ZipValidationLimits {
   expectedQuestionCount: number;
   maxArchiveBytes: number;
   maxImageBytes: number;
+  maxAnswersBytes: number;
   maxTotalUncompressedBytes: number;
   maxCompressionRatio: number;
   allowedExtensions: readonly string[];
@@ -35,6 +37,7 @@ export interface ZipValidationResult {
   archiveBytes: number;
   totalUncompressedBytes: number;
   images: ValidatedQuestionImage[];
+  answersJson?: ZipEntryMetadata;
 }
 
 export class ZipValidationError extends Error {
@@ -43,6 +46,8 @@ export class ZipValidationError extends Error {
       | "ARCHIVE_TOO_LARGE"
       | "CORRUPT_ARCHIVE"
       | "DUPLICATE_QUESTION"
+      | "DUPLICATE_ANSWERS_FILE"
+      | "ANSWERS_TOO_LARGE"
       | "IMAGE_TOO_LARGE"
       | "INVALID_ENTRY_PATH"
       | "INVALID_FILE_TYPE"
@@ -107,11 +112,49 @@ export function validateZipManifest(
   const images: ValidatedQuestionImage[] = [];
   const seenOrders = new Set<number>();
   let totalUncompressedBytes = 0;
+  let answersJson: ZipEntryMetadata | undefined;
 
   for (const entry of entries) {
     assertSafePath(entry.fileName);
     if (isDirectory(entry)) continue;
-    if (posix.basename(entry.fileName).toLowerCase() === "answers.json") {
+    const isAnswersJson =
+      posix.basename(entry.fileName).toLowerCase() === "answers.json";
+
+    const compressionRatio =
+      entry.compressedSize === 0
+        ? entry.uncompressedSize === 0
+          ? 1
+          : Number.POSITIVE_INFINITY
+        : entry.uncompressedSize / entry.compressedSize;
+    if (compressionRatio > limits.maxCompressionRatio) {
+      throw new ZipValidationError(
+        "SUSPICIOUS_COMPRESSION",
+        `${entry.fileName} có tỷ lệ nén bất thường.`,
+      );
+    }
+
+    totalUncompressedBytes += entry.uncompressedSize;
+    if (totalUncompressedBytes > limits.maxTotalUncompressedBytes) {
+      throw new ZipValidationError(
+        "UNCOMPRESSED_SIZE_TOO_LARGE",
+        `Tổng dữ liệu giải nén vượt quá ${limits.maxTotalUncompressedBytes} byte.`,
+      );
+    }
+
+    if (isAnswersJson) {
+      if (answersJson) {
+        throw new ZipValidationError(
+          "DUPLICATE_ANSWERS_FILE",
+          "ZIP chỉ được chứa một file answers.json.",
+        );
+      }
+      if (entry.uncompressedSize > limits.maxAnswersBytes) {
+        throw new ZipValidationError(
+          "ANSWERS_TOO_LARGE",
+          `answers.json vượt quá ${limits.maxAnswersBytes} byte.`,
+        );
+      }
+      answersJson = entry;
       continue;
     }
 
@@ -146,27 +189,6 @@ export function validateZipManifest(
       );
     }
 
-    const compressionRatio =
-      entry.compressedSize === 0
-        ? entry.uncompressedSize === 0
-          ? 1
-          : Number.POSITIVE_INFINITY
-        : entry.uncompressedSize / entry.compressedSize;
-    if (compressionRatio > limits.maxCompressionRatio) {
-      throw new ZipValidationError(
-        "SUSPICIOUS_COMPRESSION",
-        `${entry.fileName} có tỷ lệ nén bất thường.`,
-      );
-    }
-
-    totalUncompressedBytes += entry.uncompressedSize;
-    if (totalUncompressedBytes > limits.maxTotalUncompressedBytes) {
-      throw new ZipValidationError(
-        "UNCOMPRESSED_SIZE_TOO_LARGE",
-        `Tổng dữ liệu giải nén vượt quá ${limits.maxTotalUncompressedBytes} byte.`,
-      );
-    }
-
     images.push({
       ...entry,
       order,
@@ -194,6 +216,7 @@ export function validateZipManifest(
     archiveBytes,
     totalUncompressedBytes,
     images: images.sort((left, right) => left.order - right.order),
+    ...(answersJson ? { answersJson } : {}),
   };
 }
 

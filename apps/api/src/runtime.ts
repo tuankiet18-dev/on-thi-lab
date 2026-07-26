@@ -17,7 +17,10 @@ import { CognitoIdTokenVerifier } from "./auth";
 import { parseEnv, parseCorsOrigins } from "./env";
 import { LocalExamImportService, S3ExamImportService } from "./import-service";
 import { S3Client } from "@aws-sdk/client-s3";
-import { LocalQuestionImageReader } from "./question-image-reader";
+import {
+  LocalQuestionImageReader,
+  S3QuestionImageReader,
+} from "./question-image-reader";
 
 export function createRuntimeApp(
   environment: Record<string, string | undefined> = process.env,
@@ -48,7 +51,10 @@ export function createRuntimeApp(
   );
 
   const draftRepository = new PostgresDraftImportRepository(database);
-  const imageReader = new LocalQuestionImageReader(imageStorageRoot);
+  const s3Client = env.QUESTION_IMAGE_BUCKET ? new S3Client({}) : undefined;
+  const imageReader = s3Client
+    ? new S3QuestionImageReader(s3Client, env.QUESTION_IMAGE_BUCKET!)
+    : new LocalQuestionImageReader(imageStorageRoot);
 
   const providerName =
     env.AI_PROVIDER !== "disabled" ? env.AI_PROVIDER : undefined;
@@ -97,11 +103,11 @@ export function createRuntimeApp(
         ? (key) => `${imageBaseUrl}/${key}`
         : undefined,
     }),
-    imports: env.QUESTION_IMAGE_BUCKET
+    imports: s3Client
       ? new S3ExamImportService(
           draftRepository,
-          new S3Client({}),
-          env.QUESTION_IMAGE_BUCKET,
+          s3Client,
+          env.QUESTION_IMAGE_BUCKET!,
         )
       : new LocalExamImportService(draftRepository, imageStorageRoot),
     images: imageReader,

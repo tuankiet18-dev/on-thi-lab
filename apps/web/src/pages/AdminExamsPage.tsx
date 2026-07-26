@@ -30,6 +30,10 @@ export function AdminExamsPage() {
     session?.user.groups.some((group) =>
       ["admin", "contributor"].includes(group),
     );
+  const isAdmin =
+    !configured ||
+    studentProfile?.role === "admin" ||
+    session?.user.groups.includes("admin") === true;
 
   useEffect(() => {
     if (!session || !canContribute) return;
@@ -235,7 +239,7 @@ export function AdminExamsPage() {
                           Xem
                         </Link>
                       )}
-                      {exam.status !== "cancelled" && (
+                      {exam.status !== "cancelled" && isAdmin && (
                         <button
                           type="button"
                           title="Xóa đề này"

@@ -1,126 +1,157 @@
 export type AnswerLetter = "a" | "b" | "c" | "d" | "e" | "f";
 
-export type VoteBreakdown = Record<AnswerLetter, number>;
+export type VoteBreakdown = Record<string, number>;
 
 export interface AnswerResult {
   questionNumber: number;
-  answer: AnswerLetter;
+  answers: AnswerLetter[];
+  proposedType: "single" | "multiple";
+  optionCount: number;
   confidence: number;
-  totalVotes: number;
+  totalComments: number;
+  validVotes: number;
   voteBreakdown: VoteBreakdown;
   disputed: boolean;
   disputeReason?: string;
 }
 
 export interface RawVote {
-  author: string;
+  /** Used only while aggregating one import. It is never persisted. */
+  author?: string;
   content: string;
 }
 
+const answerLetters: readonly AnswerLetter[] = ["a", "b", "c", "d", "e", "f"];
+const minConfidence = 0.75;
+
+function canonicalAnswer(letters: readonly AnswerLetter[]): string {
+  return [...letters]
+    .sort((left, right) => letterToIndex(left) - letterToIndex(right))
+    .join("");
+}
+
+function asAnswerSet(value: string): AnswerLetter[] | null {
+  const compact = value.replace(/[\s,;/&+]+/g, "").toLowerCase();
+  if (!/^[a-f]{1,6}$/.test(compact)) return null;
+
+  const letters = [...new Set(compact)] as AnswerLetter[];
+  return canonicalAnswer(letters).split("") as AnswerLetter[];
+}
+
 /**
- * Parse ký tự đáp án từ một comment.
+ * Reads only an explicit answer from the first non-empty line. This intentionally
+ * avoids treating explanations such as "A\nD là ..." as a multi-answer vote.
  */
-function parseAnswerLetter(content: string): AnswerLetter | null {
-  const trimmed = content.trim();
-  if (!trimmed) return null;
+export function parseCommunityAnswer(content: string): AnswerLetter[] | null {
+  const firstLine = content
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return null;
 
-  const firstChar = trimmed[0]?.toLowerCase();
-  if (["a", "b", "c", "d", "e", "f"].includes(firstChar!)) {
-    const nextChar = trimmed[1];
-    if (
-      nextChar === undefined ||
-      nextChar === " " ||
-      nextChar === "\n" ||
-      nextChar === "\r" ||
-      nextChar === "." ||
-      nextChar === "," ||
-      nextChar === ")" ||
-      nextChar === ":" ||
-      nextChar === "-"
-    ) {
-      return firstChar as AnswerLetter;
-    }
-  }
+  const direct = firstLine.match(
+    /^\(?\s*([A-F](?:[\s,;/&+]*[A-F]){0,5})\s*\)?[.):-]?\s*$/iu,
+  );
+  if (direct?.[1]) return asAnswerSet(direct[1]);
 
-  return null;
+  const explicit = firstLine.match(
+    /đáp\s*án(?:\s*đúng)?\s*(?:là|:|-)?\s*\(?\s*([A-F](?:[\s,;/&+]*[A-F]){0,5})\s*\)?(?=$|[\s.):,-])/iu,
+  );
+  return explicit?.[1] ? asAnswerSet(explicit[1]) : null;
 }
 
 export function computeAnswer(
   questionNumber: number,
-  votes: RawVote[],
+  votes: readonly RawVote[],
 ): AnswerResult {
-  const breakdown: VoteBreakdown = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 };
+  const breakdown: VoteBreakdown = {};
+  const seenAuthors = new Map<string, AnswerLetter[]>();
+  const anonymousVotes: AnswerLetter[][] = [];
 
   for (const vote of votes) {
-    const letter = parseAnswerLetter(vote.content);
-    if (letter) {
-      breakdown[letter]++;
+    const answer = parseCommunityAnswer(vote.content);
+    if (!answer) continue;
+    const author = vote.author?.trim().toLowerCase();
+    if (author) {
+      // Keep the latest parseable answer from a commenter, without retaining ID.
+      seenAuthors.set(author, answer);
+    } else {
+      anonymousVotes.push(answer);
     }
   }
 
-  const totalVotes = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
+  const parsedVotes = [...seenAuthors.values(), ...anonymousVotes];
+  for (const answer of parsedVotes) {
+    const key = canonicalAnswer(answer);
+    breakdown[key] = (breakdown[key] ?? 0) + 1;
+  }
 
-  if (totalVotes === 0) {
+  const validVotes = parsedVotes.length;
+  if (validVotes === 0) {
     return {
       questionNumber,
-      answer: "a", // fallback
+      answers: [],
+      proposedType: "single",
+      optionCount: 4,
       confidence: 0,
-      totalVotes: 0,
+      totalComments: votes.length,
+      validVotes,
       voteBreakdown: breakdown,
       disputed: true,
-      disputeReason: "Không có vote hợp lệ nào",
+      disputeReason: "Không có comment nào chứa đáp án rõ ràng.",
     };
   }
 
-  const sorted = (["a", "b", "c", "d", "e", "f"] as AnswerLetter[]).sort(
-    (x, y) => breakdown[y]! - breakdown[x]!,
+  const ordered = Object.entries(breakdown).sort(
+    ([leftAnswer, leftVotes], [rightAnswer, rightVotes]) =>
+      rightVotes - leftVotes || leftAnswer.localeCompare(rightAnswer),
   );
-
-  const topAnswer = sorted[0]!;
-  const secondAnswer = sorted[1]!;
-
-  const maxVotes = breakdown[topAnswer]!;
-  const secondVotes = breakdown[secondAnswer]!;
-  const confidence = maxVotes / totalVotes;
-
-  let disputed = false;
-  let disputeReason: string | undefined;
-
-  if (confidence < 0.75) {
-    disputed = true;
-    disputeReason = `Confidence ${(confidence * 100).toFixed(1)}% < 75% (${maxVotes}/${totalVotes} votes)`;
-  } else if (totalVotes >= 3 && secondVotes >= 1) {
-    disputed = true;
-    disputeReason = `Có ${secondVotes} vote khác: ${topAnswer.toUpperCase()}(${maxVotes}) vs ${secondAnswer.toUpperCase()}(${secondVotes})`;
-  }
+  const [topAnswer, topVotes] = ordered[0]!;
+  const secondVotes = ordered[1]?.[1] ?? 0;
+  const answers = topAnswer.split("") as AnswerLetter[];
+  const confidence = topVotes / validVotes;
+  const tied = topVotes === secondVotes;
+  const disputed = tied || confidence < minConfidence;
 
   return {
     questionNumber,
-    answer: topAnswer,
+    answers,
+    proposedType: answers.length > 1 ? "multiple" : "single",
+    optionCount: Math.max(
+      4,
+      ...answers.map((answer) => letterToIndex(answer) + 1),
+    ),
     confidence,
-    totalVotes,
+    totalComments: votes.length,
+    validVotes,
     voteBreakdown: breakdown,
     disputed,
-    disputeReason,
+    ...(disputed
+      ? {
+          disputeReason: tied
+            ? "Các tổ hợp đáp án có số phiếu ngang nhau."
+            : `Đồng thuận ${Math.round(confidence * 100)}% thấp hơn ${minConfidence * 100}%.`,
+        }
+      : {}),
   };
 }
 
 export function computeAllAnswers(
-  answersJson: Record<string, RawVote[]>,
+  answersJson: Record<string, readonly RawVote[]>,
 ): AnswerResult[] {
   const results: AnswerResult[] = [];
 
   for (const [filename, votes] of Object.entries(answersJson)) {
     const match = filename.match(/^Q(\d+)\./i) || filename.match(/^(\d+)\./i);
-    if (!match?.[1]) continue;
-
-    const questionNumber = parseInt(match[1], 10);
-    results.push(computeAnswer(questionNumber, votes));
+    if (!match?.[1] || !Array.isArray(votes)) continue;
+    results.push(computeAnswer(Number.parseInt(match[1], 10), votes));
   }
 
-  return results.sort((a, b) => a.questionNumber - b.questionNumber);
+  return results.sort(
+    (left, right) => left.questionNumber - right.questionNumber,
+  );
 }
 
 export function letterToIndex(letter: AnswerLetter): number {
-  return { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5 }[letter] ?? 0;
+  return answerLetters.indexOf(letter);
 }

@@ -34,33 +34,6 @@ export class OnThiLabStack extends Stack {
       autoDeleteObjects: !isProduction,
     });
 
-    const questionImageBucket = new s3.Bucket(this, "QuestionImageBucket", {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      enforceSSL: true,
-      versioned: true,
-      removalPolicy: dataRemovalPolicy,
-      autoDeleteObjects: !isProduction,
-      cors: [
-        {
-          allowedMethods: [
-            s3.HttpMethods.GET,
-            s3.HttpMethods.PUT,
-            s3.HttpMethods.POST,
-            s3.HttpMethods.HEAD,
-          ],
-          allowedOrigins: ["*"],
-          allowedHeaders: ["*"],
-          maxAge: 3000,
-        },
-      ],
-      lifecycleRules: [
-        {
-          id: "abort-incomplete-multipart-uploads",
-          abortIncompleteMultipartUploadAfter: Duration.days(1),
-        },
-      ],
-    });
-
     const distribution = new cloudfront.Distribution(this, "WebDistribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(webBucket),
@@ -81,6 +54,36 @@ export class OnThiLabStack extends Stack {
           responseHttpStatus: 200,
           responsePagePath: "/index.html",
           ttl: Duration.minutes(5),
+        },
+      ],
+    });
+
+    const questionImageBucket = new s3.Bucket(this, "QuestionImageBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      versioned: true,
+      removalPolicy: dataRemovalPolicy,
+      autoDeleteObjects: !isProduction,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: [
+            "http://localhost:5173",
+            `https://${distribution.distributionDomainName}`,
+          ],
+          allowedHeaders: ["content-type"],
+          maxAge: 600,
+        },
+      ],
+      lifecycleRules: [
+        {
+          id: "expire-unprocessed-upload-archives",
+          prefix: "uploads/",
+          expiration: Duration.days(1),
+        },
+        {
+          id: "abort-incomplete-multipart-uploads",
+          abortIncompleteMultipartUploadAfter: Duration.days(1),
         },
       ],
     });
