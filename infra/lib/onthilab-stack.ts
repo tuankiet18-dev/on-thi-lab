@@ -5,17 +5,29 @@ import {
   Stack,
   type StackProps,
 } from "aws-cdk-lib";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
-import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as rds from "aws-cdk-lib/aws-rds";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Construct } from "constructs";
+
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 interface OnThiLabStackProps extends StackProps {
   stage: string;
+  cognitoUserPoolId?: string;
+  cognitoClientId?: string;
+  databaseSecretName?: string;
+  webDomainName?: string;
+  webCertificateArn?: string;
 }
 
 export class OnThiLabStack extends Stack {
@@ -56,6 +68,16 @@ export class OnThiLabStack extends Stack {
           ttl: Duration.minutes(5),
         },
       ],
+      ...(props.webDomainName && props.webCertificateArn
+        ? {
+            domainNames: [props.webDomainName],
+            certificate: acm.Certificate.fromCertificateArn(
+              this,
+              "WebCertificate",
+              props.webCertificateArn,
+            ),
+          }
+        : {}),
     });
 
     const questionImageBucket = new s3.Bucket(this, "QuestionImageBucket", {
@@ -70,6 +92,7 @@ export class OnThiLabStack extends Stack {
           allowedOrigins: [
             "http://localhost:5173",
             `https://${distribution.distributionDomainName}`,
+            ...(props.webDomainName ? [`https://${props.webDomainName}`] : []),
           ],
           allowedHeaders: ["content-type"],
           maxAge: 600,
@@ -120,35 +143,74 @@ export class OnThiLabStack extends Stack {
       alarmDescription: "Alert when messages are stuck in the queue for >1hr.",
     });
 
-    const vpc = new ec2.Vpc(this, "Vpc", {
-      maxAzs: 2,
-      natGateways: 0,
-      subnetConfiguration: [
-        {
-          name: "database",
-          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-          cidrMask: 24,
+    if (
+      props.databaseSecretName &&
+      props.cognitoUserPoolId &&
+      props.cognitoClientId
+    ) {
+      const databaseSecret = secretsmanager.Secret.fromSecretNameV2(
+        this,
+        "DatabaseSecret",
+        props.databaseSecretName,
+      );
+      const apiHandler = new lambdaNodejs.NodejsFunction(this, "ApiHandler", {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        entry: join(projectRoot, "apps/api/src/lambda.ts"),
+        handler: "handler",
+        memorySize: 1024,
+        timeout: Duration.seconds(29),
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          target: "node22",
         },
-      ],
-    });
+        environment: {
+          APP_ENV: props.stage === "prod" ? "production" : "staging",
+          LOG_LEVEL: "info",
+          DATABASE_URL: databaseSecret
+            .secretValueFromJson("connectionString")
+            .unsafeUnwrap(),
+          COGNITO_USER_POOL_ID: props.cognitoUserPoolId,
+          COGNITO_CLIENT_ID: props.cognitoClientId,
+          QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+          CORS_ORIGINS: [
+            `https://${distribution.distributionDomainName}`,
+            ...(props.webDomainName ? [`https://${props.webDomainName}`] : []),
+          ].join(","),
+          FEATURE_GOOGLE_AUTH_ENABLED: "true",
+          FEATURE_AI_IMPORT_ENABLED: "false",
+          FEATURE_MONETIZATION_ENABLED: "false",
+        },
+      });
+      databaseSecret.grantRead(apiHandler);
+      questionImageBucket.grantReadWrite(apiHandler);
+      importQueue.grantSendMessages(apiHandler);
 
-    const database = new rds.DatabaseCluster(this, "Database", {
-      engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_16_6,
-      }),
-      writer: rds.ClusterInstance.serverlessV2("writer"),
-      serverlessV2MinCapacity: 0.5,
-      serverlessV2MaxCapacity: 2,
-      enableDataApi: true,
-      defaultDatabaseName: "onthilab",
-      storageEncrypted: true,
-      vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      backup: {
-        retention: Duration.days(isProduction ? 14 : 1),
-      },
-      removalPolicy: dataRemovalPolicy,
-    });
+      const api = new apigateway.LambdaRestApi(this, "PublicApi", {
+        handler: apiHandler,
+        proxy: true,
+        deployOptions: {
+          stageName: props.stage,
+          tracingEnabled: true,
+          loggingLevel: apigateway.MethodLoggingLevel.INFO,
+          dataTraceEnabled: false,
+          metricsEnabled: true,
+        },
+        defaultCorsPreflightOptions: {
+          allowOrigins: [
+            `https://${distribution.distributionDomainName}`,
+            ...(props.webDomainName ? [`https://${props.webDomainName}`] : []),
+          ],
+          allowMethods: apigateway.Cors.ALL_METHODS,
+          allowHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
+        },
+      });
+
+      new CfnOutput(this, "ApiEndpoint", {
+        value: api.url,
+        description: "Set as VITE_API_URL when building the web application.",
+      });
+    }
 
     new CfnOutput(this, "WebDistributionDomain", {
       value: distribution.distributionDomainName,
@@ -161,8 +223,9 @@ export class OnThiLabStack extends Stack {
       value: importQueue.queueUrl,
       description: "Set this value as AI_SUGGESTION_QUEUE_URL.",
     });
-    new CfnOutput(this, "DatabaseClusterArn", {
-      value: database.clusterArn,
+    new CfnOutput(this, "WebBucketName", {
+      value: webBucket.bucketName,
+      description: "Deploy the built SPA assets to this private bucket.",
     });
   }
 }

@@ -12,17 +12,17 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 
 ## Trạng thái phase
 
-| Phase | Phạm vi                                    | Trạng thái  | Exit gate                                      |
-| ----- | ------------------------------------------ | ----------- | ---------------------------------------------- |
-| 0     | Config, flags, seed, CI, tài liệu vận hành | Done        | `pnpm validate`, CDK synth và E2E đạt          |
-| 1     | PostgreSQL persistence và API thật         | Done        | Không còn in-memory API trong luồng production |
-| 2     | Cognito, Google OAuth, onboarding, RBAC    | Done        | Auth/RBAC integration tests đạt                |
-| 3     | ZIP, S3, SQS, AI Vision, review, publish   | In progress | Import và duyệt được đề tối thiểu 60 ảnh       |
-| 4     | Exam engine production                     | In progress | Autosave/timeout/idempotency/concurrency đạt   |
-| 5     | History, stats, bookmark, report, admin    | Planned     | Acceptance criteria User/Admin đạt             |
-| 6     | AWS staging/prod, CI/CD, observability     | Planned     | Staging deploy/rollback/restore đạt            |
-| 7     | Security, legal, launch data, closed beta  | Planned     | Không còn P0/P1, UAT đạt                       |
-| 8     | Production rollout và payOS feature flag   | Planned     | Go-live checklist và smoke test đạt            |
+| Phase | Phạm vi                                         | Trạng thái  | Exit gate                                      |
+| ----- | ----------------------------------------------- | ----------- | ---------------------------------------------- |
+| 0     | Config, flags, seed, CI, tài liệu vận hành      | Done        | `pnpm validate`, CDK synth và E2E đạt          |
+| 1     | PostgreSQL persistence và API thật              | Done        | Không còn in-memory API trong luồng production |
+| 2     | Cognito, Google OAuth, onboarding, RBAC         | Done        | Auth/RBAC integration tests đạt                |
+| 3     | ZIP, S3, SQS, AI Vision, review, publish        | In progress | Import và duyệt được đề tối thiểu 60 ảnh       |
+| 4     | Exam engine production                          | In progress | Autosave/timeout/idempotency/concurrency đạt   |
+| 5     | History, stats, bookmark, report, admin         | Planned     | Acceptance criteria User/Admin đạt             |
+| 6     | AWS/Supabase staging/prod, CI/CD, observability | In progress | Staging deploy/rollback/restore đạt            |
+| 7     | Security, legal, launch data, closed beta       | Planned     | Không còn P0/P1, UAT đạt                       |
+| 8     | Production rollout và payOS feature flag        | Planned     | Go-live checklist và smoke test đạt            |
 
 Phase 2 đã có Cognito User Pool, Google IdP, email/password,
 Authorization Code + PKCE, refresh/logout, JWT middleware ở API và persistence
@@ -46,6 +46,12 @@ thứ tự câu đã trộn, timer server, autosave có sequence, submit idempot
 exact-match score. Đáp án đúng chỉ được trả về sau khi nộp. Free user bị giới
 hạn tối đa 2 lượt mới mỗi ngày; subscription đang active không áp dụng giới hạn
 này. Còn lại là integration/load test concurrency và lịch sử làm bài.
+
+Phase 6 dùng Supabase PostgreSQL thay Aurora Serverless để phù hợp closed beta.
+AWS vẫn là lớp deploy: CloudFront/S3 cho web, API Gateway/Lambda cho API, S3
+private cho ảnh đề, SQS/DLQ cho tác vụ nền và Secrets Manager cho connection
+string. Domain production là `onthilab.id.vn`; database, auth và ứng dụng web
+được tách staging/prod, trong giới hạn hai Supabase Free project.
 
 ## Data waves
 

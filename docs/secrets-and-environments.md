@@ -68,6 +68,7 @@ Tên secret dự kiến:
 /onthilab/staging/ai/api-key
 
 /onthilab/prod/google/oauth
+/onthilab/prod/database
 /onthilab/prod/payos/client-id
 /onthilab/prod/payos/api-key
 /onthilab/prod/payos/checksum-key
@@ -86,14 +87,25 @@ Google OAuth dùng một JSON secret để giảm số secret phải trả phí:
 }
 ```
 
+Supabase connection string cũng được lưu server-side, chỉ cho Lambda đọc:
+
+```json
+{
+  "connectionString": "postgresql://..."
+}
+```
+
+Không dùng Supabase service role key và không đưa `DATABASE_URL` hoặc bất kỳ
+Supabase key nào vào biến `VITE_*`.
+
 ## Credential checklist
 
-| Hệ thống                     | Development | Staging        | Production            |
-| ---------------------------- | ----------- | -------------- | --------------------- |
-| AWS account/role             | Active      | Pending        | Pending               |
-| Google OAuth client          | Active      | Pending        | Pending               |
-| Cognito User Pool/App Client | Provisioned | Pending        | Pending               |
-| AI Vision provider           | Pending     | Pending        | Pending               |
-| payOS channel                | Local, tắt  | Pending        | Pending               |
-| Domain và DNS                | Không cần   | CloudFront URL | `onthilab.vn`         |
-| Support mailbox              | Gmail tạm   | Gmail tạm      | `support@onthilab.vn` |
+| Hệ thống                     | Development | Staging        | Production       |
+| ---------------------------- | ----------- | -------------- | ---------------- |
+| AWS account/role             | Active      | Pending        | Pending          |
+| Google OAuth client          | Active      | Pending        | Pending          |
+| Cognito User Pool/App Client | Provisioned | Pending        | Pending          |
+| AI Vision provider           | Pending     | Pending        | Pending          |
+| payOS channel                | Local, tắt  | Pending        | Pending          |
+| Domain và DNS                | Không cần   | CloudFront URL | `onthilab.id.vn` |
+| Support mailbox              | Gmail tạm   | Gmail tạm      | Chưa đăng ký     |
