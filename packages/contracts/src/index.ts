@@ -442,7 +442,14 @@ export const studentStatisticsSchema = z.object({
   ),
 });
 
+export const dailyUsageSchema = z.object({
+  attemptsStarted: z.number().int().nonnegative(),
+  limit: z.number().int().positive().nullable(),
+  remainingAttempts: z.number().int().nonnegative().nullable(),
+});
+
 export type StudentStatistics = z.infer<typeof studentStatisticsSchema>;
+export type DailyUsage = z.infer<typeof dailyUsageSchema>;
 export type AdminExamSummary = z.infer<typeof adminExamSummarySchema>;
 
 export function isExactAnswer(

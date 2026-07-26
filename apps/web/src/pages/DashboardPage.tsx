@@ -1,63 +1,140 @@
+import type {
+  DailyUsage,
+  ExamSummary,
+  StudentStatistics,
+} from "@onthilab/contracts";
 import {
   ArrowRight,
+  Award,
   BookOpenCheck,
-  CalendarDays,
   CheckCircle2,
   Clock3,
-  Flame,
+  LoaderCircle,
+  MapPin,
   Play,
   Target,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
-import { useAuth } from "../auth/AuthContext";
+import { getCatalog, getDailyUsage, getStudentStatistics } from "../lib/api";
 
-const stats = [
-  {
-    label: "Bài đã hoàn thành",
-    value: "12",
-    note: "+3 trong tuần này",
-    icon: CheckCircle2,
-    tone: "text-emerald-600 bg-emerald-50",
-  },
-  {
-    label: "Điểm trung bình",
-    value: "7.8",
-    note: "Tăng 0.6 điểm",
-    icon: TrendingUp,
-    tone: "text-blue-600 bg-blue-50",
-  },
-  {
-    label: "Chuỗi ôn tập",
-    value: "5 ngày",
-    note: "Kỷ lục: 8 ngày",
-    icon: Flame,
-    tone: "text-amber-600 bg-amber-50",
-  },
-];
+const emptyStatistics: StudentStatistics = {
+  totalAttempts: 0,
+  averageScore: null,
+  highestScore: null,
+  recentAttempts: [],
+};
+
+const emptyUsage: DailyUsage = {
+  attemptsStarted: 0,
+  limit: 2,
+  remainingAttempts: 2,
+};
 
 export function DashboardPage() {
-  const { session } = useAuth();
-  const firstName = session?.user.name.trim().split(/\s+/).at(-1) ?? "bạn";
+  const { configured, session, studentProfile } = useAuth();
+  const [statistics, setStatistics] = useState(emptyStatistics);
+  const [usage, setUsage] = useState(emptyUsage);
+  const [exams, setExams] = useState<ExamSummary[]>(
+    configured ? [] : catalogExams,
+  );
+  const [loading, setLoading] = useState(Boolean(session));
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setLoadError("");
+    void Promise.all([
+      getStudentStatistics(session.idToken),
+      getDailyUsage(session.idToken),
+      getCatalog(session.idToken),
+    ])
+      .then(([nextStatistics, nextUsage, nextExams]) => {
+        if (!active) return;
+        setStatistics(nextStatistics);
+        setUsage(nextUsage);
+        setExams(nextExams);
+      })
+      .catch(() => {
+        if (active) {
+          setLoadError(
+            "Không thể tải một phần dữ liệu cá nhân. Vui lòng thử lại.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  const firstName =
+    studentProfile?.fullName.trim().split(/\s+/).at(-1) ??
+    session?.user.name.trim().split(/\s+/).at(-1) ??
+    "bạn";
+  const usagePercent = usage.limit
+    ? Math.min(100, (usage.attemptsStarted / usage.limit) * 100)
+    : 0;
+  const featuredExams = exams.slice(0, 3);
+  const statCards = [
+    {
+      label: "Bài đã hoàn thành",
+      value: String(statistics.totalAttempts),
+      note: "Tất cả bài đã nộp",
+      icon: CheckCircle2,
+      tone: "text-emerald-600 bg-emerald-50",
+    },
+    {
+      label: "Điểm trung bình",
+      value:
+        statistics.averageScore === null
+          ? "--"
+          : statistics.averageScore.toFixed(2),
+      note: "Trên thang điểm 10",
+      icon: TrendingUp,
+      tone: "text-blue-600 bg-blue-50",
+    },
+    {
+      label: "Điểm cao nhất",
+      value:
+        statistics.highestScore === null
+          ? "--"
+          : statistics.highestScore.toFixed(2),
+      note: "Kết quả tốt nhất của bạn",
+      icon: Award,
+      tone: "text-amber-600 bg-amber-50",
+    },
+  ];
 
   return (
     <div className="space-y-8">
       <section className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#173b8f] via-primary to-[#477bea] p-6 text-white shadow-panel sm:p-8 lg:p-10">
           <div className="relative z-10 max-w-2xl">
-            <Badge tone="amber">Bản thử nghiệm nội bộ</Badge>
+            <Badge tone="amber">Miễn phí giai đoạn ra mắt</Badge>
             <p className="mt-5 text-sm font-semibold text-blue-100">
-              Chào buổi tối, {firstName}
+              Chào mừng trở lại, {firstName}
             </p>
             <h1 className="mt-2 font-heading text-3xl font-bold leading-tight sm:text-4xl">
               Luyện đề thật, tự tin bước vào phòng thi.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
-              Mô phỏng đúng thời gian, cấu trúc và cách làm bài FE. Đáp án đã
-              được rà soát và điểm số dùng để tham khảo.
+              Mô phỏng đúng thời gian, cấu trúc và cách làm bài FE. Điểm số chỉ
+              mang tính tham khảo.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
@@ -76,14 +153,6 @@ export function DashboardPage() {
               </Link>
             </div>
           </div>
-          <div
-            className="absolute -right-16 -top-20 size-72 rounded-full bg-white/10 blur-2xl"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute -bottom-32 right-20 size-80 rounded-full bg-cyan-300/15 blur-3xl"
-            aria-hidden="true"
-          />
           <Target
             className="absolute bottom-8 right-8 hidden text-white/15 lg:block"
             size={150}
@@ -99,54 +168,76 @@ export function DashboardPage() {
                 Hạn mức hôm nay
               </p>
               <h2 className="mt-1 font-heading text-xl font-bold text-foreground">
-                Gói miễn phí
+                {usage.limit === null ? "Không giới hạn" : "Miễn phí"}
               </h2>
             </div>
-            <Badge tone="blue">0 / 2 lượt</Badge>
+            <Badge tone="blue">
+              {usage.limit === null
+                ? "Không giới hạn"
+                : `${usage.attemptsStarted} / ${usage.limit} lượt`}
+            </Badge>
           </div>
           <div className="mt-6 h-2.5 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full w-0 rounded-full bg-primary" />
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-200"
+              style={{ width: `${usagePercent}%` }}
+            />
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Bạn còn <strong className="text-foreground">2 lượt thi</strong>{" "}
-            trong hôm nay. Hạn mức được làm mới lúc 00:00.
+            {usage.remainingAttempts === null ? (
+              "Bạn có thể bắt đầu luyện thi bất cứ lúc nào."
+            ) : (
+              <>
+                Bạn còn{" "}
+                <strong className="text-foreground">
+                  {usage.remainingAttempts} lượt thi
+                </strong>{" "}
+                hôm nay. Hạn mức được làm mới lúc 00:00.
+              </>
+            )}
           </p>
           <div className="my-5 border-t border-border" />
           <div className="space-y-3 text-sm text-slate-600">
             <div className="flex items-center gap-3">
               <span className="grid size-8 place-items-center rounded-lg bg-blue-50 text-primary">
-                <CalendarDays size={16} aria-hidden="true" />
+                <MapPin size={16} aria-hidden="true" />
               </span>
-              Kỳ học hiện tại: Spring 2026
+              Campus: {studentProfile?.campus.name ?? "Đang cập nhật"}
             </div>
             <div className="flex items-center gap-3">
               <span className="grid size-8 place-items-center rounded-lg bg-amber-50 text-amber-600">
-                <Clock3 size={16} aria-hidden="true" />
+                <BookOpenCheck size={16} aria-hidden="true" />
               </span>
-              Kỳ thi mục tiêu: 06/01/2027
+              Ngành: {studentProfile?.major.name ?? "Đang cập nhật"}
             </div>
           </div>
-          <button
-            type="button"
-            className="mt-auto pt-5 text-left text-sm font-semibold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:underline"
-          >
-            Xem quyền lợi OnThiLab Pro
-          </button>
         </Card>
       </section>
+
+      {loadError && (
+        <p
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"
+          role="status"
+        >
+          {loadError}
+        </p>
+      )}
 
       <section>
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
             <p className="section-kicker">Tiến độ của bạn</p>
-            <h2 className="section-title">Một chút mỗi ngày</h2>
+            <h2 className="section-title">Mỗi lần luyện là một bước tiến</h2>
           </div>
-          <span className="hidden text-sm text-slate-500 sm:block">
-            Cập nhật vừa xong
-          </span>
+          {loading && (
+            <LoaderCircle
+              className="animate-spin text-primary"
+              aria-label="Đang tải tiến độ"
+            />
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          {stats.map((stat) => (
+          {statCards.map((stat) => (
             <Card key={stat.label} className="p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -172,64 +263,78 @@ export function DashboardPage() {
       <section>
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="section-kicker">Đề thi mới</p>
-            <h2 className="section-title">Tiếp tục chinh phục mục tiêu</h2>
+            <p className="section-kicker">Kho đề</p>
+            <h2 className="section-title">Chọn đề để bắt đầu</h2>
           </div>
           <Link
             to="/exams"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg text-sm font-semibold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg text-sm font-semibold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
           >
             Xem tất cả
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {catalogExams.map((exam, index) => (
-            <Card
-              key={exam.id}
-              className="group flex flex-col p-5 transition-shadow duration-200 hover:shadow-panel"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="grid size-11 place-items-center rounded-xl bg-primary-soft font-heading text-sm font-bold text-primary">
-                  {exam.courseCode.slice(0, 3)}
-                </span>
-                <div className="flex gap-2">
-                  {exam.isRetake && <Badge tone="pink">Retake</Badge>}
-                  <Badge tone={index === 2 ? "green" : "blue"}>
-                    {exam.examType}
-                  </Badge>
+        {featuredExams.length === 0 ? (
+          <Card className="p-8 text-center">
+            <BookOpenCheck
+              className="mx-auto text-slate-300"
+              size={40}
+              aria-hidden="true"
+            />
+            <h3 className="mt-4 font-heading text-lg font-bold text-foreground">
+              Chưa có đề phù hợp
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Đề mới sẽ xuất hiện tại đây sau khi được duyệt và xuất bản.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {featuredExams.map((exam) => (
+              <Card
+                key={exam.id}
+                className="group flex flex-col p-5 transition-shadow duration-200 hover:shadow-panel"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="grid size-11 place-items-center rounded-xl bg-primary-soft font-heading text-sm font-bold text-primary">
+                    {exam.courseCode.slice(0, 3)}
+                  </span>
+                  <div className="flex gap-2">
+                    {exam.isRetake && <Badge tone="pink">Retake</Badge>}
+                    <Badge tone="blue">{exam.examType}</Badge>
+                  </div>
                 </div>
-              </div>
-              <p className="mt-5 text-xs font-bold uppercase tracking-wider text-primary">
-                {exam.code}
-              </p>
-              <h3 className="mt-1 line-clamp-2 font-heading text-lg font-bold text-foreground">
-                {exam.courseName}
-              </h3>
-              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <BookOpenCheck size={15} aria-hidden="true" />
-                  {exam.questionCount} câu
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock3 size={15} aria-hidden="true" />
-                  {exam.durationMinutes} phút
-                </span>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-                <span className="text-sm text-slate-500">{exam.campus}</span>
-                <Link
-                  to="/exams/$examId"
-                  params={{ examId: exam.id }}
-                  className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
-                >
-                  Xem đề
-                  <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
+                <p className="mt-5 text-xs font-bold uppercase tracking-wider text-primary">
+                  {exam.code}
+                </p>
+                <h3 className="mt-1 line-clamp-2 font-heading text-lg font-bold text-foreground">
+                  {exam.courseName}
+                </h3>
+                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <BookOpenCheck size={15} aria-hidden="true" />
+                    {exam.questionCount} câu
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock3 size={15} aria-hidden="true" />
+                    {exam.durationMinutes} phút
+                  </span>
+                </div>
+                <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+                  <span className="text-sm text-slate-500">{exam.campus}</span>
+                  <Link
+                    to="/exams/$examId"
+                    params={{ examId: exam.id }}
+                    className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                  >
+                    Xem đề
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

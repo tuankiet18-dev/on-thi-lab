@@ -246,9 +246,13 @@ export function ResultPage() {
         <Button onClick={retry} icon={<RotateCcw size={17} />}>
           Làm lại đề này
         </Button>
-        <Button variant="secondary" icon={<Target size={17} />}>
-          Xem thống kê môn
-        </Button>
+        <Link
+          to="/statistics"
+          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+        >
+          <Target size={17} aria-hidden="true" />
+          Xem thống kê
+        </Link>
       </div>
 
       <section>

@@ -41,6 +41,8 @@ import {
   type UpsertStudentProfileInput,
   studentStatisticsSchema,
   type StudentStatistics,
+  dailyUsageSchema,
+  type DailyUsage,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -436,6 +438,14 @@ export async function getStudentStatistics(
 ): Promise<StudentStatistics> {
   const result = await request("/v1/me/statistics", idToken, {}, fetcher);
   return studentStatisticsSchema.parse(result);
+}
+
+export async function getDailyUsage(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DailyUsage> {
+  const result = await request("/v1/me/usage", idToken, {}, fetcher);
+  return dailyUsageSchema.parse(result);
 }
 
 export async function getDraftExams(

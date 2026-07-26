@@ -150,6 +150,22 @@ describe("attempt API", () => {
     });
   });
 
+  it("returns the authenticated student's remaining free attempts", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+    });
+
+    const response = await isolatedApp.request("/v1/me/usage", {
+      headers: authorization,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      data: { attemptsStarted: 0, limit: 2, remainingAttempts: 2 },
+    });
+  });
+
   it("blocks non-admin users from accessing admin routes", async () => {
     const isolatedApp = createApp({
       auth,
@@ -717,6 +733,9 @@ describe("attempt API", () => {
           throw new Error("not used");
         },
         getStatistics: async () => {
+          throw new Error("not used");
+        },
+        getDailyUsage: async () => {
           throw new Error("not used");
         },
       },
