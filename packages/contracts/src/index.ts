@@ -375,6 +375,15 @@ export const attemptLaunchSchema = z.object({
   resumed: z.boolean(),
 });
 
+/**
+ * An immutable view of the exact exam revision assigned to an attempt.
+ * Correct answers remain on the attempt and are only returned after submit.
+ */
+export const attemptSessionSchema = z.object({
+  attempt: attemptSchema,
+  exam: examSchema,
+});
+
 export const attemptSummarySchema = z.object({
   id: z.string().uuid(),
   examId: z.string().uuid(),
@@ -427,6 +436,7 @@ export type QueueAiSuggestionsResult = z.infer<
 export type AttemptResult = z.infer<typeof attemptResultSchema>;
 export type Attempt = z.infer<typeof attemptSchema>;
 export type AttemptLaunch = z.infer<typeof attemptLaunchSchema>;
+export type AttemptSession = z.infer<typeof attemptSessionSchema>;
 
 export const studentStatisticsSchema = z.object({
   totalAttempts: z.number(),
@@ -442,7 +452,14 @@ export const studentStatisticsSchema = z.object({
   ),
 });
 
+export const dailyUsageSchema = z.object({
+  attemptsStarted: z.number().int().nonnegative(),
+  limit: z.number().int().positive().nullable(),
+  remainingAttempts: z.number().int().nonnegative().nullable(),
+});
+
 export type StudentStatistics = z.infer<typeof studentStatisticsSchema>;
+export type DailyUsage = z.infer<typeof dailyUsageSchema>;
 export type AdminExamSummary = z.infer<typeof adminExamSummarySchema>;
 
 export function isExactAnswer(

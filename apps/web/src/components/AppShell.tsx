@@ -13,6 +13,7 @@ import {
   Menu,
   MessageSquareText,
   ShieldCheck,
+  UserRound,
   X,
 } from "lucide-react";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
@@ -128,12 +129,14 @@ export function AppShell() {
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             to="/"
-            className="flex cursor-pointer items-center gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+            className="flex cursor-pointer items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
             aria-label="OnThiLab - Trang chủ"
           >
-            <span className="grid size-9 place-items-center rounded-xl bg-primary text-white shadow-sm">
-              <GraduationCap aria-hidden="true" size={21} strokeWidth={2.4} />
-            </span>
+            <img
+              src="/logo.png"
+              alt="OnThiLab Mascot"
+              className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
+            />
             <span className="font-heading text-xl font-bold tracking-tight text-foreground">
               OnThi<span className="text-primary">Lab</span>
             </span>
@@ -203,6 +206,14 @@ export function AppShell() {
                     <p className="truncate px-3 py-2 text-xs text-slate-500">
                       {session.user.email}
                     </p>
+                    <Link
+                      to="/profile"
+                      onClick={() => setAccountOpen(false)}
+                      className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      <UserRound size={17} aria-hidden="true" />
+                      Hồ sơ của tôi
+                    </Link>
                     {isAdmin && (
                       <>
                         <div className="my-1 h-px bg-border" />
@@ -327,14 +338,24 @@ export function AppShell() {
                 </>
               )}
               {session ? (
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  <LogOut size={18} aria-hidden="true" />
-                  Đăng xuất
-                </button>
+                <>
+                  <Link
+                    to="/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                  >
+                    <UserRound size={18} aria-hidden="true" />
+                    Hồ sơ của tôi
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                  >
+                    <LogOut size={18} aria-hidden="true" />
+                    Đăng xuất
+                  </button>
+                </>
               ) : (
                 <Link
                   to="/login"

@@ -150,6 +150,22 @@ describe("attempt API", () => {
     });
   });
 
+  it("returns the authenticated student's remaining free attempts", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+    });
+
+    const response = await isolatedApp.request("/v1/me/usage", {
+      headers: authorization,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      data: { attemptsStarted: 0, limit: 2, remainingAttempts: 2 },
+    });
+  });
+
   it("blocks non-admin users from accessing admin routes", async () => {
     const isolatedApp = createApp({
       auth,
@@ -639,6 +655,26 @@ describe("attempt API", () => {
     };
     expect(activeBody.data.correctAnswers).toBeUndefined();
 
+    const activeSessionResponse = await isolatedApp.request(
+      `/v1/attempts/${created.data.attempt.id}/session`,
+      { headers: authorization },
+    );
+    expect(activeSessionResponse.status).toBe(200);
+    expect(activeSessionResponse.headers.get("cache-control")).toBe(
+      "private, no-store",
+    );
+    await expect(activeSessionResponse.json()).resolves.toMatchObject({
+      data: {
+        attempt: { id: created.data.attempt.id },
+        exam: {
+          id: "demo-swd392-sp26-fe",
+          questions: expect.arrayContaining([
+            expect.objectContaining({ id: "q1" }),
+          ]),
+        },
+      },
+    });
+
     const answerResponse = await isolatedApp.request(
       `/v1/attempts/${created.data.attempt.id}/answers`,
       {
@@ -709,6 +745,7 @@ describe("attempt API", () => {
           );
         },
         findForUser: async () => null,
+        findSessionForUser: async () => null,
         listUserAttempts: async () => [],
         saveAnswer: async () => {
           throw new Error("not used");
@@ -717,6 +754,9 @@ describe("attempt API", () => {
           throw new Error("not used");
         },
         getStatistics: async () => {
+          throw new Error("not used");
+        },
+        getDailyUsage: async () => {
           throw new Error("not used");
         },
       },

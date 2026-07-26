@@ -3,8 +3,10 @@ import {
   type Attempt,
   type AttemptLaunch,
   type AttemptResult,
+  type AttemptSession,
   type SaveAnswerInput,
   type AttemptSummary,
+  type DailyUsage,
   type StudentStatistics,
 } from "@onthilab/contracts";
 import {
@@ -89,6 +91,14 @@ export class MemoryAttemptRepository implements AttemptRepository {
       await this.submit({ attemptId, userId, reason: "timeout" });
     }
     return attempt ?? null;
+  }
+
+  async findSessionForUser(
+    attemptId: string,
+    userId: string,
+  ): Promise<AttemptSession | null> {
+    const attempt = await this.findForUser(attemptId, userId);
+    return attempt ? { attempt, exam: demoExam } : null;
   }
 
   async saveAnswer(input: {
@@ -177,5 +187,9 @@ export class MemoryAttemptRepository implements AttemptRepository {
       highestScore,
       recentAttempts,
     };
+  }
+
+  async getDailyUsage(): Promise<DailyUsage> {
+    return { attemptsStarted: 0, limit: 2, remainingAttempts: 2 };
   }
 }

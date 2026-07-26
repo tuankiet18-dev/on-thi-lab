@@ -97,7 +97,11 @@ export function createRuntimeApp(
     profiles: new PostgresUserProfileRepository(database),
     reviews: draftRepository,
     ...(suggestions ? { suggestions } : {}),
-    attempts: new PostgresAttemptRepository(database),
+    attempts: new PostgresAttemptRepository(database, {
+      imageUrlForKey: imageBaseUrl
+        ? (key) => `${imageBaseUrl}/${key}`
+        : undefined,
+    }),
     reports: new PostgresReportRepository(database, {
       imageUrlForKey: imageBaseUrl
         ? (key) => `${imageBaseUrl}/${key}`

@@ -1,5 +1,6 @@
 import {
   attemptLaunchSchema,
+  attemptSessionSchema,
   attemptResultSchema,
   attemptSchema,
   attemptSummarySchema,
@@ -20,6 +21,7 @@ import {
   resolveReportSchema,
   type Attempt,
   type AttemptLaunch,
+  type AttemptSession,
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
@@ -41,6 +43,8 @@ import {
   type UpsertStudentProfileInput,
   studentStatisticsSchema,
   type StudentStatistics,
+  dailyUsageSchema,
+  type DailyUsage,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -317,6 +321,20 @@ export async function getAttempt(
   return attemptSchema.parse(result);
 }
 
+export async function getAttemptSession(
+  idToken: string,
+  attemptId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AttemptSession> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(attemptId)}/session`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return attemptSessionSchema.parse(result);
+}
+
 export async function saveAttemptAnswer(
   idToken: string,
   attemptId: string,
@@ -436,6 +454,14 @@ export async function getStudentStatistics(
 ): Promise<StudentStatistics> {
   const result = await request("/v1/me/statistics", idToken, {}, fetcher);
   return studentStatisticsSchema.parse(result);
+}
+
+export async function getDailyUsage(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DailyUsage> {
+  const result = await request("/v1/me/usage", idToken, {}, fetcher);
+  return dailyUsageSchema.parse(result);
 }
 
 export async function getDraftExams(

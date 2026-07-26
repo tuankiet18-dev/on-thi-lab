@@ -11,6 +11,7 @@ import type { OnThiLabDatabase } from "./index";
 import {
   attemptAnswers,
   attempts,
+  campuses,
   courses,
   dailyUsage,
   examRevisions,
@@ -18,7 +19,13 @@ import {
   questions,
   subscriptions,
 } from "./schema";
-import type { AttemptSummary, StudentStatistics } from "@onthilab/contracts";
+import type {
+  AttemptSummary,
+  DailyUsage,
+  AttemptSession,
+  Exam,
+  StudentStatistics,
+} from "@onthilab/contracts";
 
 export type AttemptRepositoryErrorCode =
   | "ATTEMPT_CLOSED"
@@ -46,6 +53,10 @@ export interface AttemptRepository {
   }): Promise<AttemptLaunch>;
   listUserAttempts(userId: string): Promise<AttemptSummary[]>;
   findForUser(attemptId: string, userId: string): Promise<Attempt | null>;
+  findSessionForUser(
+    attemptId: string,
+    userId: string,
+  ): Promise<AttemptSession | null>;
   saveAnswer(input: {
     attemptId: string;
     userId: string;
@@ -57,6 +68,7 @@ export interface AttemptRepository {
     reason: "user" | "timeout";
   }): Promise<{ result: AttemptResult; idempotent: boolean }>;
   getStatistics(userId: string): Promise<StudentStatistics>;
+  getDailyUsage(userId: string): Promise<DailyUsage>;
 }
 
 function hashDeviceId(deviceId: string): string {
@@ -82,7 +94,15 @@ function shuffled<T>(values: readonly T[]): T[] {
 }
 
 export class PostgresAttemptRepository implements AttemptRepository {
-  constructor(private readonly db: OnThiLabDatabase) {}
+  private readonly imageUrlForKey: (key: string) => string;
+
+  constructor(
+    private readonly db: OnThiLabDatabase,
+    options: { imageUrlForKey?: (key: string) => string } = {},
+  ) {
+    this.imageUrlForKey =
+      options.imageUrlForKey ?? ((key) => `/question-images/${key}`);
+  }
 
   async createOrResume(input: {
     userId: string;
@@ -225,6 +245,48 @@ export class PostgresAttemptRepository implements AttemptRepository {
     return { attempt, resumed: false };
   }
 
+  async getDailyUsage(userId: string): Promise<DailyUsage> {
+    const now = new Date();
+    const [activeSubscription, usage] = await Promise.all([
+      this.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, userId),
+            eq(subscriptions.status, "active"),
+            gt(subscriptions.expiresAt, now),
+          ),
+        )
+        .limit(1),
+      this.db
+        .select({ attemptsStarted: dailyUsage.attemptsStarted })
+        .from(dailyUsage)
+        .where(
+          and(
+            eq(dailyUsage.userId, userId),
+            eq(dailyUsage.usageDate, usageDateInVietnam(now)),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    if (activeSubscription[0]) {
+      return {
+        attemptsStarted: usage[0]?.attemptsStarted ?? 0,
+        limit: null,
+        remainingAttempts: null,
+      };
+    }
+
+    const attemptsStarted = usage[0]?.attemptsStarted ?? 0;
+    return {
+      attemptsStarted,
+      limit: 2,
+      remainingAttempts: Math.max(0, 2 - attemptsStarted),
+    };
+  }
+
   async listUserAttempts(userId: string): Promise<AttemptSummary[]> {
     const rows = await this.db
       .select({
@@ -350,6 +412,83 @@ export class PostgresAttemptRepository implements AttemptRepository {
       result,
       ...(correctAnswers ? { correctAnswers } : {}),
     };
+  }
+
+  async findSessionForUser(
+    attemptId: string,
+    userId: string,
+  ): Promise<AttemptSession | null> {
+    const attempt = await this.findForUser(attemptId, userId);
+    if (!attempt) return null;
+
+    const [examRow] = await this.db
+      .select({
+        code: exams.code,
+        courseCode: courses.code,
+        courseName: courses.name,
+        semester: exams.semester,
+        campusName: campuses.name,
+        examType: exams.examType,
+        isRetake: exams.isRetake,
+        durationMinutes: exams.durationMinutes,
+        publishedAt: exams.publishedAt,
+        answerConfidence: examRevisions.answerConfidence,
+        shuffleQuestions: exams.shuffleQuestions,
+        revisionId: attempts.revisionId,
+      })
+      .from(attempts)
+      .innerJoin(exams, eq(attempts.examId, exams.id))
+      .innerJoin(courses, eq(exams.courseId, courses.id))
+      .leftJoin(campuses, eq(exams.campusId, campuses.id))
+      .innerJoin(examRevisions, eq(examRevisions.id, attempts.revisionId))
+      .where(and(eq(attempts.id, attemptId), eq(attempts.userId, userId)))
+      .limit(1);
+
+    if (!examRow) return null;
+
+    const questionRows = await this.db
+      .select({
+        id: questions.id,
+        order: questions.order,
+        imageKey: questions.imageKey,
+        type: questions.type,
+        options: questions.options,
+      })
+      .from(questions)
+      .where(eq(questions.revisionId, examRow.revisionId))
+      .orderBy(questions.order);
+
+    const exam: Exam = {
+      id: attempt.examId,
+      code: examRow.code,
+      courseCode: examRow.courseCode,
+      courseName: examRow.courseName,
+      semester: examRow.semester,
+      campus: examRow.campusName ?? "Tất cả campus",
+      examType: examRow.examType,
+      isRetake: examRow.isRetake,
+      durationMinutes: examRow.durationMinutes,
+      questionCount: questionRows.length,
+      publishedAt: (examRow.publishedAt ?? new Date(0)).toISOString(),
+      answerConfidence:
+        examRow.answerConfidence === "verified" ? "verified" : "reviewed",
+      shuffleQuestions: examRow.shuffleQuestions,
+      instructions: [
+        "Bài thi không thể tạm dừng và sẽ tự động nộp khi hết giờ.",
+        "Câu nhiều đáp án chỉ được tính đúng khi chọn chính xác toàn bộ đáp án.",
+        "Đáp án và điểm số chỉ mang tính tham khảo.",
+      ],
+      questions: questionRows.map((question) => ({
+        id: question.id,
+        order: question.order,
+        imageUrl: this.imageUrlForKey(question.imageKey),
+        imageAlt: `Ảnh câu hỏi ${question.order} của đề ${examRow.code}`,
+        type: question.type,
+        options: question.options,
+      })),
+    };
+
+    return { attempt, exam };
   }
 
   async saveAnswer(input: {

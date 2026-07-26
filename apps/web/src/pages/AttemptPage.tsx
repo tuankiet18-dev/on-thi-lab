@@ -20,8 +20,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
 import {
-  getAttempt,
-  getPublishedExam,
+  getAttemptSession,
   saveAttemptAnswer,
   submitAttempt as submitRemoteAttempt,
 } from "../lib/api";
@@ -89,12 +88,8 @@ export function AttemptPage() {
     }
     if (!session) return;
 
-    void getAttempt(session.idToken, attemptId)
-      .then(async (loadedAttempt) => {
-        const loadedExam = await getPublishedExam(
-          session.idToken,
-          loadedAttempt.examId,
-        );
+    void getAttemptSession(session.idToken, attemptId)
+      .then(({ attempt: loadedAttempt, exam: loadedExam }) => {
         if (!active) return;
         setAttempt(loadedAttempt);
         setExam(loadedExam);
@@ -314,9 +309,11 @@ export function AttemptPage() {
       <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
-              <GraduationCap size={20} aria-hidden="true" />
-            </span>
+            <img
+              src="/logo.png"
+              alt="OnThiLab Mascot"
+              className="size-10 object-contain drop-shadow-sm shrink-0"
+            />
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-xs font-semibold text-slate-500">
                 {exam.courseCode} · {exam.semester}
@@ -446,12 +443,7 @@ export function AttemptPage() {
                 <legend className="mb-3 text-sm font-semibold text-slate-600">
                   Chọn đáp án của bạn:
                 </legend>
-                <div
-                  className={cn(
-                    "grid gap-3",
-                    question.options.length > 4 && "sm:grid-cols-2",
-                  )}
-                >
+                <div className="flex flex-wrap items-center gap-4">
                   {question.options.map((option, optionIndex) => {
                     const selected = selectedOptions.includes(optionIndex);
                     return (
@@ -462,30 +454,17 @@ export function AttemptPage() {
                         aria-checked={selected}
                         onClick={() => chooseOption(optionIndex)}
                         className={cn(
-                          "group flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20",
+                          "group relative grid size-12 shrink-0 place-items-center border-2 text-lg font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40",
+                          question.type === "single"
+                            ? "rounded-full"
+                            : "rounded-xl",
                           selected
-                            ? "border-primary bg-primary-soft text-primary shadow-sm"
-                            : "border-border-strong text-slate-700 hover:border-blue-300 hover:bg-blue-50/40",
+                            ? "border-primary bg-primary text-white shadow-md shadow-primary/20 scale-105"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm hover:-translate-y-0.5",
                         )}
+                        aria-label={`Chọn đáp án ${option}`}
                       >
-                        <span
-                          className={cn(
-                            "grid size-8 shrink-0 place-items-center border text-sm font-bold",
-                            question.type === "single"
-                              ? "rounded-full"
-                              : "rounded-lg",
-                            selected
-                              ? "border-primary bg-primary text-white"
-                              : "border-slate-300 bg-white text-slate-600",
-                          )}
-                        >
-                          {selected ? (
-                            <Check size={16} aria-hidden="true" />
-                          ) : (
-                            option
-                          )}
-                        </span>
-                        <span className="font-semibold">Đáp án {option}</span>
+                        {option}
                       </button>
                     );
                   })}

@@ -101,9 +101,23 @@ export function AdminReviewPage() {
   const currentQuestion = review?.questions[currentIndex];
   useEffect(() => {
     if (!currentQuestion) return;
-    setQuestionType(currentQuestion.type);
-    setOptionCount(currentQuestion.options.length);
-    setSelectedOptions(currentQuestion.correctOptions);
+    const suggestion = currentQuestion.aiSuggestion;
+    const shouldPrefillSuggestion =
+      currentQuestion.correctOptions.length === 0 &&
+      suggestion?.status === "suggested" &&
+      suggestion.proposedType &&
+      suggestion.optionCount &&
+      suggestion.proposedAnswers?.length;
+
+    if (shouldPrefillSuggestion) {
+      setQuestionType(suggestion.proposedType!);
+      setOptionCount(suggestion.optionCount!);
+      setSelectedOptions(suggestion.proposedAnswers!);
+    } else {
+      setQuestionType(currentQuestion.type);
+      setOptionCount(currentQuestion.options.length);
+      setSelectedOptions(currentQuestion.correctOptions);
+    }
     setError("");
   }, [
     currentQuestion?.correctOptions.join(","),
@@ -357,7 +371,6 @@ export function AdminReviewPage() {
     setError("");
     setFeedback("Đã điền gợi ý. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
   };
-
   if (loading) {
     return (
       <div className="grid min-h-[55vh] place-items-center">
@@ -582,15 +595,10 @@ export function AdminReviewPage() {
                     )}
                     {currentQuestion.aiSuggestion.status === "suggested" &&
                       !isReadOnly && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="mt-3"
-                          onClick={applyCurrentSuggestion}
-                          icon={<Sparkles size={16} aria-hidden="true" />}
-                        >
-                          Áp dụng vào biểu mẫu
-                        </Button>
+                        <p className="mt-3 text-sm font-semibold text-violet-800">
+                          Đáp án đã được điền sẵn bên dưới. Kiểm tra ảnh rồi bấm
+                          Lưu &amp; câu tiếp để xác nhận.
+                        </p>
                       )}
                   </div>
                 </div>

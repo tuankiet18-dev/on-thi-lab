@@ -325,6 +325,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
   app.use("/v1/me/statistics", requireProfile);
+  app.use("/v1/me/usage", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
@@ -685,6 +686,14 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }),
   );
 
+  app.get("/v1/me/usage", async (context) =>
+    context.json({
+      data: await dependencies.attempts.getDailyUsage(
+        context.get("profile").id,
+      ),
+    }),
+  );
+
   app.get("/v1/attempts", async (context) => {
     const attempts = await dependencies.attempts.listUserAttempts(
       context.get("profile").id,
@@ -816,6 +825,36 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }
 
     return context.json({ data: attempt });
+  });
+
+  app.get("/v1/attempts/:attemptId/session", async (context) => {
+    const session = await dependencies.attempts.findSessionForUser(
+      context.req.param("attemptId"),
+      context.get("profile").id,
+    );
+    if (!session) {
+      return context.json({ error: "ATTEMPT_NOT_FOUND" }, 404);
+    }
+
+    const apiOrigin = new URL(context.req.url).origin;
+    return context.json(
+      {
+        data: {
+          ...session,
+          exam: {
+            ...session.exam,
+            questions: session.exam.questions.map((question) => ({
+              ...question,
+              imageUrl: question.imageUrl.startsWith("/")
+                ? `${apiOrigin}${question.imageUrl}`
+                : question.imageUrl,
+            })),
+          },
+        },
+      },
+      200,
+      { "Cache-Control": "private, no-store" },
+    );
   });
 
   app.notFound((context) =>

@@ -60,6 +60,21 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/me/usage": {
+      get: {
+        operationId: "getDailyUsage",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": {
+            description:
+              "Number of attempts started today and the user's current limit",
+          },
+          "401": { description: "Missing, invalid or expired token" },
+          "403": { description: "Profile onboarding is required" },
+        },
+      },
+    },
     "/v1/admin/imports/config": {
       get: {
         operationId: "getImportConstraints",
@@ -357,6 +372,28 @@ export const openApiDocument = {
         responses: {
           "200": { description: "Attempt state and submitted review data" },
           "404": { description: "Attempt not found" },
+        },
+      },
+    },
+    "/v1/attempts/{attemptId}/session": {
+      get: {
+        operationId: "getAttemptSession",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "attemptId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description:
+              "The attempt and immutable exam revision assigned to its owner",
+          },
+          "404": { description: "Attempt not found or not owned by caller" },
         },
       },
     },
