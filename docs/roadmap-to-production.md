@@ -49,8 +49,8 @@ này. Còn lại là integration/load test concurrency và lịch sử làm bài
 
 Phase 6 dùng Supabase PostgreSQL thay Aurora Serverless để phù hợp closed beta.
 AWS vẫn là lớp deploy: CloudFront/S3 cho web, API Gateway/Lambda cho API, S3
-private cho ảnh đề, SQS/DLQ cho tác vụ nền và Secrets Manager cho connection
-string. Domain production là `onthilab.id.vn`; database, auth và ứng dụng web
+private cho ảnh đề, SQS/DLQ cho tác vụ nền, SSM Parameter Store SecureString
+cho database connection string và Secrets Manager cho Google OAuth. Domain production là `onthilab.id.vn`; database, auth và ứng dụng web
 được tách staging/prod, trong giới hạn hai Supabase Free project.
 
 ## Data waves

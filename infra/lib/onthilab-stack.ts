@@ -12,8 +12,8 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ interface OnThiLabStackProps extends StackProps {
   stage: string;
   cognitoUserPoolId?: string;
   cognitoClientId?: string;
-  databaseSecretName?: string;
+  databaseParameterName?: string;
   webDomainName?: string;
   webCertificateArn?: string;
 }
@@ -144,15 +144,19 @@ export class OnThiLabStack extends Stack {
     });
 
     if (
-      props.databaseSecretName &&
+      props.databaseParameterName &&
       props.cognitoUserPoolId &&
       props.cognitoClientId
     ) {
-      const databaseSecret = secretsmanager.Secret.fromSecretNameV2(
-        this,
-        "DatabaseSecret",
-        props.databaseSecretName,
-      );
+      const databaseParameter =
+        ssm.StringParameter.fromSecureStringParameterAttributes(
+          this,
+          "DatabaseParameter",
+          {
+            parameterName: props.databaseParameterName,
+            version: 1,
+          },
+        );
       const apiHandler = new lambdaNodejs.NodejsFunction(this, "ApiHandler", {
         runtime: lambda.Runtime.NODEJS_22_X,
         entry: join(projectRoot, "apps/api/src/lambda.ts"),
@@ -167,9 +171,7 @@ export class OnThiLabStack extends Stack {
         environment: {
           APP_ENV: props.stage === "prod" ? "production" : "staging",
           LOG_LEVEL: "info",
-          DATABASE_URL: databaseSecret
-            .secretValueFromJson("connectionString")
-            .unsafeUnwrap(),
+          DATABASE_PARAMETER_NAME: props.databaseParameterName,
           COGNITO_USER_POOL_ID: props.cognitoUserPoolId,
           COGNITO_CLIENT_ID: props.cognitoClientId,
           QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
@@ -182,7 +184,7 @@ export class OnThiLabStack extends Stack {
           FEATURE_MONETIZATION_ENABLED: "false",
         },
       });
-      databaseSecret.grantRead(apiHandler);
+      databaseParameter.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
       importQueue.grantSendMessages(apiHandler);
 
