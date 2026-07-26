@@ -18,6 +18,10 @@ interface OnThiLabAuthStackProps extends StackProps {
 }
 
 export class OnThiLabAuthStack extends Stack {
+  readonly userPool: cognito.UserPool;
+  readonly userPoolClient: cognito.UserPoolClient;
+  readonly cognitoDomainBaseUrl: string;
+
   constructor(scope: Construct, id: string, props: OnThiLabAuthStackProps) {
     super(scope, id, props);
 
@@ -112,6 +116,9 @@ export class OnThiLabAuthStack extends Stack {
     userPoolClient.node.addDependency(googleProvider);
 
     const domainBaseUrl = `https://${props.domainPrefix}.auth.${this.region}.amazoncognito.com`;
+    this.userPool = userPool;
+    this.userPoolClient = userPoolClient;
+    this.cognitoDomainBaseUrl = domainBaseUrl;
     const localCallbackUrl = props.callbackUrls[0]!;
     const managedLoginUrl =
       `${domainBaseUrl}/oauth2/authorize` +

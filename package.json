@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
+    "esbuild": "^0.25.12",
     "prettier": "^3.6.2",
     "typescript": "^5.8.3"
   }

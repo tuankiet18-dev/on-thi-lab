@@ -45,7 +45,7 @@ React/Vite
 CloudFront ── S3 web
    │
    ▼
-API Gateway ── Lambda/Hono ── Aurora PostgreSQL (Data API)
+API Gateway ── Lambda/Hono ── Supabase PostgreSQL
                          ├── S3 question images
                          ├── SQS import jobs ── AI Vision provider
                          └── Cognito / payOS webhook
@@ -67,16 +67,16 @@ API Gateway ── Lambda/Hono ── Aurora PostgreSQL (Data API)
   đang hoạt động được resume mà không trừ thêm lượt.
 - Ảnh gốc và ảnh phát hành dùng object key bất biến, checksum để chống trùng.
 
-## Chi phí AWS
+## Chi phí AWS và Supabase
 
-Aurora PostgreSQL Serverless v2 đã được chọn cho staging/production. CDK mặc
-định đặt cluster ở 0.5–2 ACU, S3 private qua CloudFront OAC, SQS có DLQ và tài
-nguyên dev có thể xóa. Chưa tạo cluster trước khi pipeline nhập đề sẵn sàng để
-tránh tiêu credit trong giai đoạn phát triển local. Trước khi deploy production
-cần:
+Supabase PostgreSQL Free là database cho closed beta, kết nối từ Lambda chỉ qua
+`DATABASE_URL` lấy từ AWS Secrets Manager. CDK không còn provision Aurora hay
+VPC, tránh chi phí nền không cần thiết. S3 private qua CloudFront OAC, SQS có
+DLQ và tài nguyên dev có thể xóa. Trước khi deploy production cần:
 
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
-- load test và tinh chỉnh khoảng ACU theo traffic thật;
+- đặt Supabase ở region gần Singapore, dùng pooler connection string cho Lambda;
+- sao lưu PostgreSQL hằng ngày sang S3 và diễn tập restore;
 - thêm WAF/rate limit, log retention và cảnh báo lỗi;
 - cấu hình domain production, ACM certificate và secrets theo environment;
 - nối Lambda/API Gateway và worker vào các package ứng dụng.

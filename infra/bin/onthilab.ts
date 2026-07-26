@@ -11,19 +11,38 @@ const region = process.env.CDK_DEFAULT_REGION ?? "ap-southeast-1";
 const domainPrefix =
   app.node.tryGetContext("cognitoDomainPrefix") ??
   `onthilab-${stage}-${account ?? "local"}`;
-const callbackUrls =
-  stage === "dev"
-    ? ["http://localhost:5173/auth/callback"]
-    : [`https://app.onthilab.vn/auth/callback`];
-const logoutUrls =
-  stage === "dev" ? ["http://localhost:5173/"] : ["https://app.onthilab.vn/"];
+const databaseSecretName = app.node.tryGetContext("databaseSecretName");
+const webDomainName = app.node.tryGetContext("webDomainName");
+const webCertificateArn = app.node.tryGetContext("webCertificateArn");
+const webBaseUrl =
+  app.node.tryGetContext("webBaseUrl") ??
+  (stage === "dev"
+    ? "http://localhost:5173"
+    : stage === "prod"
+      ? "https://onthilab.id.vn"
+      : undefined);
+
+if (
+  stage === "prod" &&
+  (!databaseSecretName || !webDomainName || !webCertificateArn)
+) {
+  throw new Error(
+    "Production requires databaseSecretName, webDomainName and webCertificateArn CDK context values.",
+  );
+}
+if (!webBaseUrl) {
+  throw new Error("Non-development stages require webBaseUrl CDK context.");
+}
+
+const callbackUrls = [new URL("/auth/callback", webBaseUrl).toString()];
+const logoutUrls = [new URL("/", webBaseUrl).toString()];
 
 const environment = {
   account,
   region,
 };
 
-new OnThiLabAuthStack(app, `OnThiLabAuth-${stage}`, {
+const authStack = new OnThiLabAuthStack(app, `OnThiLabAuth-${stage}`, {
   env: environment,
   stage,
   domainPrefix,
@@ -39,5 +58,10 @@ new OnThiLabStack(app, `OnThiLab-${stage}`, {
     region,
   },
   stage,
+  cognitoUserPoolId: authStack.userPool.userPoolId,
+  cognitoClientId: authStack.userPoolClient.userPoolClientId,
+  databaseSecretName,
+  webDomainName,
+  webCertificateArn,
   description: `OnThiLab ${stage} serverless foundation`,
 });
