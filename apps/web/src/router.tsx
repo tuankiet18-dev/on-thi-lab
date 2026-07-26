@@ -13,6 +13,7 @@ import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ExamDetailPage } from "./pages/ExamDetailPage";
+import { ExamPreviewPage } from "./pages/ExamPreviewPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -70,6 +71,12 @@ const examDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/exams/$examId",
   component: ExamDetailPage,
+});
+
+const examPreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/exams/$examId/preview",
+  component: ExamPreviewPage,
 });
 
 const attemptRoute = createRoute({
@@ -148,6 +155,7 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   catalogRoute,
   examDetailRoute,
+  examPreviewRoute,
   attemptRoute,
   resultRoute,
   historyRoute,

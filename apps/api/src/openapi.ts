@@ -375,6 +375,28 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/attempts/{attemptId}/session": {
+      get: {
+        operationId: "getAttemptSession",
+        tags: ["Attempts"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "attemptId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description:
+              "The attempt and immutable exam revision assigned to its owner",
+          },
+          "404": { description: "Attempt not found or not owned by caller" },
+        },
+      },
+    },
     "/v1/attempts/{attemptId}/answers": {
       put: {
         operationId: "saveAttemptAnswer",

@@ -3,6 +3,7 @@ import {
   ApiError,
   createAttempt,
   getAttempt,
+  getAttemptSession,
   getCatalog,
   getDailyUsage,
   getDraftExamReview,
@@ -431,5 +432,79 @@ describe("profile API client", () => {
     await expect(
       getAttempt("signed-id-token", attemptId, fetcher),
     ).resolves.toMatchObject({ status: "submitted" });
+  });
+
+  it("loads an immutable attempt session for review", async () => {
+    const attemptId = "50000000-0000-4000-8000-000000000001";
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const questionId = "40000000-0000-4000-8000-000000000001";
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            attempt: {
+              id: attemptId,
+              examId,
+              status: "submitted",
+              startedAt: "2026-07-24T06:00:00.000Z",
+              expiresAt: "2026-07-24T07:00:00.000Z",
+              answers: { [questionId]: [1] },
+              questionOrder: [questionId],
+              result: {
+                attemptId,
+                status: "submitted",
+                correctCount: 1,
+                questionCount: 1,
+                score: 10,
+                submittedAt: "2026-07-24T06:20:00.000Z",
+              },
+              correctAnswers: { [questionId]: [1] },
+            },
+            exam: {
+              id: examId,
+              code: "SWD392-SP26-FE",
+              courseCode: "SWD392",
+              courseName: "Software Architecture and Design",
+              semester: "SP26",
+              campus: "Hòa Lạc",
+              examType: "FE",
+              isRetake: false,
+              durationMinutes: 60,
+              questionCount: 1,
+              publishedAt: "2026-07-24T06:00:00.000Z",
+              answerConfidence: "reviewed",
+              shuffleQuestions: true,
+              instructions: [],
+              questions: [
+                {
+                  id: questionId,
+                  order: 1,
+                  imageUrl: "https://example.test/Q1.jpg",
+                  imageAlt: "Câu hỏi 1",
+                  type: "single",
+                  options: ["A", "B", "C", "D"],
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      getAttemptSession("signed-id-token", attemptId, fetcher),
+    ).resolves.toMatchObject({
+      attempt: { id: attemptId, correctAnswers: { [questionId]: [1] } },
+      exam: { questions: [{ id: questionId }] },
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      `http://localhost:8787/v1/attempts/${attemptId}/session`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer signed-id-token",
+        }),
+      }),
+    );
   });
 });
