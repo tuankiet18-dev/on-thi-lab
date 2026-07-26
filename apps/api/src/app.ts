@@ -1,4 +1,7 @@
 import {
+  createCourseSchema,
+  createCurriculumSchema,
+  createMajorSchema,
   createAttemptSchema,
   createDraftImportSchema,
   feZipImportConstraints,
@@ -8,6 +11,7 @@ import {
   upsertStudentProfileSchema,
   createReportSchema,
   resolveReportSchema,
+  upsertCurriculumCourseSchema,
   type StudentProfile,
   type UserRole,
 } from "@onthilab/contracts";
@@ -16,6 +20,8 @@ import {
   DraftImportRepositoryError,
   ProfileRepositoryError,
   type AttemptRepository,
+  type AdminCatalogRepository,
+  AdminCatalogRepositoryError,
   type CatalogRepository,
   type ExamReviewRepository,
   type UserProfileRepository,
@@ -54,6 +60,7 @@ import {
 
 interface AppDependencies {
   catalog: CatalogRepository;
+  adminCatalog: AdminCatalogRepository;
   auth: TokenVerifier;
   profiles: UserProfileRepository;
   imports: ExamImportService;
@@ -86,6 +93,22 @@ const demoCatalogRepository: CatalogRepository = {
   listPublished: async () => [demoExam],
   findPublishedByIdOrCode: async (idOrCode) =>
     idOrCode === demoExam.id || idOrCode === demoExam.code ? demoExam : null,
+};
+
+const unavailableAdminCatalogRepository: AdminCatalogRepository = {
+  getAdminCatalog: async () => ({ majors: [], curricula: [], courses: [] }),
+  createMajor: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
+  createCurriculum: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
+  createCourse: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
+  upsertCurriculumCourse: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
 };
 
 const unavailableProfileRepository: UserProfileRepository = {
@@ -201,6 +224,7 @@ function roleRequiredMiddleware(
 export function createApp(overrides: Partial<AppDependencies> = {}) {
   const dependencies: AppDependencies = {
     catalog: demoCatalogRepository,
+    adminCatalog: unavailableAdminCatalogRepository,
     auth: new UnconfiguredTokenVerifier(),
     profiles: unavailableProfileRepository,
     imports: new UnconfiguredExamImportService(),
@@ -369,6 +393,147 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         canPublish: context.get("profile").role === "admin",
       },
     }),
+  );
+
+  app.get("/v1/admin/catalog-management", async (context) =>
+    context.json({ data: await dependencies.adminCatalog.getAdminCatalog() }),
+  );
+
+  app.post(
+    "/v1/admin/catalog-management/majors",
+    requireAdmin,
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = createMajorSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        return context.json(
+          { data: await dependencies.adminCatalog.createMajor(parsed.data) },
+          201,
+        );
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            409,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/admin/catalog-management/curricula",
+    requireAdmin,
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = createCurriculumSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        return context.json(
+          {
+            data: await dependencies.adminCatalog.createCurriculum(parsed.data),
+          },
+          201,
+        );
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          const status = error.code === "MAJOR_NOT_FOUND" ? 404 : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/admin/catalog-management/courses",
+    requireAdmin,
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = createCourseSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        return context.json(
+          { data: await dependencies.adminCatalog.createCourse(parsed.data) },
+          201,
+        );
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            409,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.put(
+    "/v1/admin/catalog-management/curriculum-courses",
+    requireAdmin,
+    async (context) => {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = upsertCurriculumCourseSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        await dependencies.adminCatalog.upsertCurriculumCourse(parsed.data);
+        return context.json({ data: { success: true } });
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            404,
+          );
+        }
+        throw error;
+      }
+    },
   );
 
   app.get("/v1/admin/imports/presign", async (context) => {

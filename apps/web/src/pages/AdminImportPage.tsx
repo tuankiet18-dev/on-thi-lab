@@ -8,7 +8,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Link, Navigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import type { AdminCatalog, ProfileOptions } from "@onthilab/contracts";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -16,6 +17,8 @@ import { Card } from "../components/ui/Card";
 import {
   ApiError,
   getDraftExamReview,
+  getAdminCatalog,
+  getProfileOptions,
   saveQuestionReviewAnswer,
   uploadDraftImport,
 } from "../lib/api";
@@ -38,6 +41,10 @@ export function AdminImportPage() {
     examCode: string;
     questionCount: number;
   } | null>(null);
+  const [catalog, setCatalog] = useState<AdminCatalog | null>(null);
+  const [profileOptions, setProfileOptions] = useState<ProfileOptions | null>(
+    null,
+  );
   const canContribute =
     !configured ||
     studentProfile?.role === "admin" ||
@@ -45,6 +52,36 @@ export function AdminImportPage() {
     session?.user.groups.some((group) =>
       ["admin", "contributor"].includes(group),
     );
+
+  useEffect(() => {
+    if (!session) return;
+    Promise.all([
+      getAdminCatalog(session.idToken),
+      getProfileOptions(session.idToken),
+    ])
+      .then(([nextCatalog, nextOptions]) => {
+        setCatalog(nextCatalog);
+        setProfileOptions(nextOptions);
+        setCourseCode((currentCourseCode) =>
+          nextCatalog.courses.some(
+            (course) => course.code === currentCourseCode,
+          )
+            ? currentCourseCode
+            : (nextCatalog.courses[0]?.code ?? currentCourseCode),
+        );
+        setCampusCode((currentCampusCode) =>
+          nextOptions.campuses.some(
+            (campus) => campus.code === currentCampusCode,
+          )
+            ? currentCampusCode
+            : (nextOptions.campuses[0]?.code ?? currentCampusCode),
+        );
+      })
+      .catch(() => {
+        // The form still provides the existing value so local development and
+        // a temporary catalog outage do not block an in-progress import.
+      });
+  }, [session]);
 
   if (!canContribute) {
     return <Navigate to="/" replace />;
@@ -153,12 +190,28 @@ export function AdminImportPage() {
             <div className="mt-6 grid gap-5 sm:grid-cols-2">
               <label className="form-field">
                 <span>Mã môn</span>
-                <input
+                <select
                   className="input-base"
                   value={courseCode}
                   onChange={(event) => setCourseCode(event.target.value)}
                   required
-                />
+                >
+                  {catalog?.courses.length ? (
+                    catalog.courses.map((course) => (
+                      <option key={course.id} value={course.code}>
+                        {course.code} · {course.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={courseCode}>{courseCode}</option>
+                  )}
+                </select>
+                {catalog && catalog.courses.length === 0 && (
+                  <span className="mt-1 text-xs text-amber-700">
+                    Chưa có môn trong danh mục. Admin cần tạo môn trước khi nhập
+                    đề.
+                  </span>
+                )}
               </label>
               <label className="form-field">
                 <span>Kỳ học</span>
@@ -177,11 +230,19 @@ export function AdminImportPage() {
                   value={campusCode}
                   onChange={(event) => setCampusCode(event.target.value)}
                 >
-                  <option value="HL">Hòa Lạc</option>
-                  <option value="HCM">Hồ Chí Minh</option>
-                  <option value="DN">Đà Nẵng</option>
-                  <option value="CT">Cần Thơ</option>
-                  <option value="QN">Quy Nhơn</option>
+                  {(
+                    profileOptions?.campuses ?? [
+                      { code: "HL", name: "Hòa Lạc" },
+                      { code: "HCM", name: "Hồ Chí Minh" },
+                      { code: "DN", name: "Đà Nẵng" },
+                      { code: "CT", name: "Cần Thơ" },
+                      { code: "QN", name: "Quy Nhơn" },
+                    ]
+                  ).map((campus) => (
+                    <option value={campus.code} key={campus.code}>
+                      {campus.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="form-field">
@@ -277,7 +338,9 @@ export function AdminImportPage() {
             <div className="mt-6 flex justify-end">
               <Button
                 type="submit"
-                disabled={!archive || submitting}
+                disabled={
+                  !archive || submitting || catalog?.courses.length === 0
+                }
                 icon={<ArrowRight size={17} />}
               >
                 {submitting

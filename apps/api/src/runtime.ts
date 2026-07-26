@@ -1,6 +1,7 @@
 import {
   createDatabase,
   PostgresAttemptRepository,
+  PostgresAdminCatalogRepository,
   PostgresCatalogRepository,
   PostgresDraftImportRepository,
   PostgresReportRepository,
@@ -86,14 +87,17 @@ export function createRuntimeApp(
           )
         : undefined;
 
+  const catalogRepository = new PostgresCatalogRepository(database, {
+    imageUrlForKey: imageBaseUrl
+      ? (key) => `${imageBaseUrl}/${key}`
+      : undefined,
+  });
+
   return createApp({
     ...authDependencies,
     corsOrigins,
-    catalog: new PostgresCatalogRepository(database, {
-      imageUrlForKey: imageBaseUrl
-        ? (key) => `${imageBaseUrl}/${key}`
-        : undefined,
-    }),
+    catalog: catalogRepository,
+    adminCatalog: new PostgresAdminCatalogRepository(database),
     profiles: new PostgresUserProfileRepository(database),
     reviews: draftRepository,
     ...(suggestions ? { suggestions } : {}),
