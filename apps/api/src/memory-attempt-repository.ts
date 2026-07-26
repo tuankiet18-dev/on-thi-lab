@@ -3,6 +3,7 @@ import {
   type Attempt,
   type AttemptLaunch,
   type AttemptResult,
+  type AttemptSession,
   type SaveAnswerInput,
   type AttemptSummary,
   type DailyUsage,
@@ -90,6 +91,14 @@ export class MemoryAttemptRepository implements AttemptRepository {
       await this.submit({ attemptId, userId, reason: "timeout" });
     }
     return attempt ?? null;
+  }
+
+  async findSessionForUser(
+    attemptId: string,
+    userId: string,
+  ): Promise<AttemptSession | null> {
+    const attempt = await this.findForUser(attemptId, userId);
+    return attempt ? { attempt, exam: demoExam } : null;
   }
 
   async saveAnswer(input: {

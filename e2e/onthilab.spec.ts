@@ -109,6 +109,27 @@ test("catalog is responsive without horizontal overflow", async ({ page }) => {
   );
 });
 
+test("student can preview a published exam without starting an attempt", async ({
+  page,
+}) => {
+  await page.goto("/exams/demo-swd392-sp26-fe/preview");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Software Architecture and Design",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Đây là chế độ chỉ đọc:", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  await page.getByRole("button", { name: "Câu sau" }).click();
+  await expect(page.getByText("Câu 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Bắt đầu thi thử" }),
+  ).toBeVisible();
+});
+
 test("draft import form captures metadata and a ZIP archive", async ({
   page,
 }) => {

@@ -20,8 +20,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
 import {
-  getAttempt,
-  getPublishedExam,
+  getAttemptSession,
   saveAttemptAnswer,
   submitAttempt as submitRemoteAttempt,
 } from "../lib/api";
@@ -89,12 +88,8 @@ export function AttemptPage() {
     }
     if (!session) return;
 
-    void getAttempt(session.idToken, attemptId)
-      .then(async (loadedAttempt) => {
-        const loadedExam = await getPublishedExam(
-          session.idToken,
-          loadedAttempt.examId,
-        );
+    void getAttemptSession(session.idToken, attemptId)
+      .then(({ attempt: loadedAttempt, exam: loadedExam }) => {
         if (!active) return;
         setAttempt(loadedAttempt);
         setExam(loadedExam);

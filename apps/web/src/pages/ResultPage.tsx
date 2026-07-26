@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Flag,
+  Image,
   RotateCcw,
   Target,
   X,
@@ -17,8 +18,10 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoAnswerKey, demoExam } from "../data/demo";
-import { getAttempt, getPublishedExam, createReport } from "../lib/api";
+import { createReport, getAttemptSession } from "../lib/api";
 import { loadAttempt, resetDemoAttempt } from "../lib/attempt-storage";
+
+type ReviewFilter = "all" | "correct" | "incorrect" | "unanswered";
 
 export function ResultPage() {
   const { attemptId } = useParams({ from: "/results/$attemptId" });
@@ -32,6 +35,10 @@ export function ResultPage() {
   const [reportDetail, setReportDetail] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportedList, setReportedList] = useState<Set<string>>(new Set());
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -61,15 +68,11 @@ export function ResultPage() {
     }
     if (!session) return;
 
-    void getAttempt(session.idToken, attemptId)
-      .then(async (loadedAttempt) => {
+    void getAttemptSession(session.idToken, attemptId)
+      .then(({ attempt: loadedAttempt, exam: loadedExam }) => {
         if (!loadedAttempt.result) {
           throw new Error("Attempt is not submitted");
         }
-        const loadedExam = await getPublishedExam(
-          session.idToken,
-          loadedAttempt.examId,
-        );
         if (!active) return;
         setAttempt(loadedAttempt);
         setExam(loadedExam);
@@ -137,6 +140,32 @@ export function ResultPage() {
     .filter((question): question is Exam["questions"][number] =>
       Boolean(question),
     );
+  const reviewItems = orderedQuestions.map((question, index) => {
+    const selected = attempt.answers[question.id] ?? [];
+    const correct = answerKey[question.id] ?? [];
+    return {
+      question,
+      index,
+      selected,
+      correct,
+      isUnanswered: selected.length === 0,
+      isCorrect: isExactAnswer(selected, correct),
+    };
+  });
+  const reviewCounts = {
+    all: reviewItems.length,
+    correct: reviewItems.filter((item) => item.isCorrect).length,
+    incorrect: reviewItems.filter(
+      (item) => !item.isCorrect && !item.isUnanswered,
+    ).length,
+    unanswered: reviewItems.filter((item) => item.isUnanswered).length,
+  };
+  const filteredReviewItems = reviewItems.filter((item) => {
+    if (reviewFilter === "all") return true;
+    if (reviewFilter === "correct") return item.isCorrect;
+    if (reviewFilter === "unanswered") return item.isUnanswered;
+    return !item.isCorrect && !item.isUnanswered;
+  });
   const examIdForRetry = exam.id;
   const circumference = 2 * Math.PI * 54;
   const dashOffset = circumference * (1 - result.score / 10);
@@ -263,109 +292,183 @@ export function ResultPage() {
             Việc xử lý report không thay đổi điểm của lần thi đã hoàn thành.
           </p>
         </div>
-        <div className="space-y-3">
-          {orderedQuestions.map((question, index) => {
-            const selected = attempt.answers[question.id] ?? [];
-            const correct = answerKey[question.id] ?? [];
-            const isCorrect = isExactAnswer(selected, correct);
-
+        <div
+          className="mb-5 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Lọc câu hỏi theo kết quả"
+        >
+          {[
+            ["all", "Tất cả"],
+            ["incorrect", "Sai"],
+            ["unanswered", "Chưa trả lời"],
+            ["correct", "Đúng"],
+          ].map(([value, label]) => {
+            const filter = value as ReviewFilter;
             return (
-              <Card key={question.id} className="p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <span
-                    className={`grid size-10 shrink-0 place-items-center rounded-xl ${
-                      isCorrect
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-red-50 text-red-700"
-                    }`}
-                  >
-                    {isCorrect ? (
-                      <Check size={20} aria-hidden="true" />
-                    ) : (
-                      <X size={20} aria-hidden="true" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-heading font-bold text-foreground">
-                      Câu {index + 1} ·{" "}
-                      {question.type === "multiple"
-                        ? "Nhiều đáp án"
-                        : "Một đáp án"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                      <span className="text-slate-600">
-                        Bạn chọn:{" "}
-                        <strong
-                          className={
-                            isCorrect ? "text-emerald-700" : "text-red-700"
-                          }
-                        >
-                          {selected.length
-                            ? selected
-                                .map((value) => question.options[value])
-                                .join(", ")
-                            : "Chưa trả lời"}
-                        </strong>
-                      </span>
-                      <span className="text-slate-600">
-                        Đáp án:{" "}
-                        <strong className="text-emerald-700">
-                          {correct
-                            .map((value) => question.options[value])
-                            .join(", ")}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (reportedQuestion === question.id) {
-                        setReportedQuestion(null);
-                      } else {
-                        setReportedQuestion(question.id);
-                        setReportDetail("");
-                      }
-                    }}
-                    disabled={reportedList.has(question.id)}
-                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 disabled:opacity-50 sm:self-auto"
-                  >
-                    <Flag size={16} aria-hidden="true" />
-                    {reportedList.has(question.id) ? "Đã báo lỗi" : "Báo lỗi"}
-                  </button>
-                </div>
-                {reportedQuestion === question.id &&
-                  !reportedList.has(question.id) && (
-                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                      <p className="mb-2 font-semibold">Báo lỗi câu hỏi này</p>
-                      <textarea
-                        value={reportDetail}
-                        onChange={(e) => setReportDetail(e.target.value)}
-                        placeholder="Vui lòng mô tả chi tiết lỗi (ví dụ: Sai đáp án, hình ảnh mờ...)"
-                        className="w-full rounded-md border border-blue-200 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        rows={3}
-                        disabled={reportLoading}
-                      />
-                      <div className="mt-3 flex justify-end gap-2">
-                        <Button
-                          variant="secondary"
-                          onClick={() => setReportedQuestion(null)}
-                          disabled={reportLoading}
-                        >
-                          Hủy
-                        </Button>
-                        <Button
-                          onClick={() => handleSubmitReport(question.id)}
-                          disabled={reportLoading || !reportDetail.trim()}
-                        >
-                          {reportLoading ? "Đang gửi..." : "Gửi báo cáo"}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-              </Card>
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setReviewFilter(filter)}
+                aria-pressed={reviewFilter === filter}
+                className={`min-h-11 cursor-pointer rounded-xl border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 ${
+                  reviewFilter === filter
+                    ? "border-primary bg-primary text-white"
+                    : "border-border-strong bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {label} ({reviewCounts[filter]})
+              </button>
             );
           })}
+        </div>
+        <div className="space-y-3">
+          {filteredReviewItems.map(
+            ({
+              question,
+              index,
+              selected,
+              correct,
+              isCorrect,
+              isUnanswered,
+            }) => {
+              const isExpanded = expandedQuestionId === question.id;
+
+              return (
+                <Card key={question.id} className="p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <span
+                      className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                        isCorrect
+                          ? "bg-emerald-50 text-emerald-700"
+                          : isUnanswered
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-red-50 text-red-700"
+                      }`}
+                    >
+                      {isCorrect ? (
+                        <Check size={20} aria-hidden="true" />
+                      ) : (
+                        <X size={20} aria-hidden="true" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-heading font-bold text-foreground">
+                        Câu {index + 1} ·{" "}
+                        {question.type === "multiple"
+                          ? "Nhiều đáp án"
+                          : "Một đáp án"}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {isCorrect
+                          ? "Trả lời đúng"
+                          : isUnanswered
+                            ? "Chưa trả lời"
+                            : "Cần xem lại"}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                        <span className="text-slate-600">
+                          Bạn chọn:{" "}
+                          <strong
+                            className={
+                              isCorrect ? "text-emerald-700" : "text-red-700"
+                            }
+                          >
+                            {selected.length
+                              ? selected
+                                  .map((value) => question.options[value])
+                                  .join(", ")
+                              : "Chưa trả lời"}
+                          </strong>
+                        </span>
+                        <span className="text-slate-600">
+                          Đáp án:{" "}
+                          <strong className="text-emerald-700">
+                            {correct
+                              .map((value) => question.options[value])
+                              .join(", ")}
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedQuestionId((current) =>
+                            current === question.id ? null : question.id,
+                          )
+                        }
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                        aria-expanded={isExpanded}
+                      >
+                        <Image size={16} aria-hidden="true" />
+                        {isExpanded ? "Ẩn câu hỏi" : "Xem câu hỏi"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (reportedQuestion === question.id) {
+                            setReportedQuestion(null);
+                          } else {
+                            setReportedQuestion(question.id);
+                            setReportDetail("");
+                          }
+                        }}
+                        disabled={reportedList.has(question.id)}
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 disabled:opacity-50"
+                      >
+                        <Flag size={16} aria-hidden="true" />
+                        {reportedList.has(question.id)
+                          ? "Đã báo lỗi"
+                          : "Báo lỗi"}
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="mt-4 overflow-hidden rounded-xl border border-border bg-slate-50">
+                      <img
+                        src={question.imageUrl}
+                        alt={question.imageAlt}
+                        loading="lazy"
+                        className="max-h-[680px] w-full object-contain"
+                      />
+                    </div>
+                  )}
+                  {reportedQuestion === question.id &&
+                    !reportedList.has(question.id) && (
+                      <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                        <p className="mb-2 font-semibold">
+                          Báo lỗi câu hỏi này
+                        </p>
+                        <textarea
+                          value={reportDetail}
+                          onChange={(e) => setReportDetail(e.target.value)}
+                          placeholder="Vui lòng mô tả chi tiết lỗi (ví dụ: Sai đáp án, hình ảnh mờ...)"
+                          className="w-full rounded-md border border-blue-200 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          rows={3}
+                          disabled={reportLoading}
+                        />
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            onClick={() => setReportedQuestion(null)}
+                            disabled={reportLoading}
+                          >
+                            Hủy
+                          </Button>
+                          <Button
+                            onClick={() => handleSubmitReport(question.id)}
+                            disabled={reportLoading || !reportDetail.trim()}
+                          >
+                            {reportLoading ? "Đang gửi..." : "Gửi báo cáo"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                </Card>
+              );
+            },
+          )}
         </div>
       </section>
     </div>

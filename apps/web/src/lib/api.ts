@@ -1,5 +1,6 @@
 import {
   attemptLaunchSchema,
+  attemptSessionSchema,
   attemptResultSchema,
   attemptSchema,
   attemptSummarySchema,
@@ -20,6 +21,7 @@ import {
   resolveReportSchema,
   type Attempt,
   type AttemptLaunch,
+  type AttemptSession,
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
@@ -317,6 +319,20 @@ export async function getAttempt(
     fetcher,
   );
   return attemptSchema.parse(result);
+}
+
+export async function getAttemptSession(
+  idToken: string,
+  attemptId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AttemptSession> {
+  const result = await request(
+    `/v1/attempts/${encodeURIComponent(attemptId)}/session`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return attemptSessionSchema.parse(result);
 }
 
 export async function saveAttemptAnswer(

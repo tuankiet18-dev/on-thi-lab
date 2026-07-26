@@ -3,6 +3,7 @@ import {
   BookOpenCheck,
   CheckCircle2,
   Clock3,
+  Eye,
   Info,
   MapPin,
   Play,
@@ -202,14 +203,24 @@ export function ExamDetailPage() {
               <span className="text-slate-500">Lượt miễn phí hôm nay</span>
               <strong className="text-foreground">Tối đa 2 lượt/ngày</strong>
             </div>
-            <Button
-              onClick={() => void startExam()}
-              disabled={starting}
-              className="mt-5 w-full"
-              icon={<Play size={18} fill="currentColor" />}
-            >
-              {starting ? "Đang tạo lượt thi..." : "Bắt đầu làm bài"}
-            </Button>
+            <div className="mt-5 grid gap-3">
+              <Button
+                onClick={() => void startExam()}
+                disabled={starting}
+                className="w-full"
+                icon={<Play size={18} fill="currentColor" />}
+              >
+                {starting ? "Đang tạo lượt thi..." : "Bắt đầu làm bài"}
+              </Button>
+              <Link
+                to="/exams/$examId/preview"
+                params={{ examId: exam.id }}
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+              >
+                <Eye size={17} aria-hidden="true" />
+                Xem đề không tính lượt
+              </Link>
+            </div>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
               Timer bắt đầu ngay sau khi bạn nhấn nút.
             </p>
