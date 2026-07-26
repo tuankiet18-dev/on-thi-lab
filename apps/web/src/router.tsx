@@ -16,6 +16,7 @@ import { ExamDetailPage } from "./pages/ExamDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ResultPage } from "./pages/ResultPage";
+import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 
 const rootRoute = createRootRoute({
@@ -85,7 +86,7 @@ const historyRoute = createRoute({
 const statisticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/statistics",
-  component: () => <PlaceholderPage title="Thống kê học tập" />,
+  component: StatisticsPage,
 });
 
 const adminRoute = createRoute({
@@ -111,10 +112,25 @@ const adminReviewRoute = createRoute({
   component: AdminReviewPage,
 });
 
+import { AdminDraftsPage } from "./pages/AdminDraftsPage";
+import { AdminExamsPage } from "./pages/AdminExamsPage";
+
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "users",
   component: AdminUsersPage,
+});
+
+const adminDraftsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "drafts",
+  component: AdminDraftsPage,
+});
+
+const adminExamsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "exams",
+  component: AdminExamsPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -133,6 +149,8 @@ const routeTree = rootRoute.addChildren([
     adminReviewRoute,
     adminReportsRoute,
     adminUsersRoute,
+    adminDraftsRoute,
+    adminExamsRoute,
   ]),
 ]);
 

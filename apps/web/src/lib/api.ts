@@ -15,6 +15,7 @@ import {
   saveAnswerResultSchema,
   savedReviewQuestionSchema,
   studentProfileSchema,
+  adminExamSummarySchema,
   reportSchema,
   resolveReportSchema,
   type Attempt,
@@ -22,6 +23,7 @@ import {
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
+  type AdminExamSummary,
   type CreateReportInput,
   type DraftExamReview,
   type DraftImportResult,
@@ -37,6 +39,8 @@ import {
   type StudentProfile,
   type UpdateQuestionAnswerInput,
   type UpsertStudentProfileInput,
+  studentStatisticsSchema,
+  type StudentStatistics,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -126,16 +130,57 @@ export async function uploadDraftImport(
   archive: File,
   fetcher: typeof fetch = fetch,
 ): Promise<DraftImportResult> {
-  const form = new FormData();
-  form.set("metadata", JSON.stringify(metadata));
-  form.set("archive", archive);
+  let archiveKey: string | undefined;
+  try {
+    // 1. Get Presigned URL
+    const presignResponse = (await request(
+      "/v1/admin/imports/presign",
+      idToken,
+      { method: "GET" },
+      fetcher,
+    )) as { uploadUrl: string; key: string };
 
+    archiveKey = presignResponse.key;
+
+    // 2. Upload to S3 directly
+    const uploadResponse = await fetcher(presignResponse.uploadUrl, {
+      method: "PUT",
+      body: archive,
+      headers: {
+        "Content-Type": "application/zip",
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("S3 upload failed");
+    }
+  } catch (err) {
+    // Fallback to local upload if presign fails or is not supported (503)
+    const form = new FormData();
+    form.set("metadata", JSON.stringify(metadata));
+    form.set("archive", archive);
+
+    const result = await request(
+      "/v1/admin/imports",
+      idToken,
+      { method: "POST", body: form },
+      fetcher,
+    );
+    return draftImportResultSchema.parse(result);
+  }
+
+  // 3. Inform API
   const result = await request(
     "/v1/admin/imports",
     idToken,
-    { method: "POST", body: form },
+    {
+      method: "POST",
+      body: JSON.stringify({ metadata, archiveKey }),
+      headers: { "Content-Type": "application/json" },
+    },
     fetcher,
   );
+  console.error("RESULT:", result);
   return draftImportResultSchema.parse(result);
 }
 
@@ -382,6 +427,45 @@ export async function updateRole(
       method: "POST",
       body: JSON.stringify({ role }),
     },
+    fetcher,
+  );
+}
+
+export async function getStudentStatistics(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<StudentStatistics> {
+  const result = await request("/v1/me/statistics", idToken, {}, fetcher);
+  return studentStatisticsSchema.parse(result);
+}
+
+export async function getDraftExams(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminExamSummary[]> {
+  const result = await request("/v1/admin/drafts", idToken, {}, fetcher);
+  if (!Array.isArray(result)) return [];
+  return result.map((p) => adminExamSummarySchema.parse(p));
+}
+
+export async function getAllAdminExams(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminExamSummary[]> {
+  const result = await request("/v1/admin/exams", idToken, {}, fetcher);
+  if (!Array.isArray(result)) return [];
+  return result.map((p) => adminExamSummarySchema.parse(p));
+}
+
+export async function deleteExam(
+  examId: string,
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}`,
+    idToken,
+    { method: "DELETE" },
     fetcher,
   );
 }

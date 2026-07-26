@@ -5,6 +5,7 @@ import {
   type AttemptResult,
   type SaveAnswerInput,
   type AttemptSummary,
+  type StudentStatistics,
 } from "@onthilab/contracts";
 import {
   AttemptRepositoryError,
@@ -138,5 +139,43 @@ export class MemoryAttemptRepository implements AttemptRepository {
     attempt.result = result;
     attempt.correctAnswers = demoAnswerKey;
     return { result, idempotent: false };
+  }
+
+  async getStatistics(userId: string): Promise<StudentStatistics> {
+    const userAttempts = Array.from(this.attempts.values()).filter(
+      (a) => this.owners.get(a.id) === userId && a.result?.score !== undefined,
+    );
+
+    const totalAttempts = userAttempts.length;
+    const averageScore =
+      totalAttempts > 0
+        ? userAttempts.reduce((acc, a) => acc + (a.result?.score ?? 0), 0) /
+          totalAttempts
+        : null;
+    const highestScore =
+      totalAttempts > 0
+        ? Math.max(...userAttempts.map((a) => a.result?.score ?? 0))
+        : null;
+
+    const recentAttempts = [...userAttempts]
+      .sort(
+        (a, b) =>
+          new Date(b.expiresAt ?? 0).getTime() -
+          new Date(a.expiresAt ?? 0).getTime(),
+      )
+      .slice(0, 5)
+      .map((a) => ({
+        id: a.id,
+        examCode: "DEMO-FE",
+        score: a.result?.score ?? null,
+        submittedAt: a.expiresAt ?? null,
+      }));
+
+    return {
+      totalAttempts,
+      averageScore,
+      highestScore,
+      recentAttempts,
+    };
   }
 }

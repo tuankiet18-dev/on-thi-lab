@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, join, posix } from "node:path";
 import { pipeline } from "node:stream/promises";
 import yauzl, { type Entry, type ZipFile } from "yauzl";
 import {
@@ -83,6 +83,25 @@ export async function extractValidatedQuestionImages(
 
         zipFile.on("error", fail);
         zipFile.on("entry", (entry: Entry) => {
+          if (posix.basename(entry.fileName).toLowerCase() === "answers.json") {
+            void (async () => {
+              const destination = join(outputDirectory, "answers.json");
+              const source = await openEntryStream(zipFile, entry);
+              await pipeline(
+                source,
+                createWriteStream(destination, { flags: "wx" }),
+              );
+              zipFile.readEntry();
+            })().catch((error: unknown) =>
+              fail(
+                error instanceof Error
+                  ? error
+                  : new Error("Không thể giải nén answers.json."),
+              ),
+            );
+            return;
+          }
+
           const expected = expectedByName.get(entry.fileName);
           if (!expected) {
             zipFile.readEntry();

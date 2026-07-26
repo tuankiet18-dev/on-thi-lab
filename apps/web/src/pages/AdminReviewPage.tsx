@@ -520,17 +520,19 @@ export function AdminReviewPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-sm font-bold">
-                      {currentQuestion.aiSuggestion.status === "suggested"
-                        ? "AI đã tạo đáp án tham khảo"
-                        : currentQuestion.aiSuggestion.status === "confirmed"
-                          ? "Gợi ý AI đã được người duyệt xác nhận"
-                          : currentQuestion.aiSuggestion.status === "failed"
-                            ? "AI chưa xử lý được câu này"
-                            : "AI đang phân tích ảnh"}
+                      {currentQuestion.aiSuggestion.provider === "fuoverflow"
+                        ? "Đề xuất từ Cộng đồng (fuoverflow)"
+                        : currentQuestion.aiSuggestion.status === "suggested"
+                          ? "AI đã tạo đáp án tham khảo"
+                          : currentQuestion.aiSuggestion.status === "confirmed"
+                            ? "Gợi ý AI đã được người duyệt xác nhận"
+                            : currentQuestion.aiSuggestion.status === "failed"
+                              ? "AI chưa xử lý được câu này"
+                              : "AI đang phân tích ảnh"}
                     </p>
                     {currentQuestion.aiSuggestion.status === "suggested" &&
                       currentQuestion.aiSuggestion.proposedAnswers && (
-                        <p className="mt-1 text-sm text-slate-700">
+                        <div className="mt-1 text-sm text-slate-700">
                           Đề xuất:{" "}
                           <strong>
                             {currentQuestion.aiSuggestion.proposedAnswers
@@ -546,7 +548,19 @@ export function AdminReviewPage() {
                             )}
                             %
                           </strong>
-                        </p>
+                          {currentQuestion.aiSuggestion.provider ===
+                            "fuoverflow" &&
+                            (currentQuestion.aiSuggestion.raw as any)
+                              ?.disputeReason && (
+                              <p className="mt-1 text-amber-700 font-medium">
+                                ⚠️{" "}
+                                {
+                                  (currentQuestion.aiSuggestion.raw as any)
+                                    .disputeReason
+                                }
+                              </p>
+                            )}
+                        </div>
                       )}
                     {currentQuestion.aiSuggestion.status === "failed" && (
                       <p className="mt-1 text-sm text-red-700">

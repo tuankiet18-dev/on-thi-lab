@@ -17,6 +17,7 @@ import {
   exams,
   questionAnswerAudits,
   questions,
+  users,
 } from "./schema";
 
 export interface DraftQuestionInput {
@@ -24,6 +25,8 @@ export interface DraftQuestionInput {
   imageKey: string;
   imageHash: string;
   optionCount: number;
+  correctOptions?: number[];
+  aiMetadata?: any;
 }
 
 export interface CreateDraftExamInput extends CreateDraftImportInput {
@@ -63,7 +66,20 @@ export type StoredDraftExamReview = Omit<DraftExamReview, "questions"> & {
   questions: StoredReviewQuestion[];
 };
 
+export interface AdminExamSummary {
+  id: string;
+  code: string;
+  courseCode: string;
+  semester: string;
+  status: string;
+  creatorName: string;
+  createdAt: Date;
+}
+
 export interface ExamReviewRepository {
+  findDrafts(): Promise<AdminExamSummary[]>;
+  findAllExams(): Promise<AdminExamSummary[]>;
+  deleteExam(examId: string): Promise<void>;
   findReview(examId: string): Promise<StoredDraftExamReview | null>;
   saveAnswer(input: {
     examId: string;
@@ -215,16 +231,17 @@ export class PostgresDraftImportRepository
         if (!revision) throw new Error("Không thể tạo phiên bản đề thi.");
 
         await transaction.insert(questions).values(
-          input.questions.map((question) => ({
+          input.questions.map((q) => ({
             revisionId: revision.id,
-            order: question.order,
-            imageKey: question.imageKey,
-            imageHash: question.imageHash,
+            order: q.order,
+            imageKey: q.imageKey,
+            imageHash: q.imageHash,
             type: "single" as const,
-            options: Array.from({ length: question.optionCount }, (_, index) =>
+            options: Array.from({ length: q.optionCount }, (_, index) =>
               String.fromCharCode(65 + index),
             ),
-            correctOptions: [],
+            correctOptions: q.correctOptions ?? [],
+            aiMetadata: q.aiMetadata,
           })),
         );
 
@@ -245,6 +262,79 @@ export class PostgresDraftImportRepository
       }
       throw error;
     }
+  }
+
+  async findDrafts(): Promise<AdminExamSummary[]> {
+    const results = await this.db
+      .select({
+        id: exams.id,
+        code: exams.code,
+        courseCode: courses.code,
+        semester: exams.semester,
+        status: exams.status,
+        creatorName: users.fullName,
+        createdAt: exams.createdAt,
+      })
+      .from(exams)
+      .innerJoin(courses, eq(exams.courseId, courses.id))
+      .innerJoin(users, eq(exams.createdBy, users.id))
+      .where(inArray(exams.status, ["draft", "review"]))
+      .orderBy(desc(exams.createdAt));
+
+    return results;
+  }
+
+  async findAllExams(): Promise<AdminExamSummary[]> {
+    const results = await this.db
+      .select({
+        id: exams.id,
+        code: exams.code,
+        courseCode: courses.code,
+        semester: exams.semester,
+        status: exams.status,
+        creatorName: users.fullName,
+        createdAt: exams.createdAt,
+      })
+      .from(exams)
+      .innerJoin(courses, eq(exams.courseId, courses.id))
+      .innerJoin(users, eq(exams.createdBy, users.id))
+      .orderBy(desc(exams.createdAt));
+
+    return results;
+  }
+
+  async deleteExam(examId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [exam] = await tx
+        .select({ status: exams.status })
+        .from(exams)
+        .where(eq(exams.id, examId));
+
+      if (!exam) return;
+
+      if (exam.status === "draft" || exam.status === "review") {
+        // Hard delete: delete questions, exam_revisions, then the exam itself
+        await tx
+          .delete(questions)
+          .where(
+            inArray(
+              questions.revisionId,
+              tx
+                .select({ id: examRevisions.id })
+                .from(examRevisions)
+                .where(eq(examRevisions.examId, examId)),
+            ),
+          );
+        await tx.delete(examRevisions).where(eq(examRevisions.examId, examId));
+        await tx.delete(exams).where(eq(exams.id, examId));
+      } else {
+        // Soft delete: set status to cancelled
+        await tx
+          .update(exams)
+          .set({ status: "cancelled" })
+          .where(eq(exams.id, examId));
+      }
+    });
   }
 
   async findReview(examId: string): Promise<StoredDraftExamReview | null> {

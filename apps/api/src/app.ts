@@ -107,6 +107,9 @@ const unavailableProfileRepository: UserProfileRepository = {
 };
 
 const unavailableReviewRepository: ExamReviewRepository = {
+  findDrafts: async () => [],
+  findAllExams: async () => [],
+  deleteExam: async () => {},
   findReview: async () => null,
   saveAnswer: async () => {
     throw new Error("Review storage is not configured");
@@ -211,6 +214,18 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   };
   const app = new Hono<AppEnvironment>();
 
+  app.get("/v1/admin/imports/presign", async (context) => {
+    if (!dependencies.imports.createPresignedUploadUrl) {
+      return context.json({ error: "IMPORT_NOT_CONFIGURED" }, 503);
+    }
+    try {
+      const data = await dependencies.imports.createPresignedUploadUrl();
+      return context.json({ data });
+    } catch (error) {
+      return context.json({ error: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  });
+
   app.use("*", requestId());
   app.use("*", secureHeaders({ crossOriginResourcePolicy: false }));
   app.use(
@@ -218,7 +233,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     cors({
       origin: dependencies.corsOrigins,
       allowHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
-      allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
 
@@ -321,6 +336,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   const requireAdmin = roleRequiredMiddleware("admin");
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
+  app.use("/v1/me/statistics", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
@@ -366,6 +382,22 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }),
   );
 
+  app.get("/v1/admin/drafts", async (context) => {
+    const drafts = await dependencies.reviews.findDrafts();
+    return context.json({ data: drafts });
+  });
+
+  app.get("/v1/admin/exams", async (context) => {
+    const exams = await dependencies.reviews.findAllExams();
+    return context.json({ data: exams });
+  });
+
+  app.delete("/v1/admin/exams/:examId", async (context) => {
+    const examId = context.req.param("examId");
+    await dependencies.reviews.deleteExam(examId);
+    return context.json({ success: true });
+  });
+
   app.use(
     "/v1/admin/imports",
     bodyLimit({
@@ -375,25 +407,39 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   );
 
   app.post("/v1/admin/imports", async (context) => {
-    let form: Record<string, string | File>;
-    try {
-      form = await context.req.parseBody();
-    } catch {
-      return context.json({ error: "INVALID_INPUT" }, 400);
-    }
-
-    const metadataValue = form.metadata;
-    const archive = form.archive;
-    if (typeof metadataValue !== "string" || !isUploadedArchive(archive)) {
-      return context.json({ error: "INVALID_INPUT" }, 400);
-    }
-
     let metadata: unknown;
-    try {
-      metadata = JSON.parse(metadataValue);
-    } catch {
-      return context.json({ error: "INVALID_INPUT" }, 400);
+    let archiveKey: string | undefined;
+    let archive: File | undefined;
+
+    const contentType = context.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await context.req.json();
+        metadata = body.metadata;
+        archiveKey = body.archiveKey;
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+    } else {
+      let form: Record<string, string | File>;
+      try {
+        form = await context.req.parseBody();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const metadataValue = form.metadata;
+      archive = form.archive instanceof File ? form.archive : undefined;
+
+      if (typeof metadataValue !== "string" || !isUploadedArchive(archive)) {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      try {
+        metadata = JSON.parse(metadataValue);
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
     }
+
     const parsed = createDraftImportSchema.safeParse(metadata);
     if (!parsed.success) {
       return context.json(
@@ -406,6 +452,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       const result = await dependencies.imports.createDraft({
         metadata: parsed.data,
         archive,
+        archiveKey,
         creator: context.get("profile"),
       });
       return context.json({ data: result }, 201);
@@ -628,6 +675,14 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       },
     });
   });
+
+  app.get("/v1/me/statistics", async (context) =>
+    context.json({
+      data: await dependencies.attempts.getStatistics(
+        context.get("profile").id,
+      ),
+    }),
+  );
 
   app.get("/v1/attempts", async (context) => {
     const attempts = await dependencies.attempts.listUserAttempts(
