@@ -129,12 +129,14 @@ export function AppShell() {
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             to="/"
-            className="flex cursor-pointer items-center gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+            className="flex cursor-pointer items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
             aria-label="OnThiLab - Trang chủ"
           >
-            <span className="grid size-9 place-items-center rounded-xl bg-primary text-white shadow-sm">
-              <GraduationCap aria-hidden="true" size={21} strokeWidth={2.4} />
-            </span>
+            <img
+              src="/logo.png"
+              alt="OnThiLab Mascot"
+              className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
+            />
             <span className="font-heading text-xl font-bold tracking-tight text-foreground">
               OnThi<span className="text-primary">Lab</span>
             </span>
