@@ -27,8 +27,20 @@ if (!DATABASE_URL) {
 // Migrations folder is at the root of this package: packages/database/drizzle/
 const migrationsFolder = resolve(__dirname, "../drizzle");
 
+let requiresTls = false;
+try {
+  requiresTls = new URL(DATABASE_URL).hostname.endsWith(".supabase.com");
+} catch {
+  console.error("[migrate] DATABASE_URL is malformed.");
+  process.exit(1);
+}
+
 console.log("[migrate] Connecting to database...");
-const client = postgres(DATABASE_URL, { max: 1 });
+const client = postgres(DATABASE_URL, {
+  max: 1,
+  prepare: false,
+  ...(requiresTls ? { ssl: "require" as const } : {}),
+});
 const db = drizzle(client);
 
 try {
@@ -36,7 +48,11 @@ try {
   await migrate(db, { migrationsFolder });
   console.log("[migrate] ✅ All migrations applied successfully.");
 } catch (error) {
-  console.error("[migrate] ❌ Migration failed:", error);
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String(error.code)
+      : "UNKNOWN";
+  console.error(`[migrate] ❌ Migration failed (code: ${code}).`);
   process.exit(1);
 } finally {
   await client.end();
