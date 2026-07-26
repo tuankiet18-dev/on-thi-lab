@@ -17,6 +17,7 @@ import {
   savedReviewQuestionSchema,
   studentProfileSchema,
   adminExamSummarySchema,
+  adminCatalogSchema,
   reportSchema,
   resolveReportSchema,
   type Attempt,
@@ -26,6 +27,11 @@ import {
   type AttemptSummary,
   type CreateDraftImportInput,
   type AdminExamSummary,
+  type AdminCatalog,
+  type CreateCourseInput,
+  type CreateCurriculumInput,
+  type CreateMajorInput,
+  type UpsertCurriculumCourseInput,
   type CreateReportInput,
   type DraftExamReview,
   type DraftImportResult,
@@ -491,6 +497,71 @@ export async function deleteExam(
     `/v1/admin/exams/${encodeURIComponent(examId)}`,
     idToken,
     { method: "DELETE" },
+    fetcher,
+  );
+}
+
+export async function getAdminCatalog(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminCatalog> {
+  const result = await request(
+    "/v1/admin/catalog-management",
+    idToken,
+    {},
+    fetcher,
+  );
+  return adminCatalogSchema.parse(result);
+}
+
+export async function createAdminMajor(
+  idToken: string,
+  input: CreateMajorInput,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    "/v1/admin/catalog-management/majors",
+    idToken,
+    { method: "POST", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function createAdminCurriculum(
+  idToken: string,
+  input: CreateCurriculumInput,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    "/v1/admin/catalog-management/curricula",
+    idToken,
+    { method: "POST", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function createAdminCourse(
+  idToken: string,
+  input: CreateCourseInput,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    "/v1/admin/catalog-management/courses",
+    idToken,
+    { method: "POST", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function saveAdminCurriculumCourse(
+  idToken: string,
+  input: UpsertCurriculumCourseInput,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    "/v1/admin/catalog-management/curriculum-courses",
+    idToken,
+    { method: "PUT", body: JSON.stringify(input) },
     fetcher,
   );
 }

@@ -9,6 +9,7 @@ import { AdminImportPage } from "./pages/AdminImportPage";
 import { AdminReportPage } from "./pages/AdminReportPage";
 import { AdminReviewPage } from "./pages/AdminReviewPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AdminCatalogManagementPage } from "./pages/AdminCatalogManagementPage";
 import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -147,6 +148,12 @@ const adminExamsRoute = createRoute({
   component: AdminExamsPage,
 });
 
+const adminCatalogManagementRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "catalog-management",
+  component: AdminCatalogManagementPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -167,6 +174,7 @@ const routeTree = rootRoute.addChildren([
     adminUsersRoute,
     adminDraftsRoute,
     adminExamsRoute,
+    adminCatalogManagementRoute,
   ]),
 ]);
 
