@@ -8,7 +8,11 @@ import type {
   ProfileIdentity,
   UserProfileRepository,
 } from "@onthilab/database";
-import { AttemptRepositoryError } from "@onthilab/database";
+import {
+  AdminCatalogRepositoryError,
+  AttemptRepositoryError,
+  type AdminCatalogRepository,
+} from "@onthilab/database";
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity, TokenVerifier } from "./auth";
 import { app, createApp } from "./app";
@@ -331,6 +335,109 @@ describe("attempt API", () => {
     await expect(adminResponse.json()).resolves.toMatchObject({
       data: { canPublish: true },
     });
+  });
+
+  it("lets only admins update or delete catalog courses with validated IDs", async () => {
+    const courseId = "20000000-0000-4000-8000-000000000001";
+    const inUseCourseId = "20000000-0000-4000-8000-000000000002";
+    let updated:
+      | {
+          id: string;
+          input: { code: string; name: string; examFormatStatus: string };
+        }
+      | undefined;
+    let deletedId: string | undefined;
+    const adminCatalog: AdminCatalogRepository = {
+      getAdminCatalog: async () => ({ majors: [], curricula: [], courses: [] }),
+      createMajor: async () => {
+        throw new Error("not used");
+      },
+      createCurriculum: async () => {
+        throw new Error("not used");
+      },
+      createCourse: async () => {
+        throw new Error("not used");
+      },
+      updateCourse: async (id, input) => {
+        updated = { id, input };
+        return {
+          id,
+          ...input,
+          description: null,
+          priorityWave: 1,
+          placements: [],
+        };
+      },
+      deleteCourse: async (id) => {
+        if (id === inUseCourseId) {
+          throw new AdminCatalogRepositoryError(
+            "COURSE_IN_USE",
+            "Môn học này đã có đề thi, không thể xóa.",
+          );
+        }
+        deletedId = id;
+      },
+      upsertCurriculumCourse: async () => {},
+    };
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      adminCatalog,
+    });
+    const forbidden = await contributorApp.request(
+      `/v1/admin/catalog-management/courses/${courseId}`,
+      { method: "DELETE", headers: authorization },
+    );
+    expect(forbidden.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      adminCatalog,
+    });
+    const invalidId = await adminApp.request(
+      "/v1/admin/catalog-management/courses/not-a-uuid",
+      { method: "DELETE", headers: authorization },
+    );
+    expect(invalidId.status).toBe(400);
+
+    const update = await adminApp.request(
+      `/v1/admin/catalog-management/courses/${courseId}`,
+      {
+        method: "PUT",
+        headers: { ...authorization, "content-type": "application/json" },
+        body: JSON.stringify({
+          code: "csd201",
+          name: "  Data Structures and Algorithms  ",
+          examFormatStatus: "requires_review",
+        }),
+      },
+    );
+    expect(update.status).toBe(200);
+    expect(updated).toEqual({
+      id: courseId,
+      input: {
+        code: "CSD201",
+        name: "Data Structures and Algorithms",
+        examFormatStatus: "requires_review",
+      },
+    });
+
+    const inUse = await adminApp.request(
+      `/v1/admin/catalog-management/courses/${inUseCourseId}`,
+      { method: "DELETE", headers: authorization },
+    );
+    expect(inUse.status).toBe(409);
+    await expect(inUse.json()).resolves.toMatchObject({
+      error: "COURSE_IN_USE",
+    });
+
+    const deleted = await adminApp.request(
+      `/v1/admin/catalog-management/courses/${courseId}`,
+      { method: "DELETE", headers: authorization },
+    );
+    expect(deleted.status).toBe(200);
+    expect(deletedId).toBe(courseId);
   });
 
   it("forbids regular users from import administration", async () => {

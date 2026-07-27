@@ -6,6 +6,7 @@ import {
   dailyUsageSchema,
   isExactAnswer,
   publishExamResultSchema,
+  updateCourseSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
 } from "./index";
@@ -91,6 +92,22 @@ describe("draft import input", () => {
         durationMinutes: 60,
       }),
     ).toThrow();
+  });
+});
+
+describe("course update input", () => {
+  it("only changes fields exposed by the catalog edit UI", () => {
+    expect(
+      updateCourseSchema.parse({
+        code: "csd201",
+        name: "  Data Structures and Algorithms  ",
+        examFormatStatus: "requires_review",
+      }),
+    ).toEqual({
+      code: "CSD201",
+      name: "Data Structures and Algorithms",
+      examFormatStatus: "requires_review",
+    });
   });
 });
 

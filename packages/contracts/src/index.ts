@@ -142,6 +142,16 @@ export const createCourseSchema = z.object({
   examFormatStatus: z.enum(examFormatStatuses).default("fe_candidate"),
 });
 
+export const updateCourseSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{3,12}$/),
+  name: z.string().trim().min(2).max(200),
+  examFormatStatus: z.enum(examFormatStatuses).default("fe_candidate"),
+});
+
 export const upsertCurriculumCourseSchema = z.object({
   curriculumId: z.string().uuid(),
   courseId: z.string().uuid(),
@@ -477,6 +487,7 @@ export type Campus = z.infer<typeof campusSchema>;
 export type Major = z.infer<typeof majorSchema>;
 export type Curriculum = z.infer<typeof curriculumSchema>;
 export type TermCourse = z.infer<typeof termCourseSchema>;
+export type ExamFormatStatus = (typeof examFormatStatuses)[number];
 export type AdminCurriculum = z.infer<typeof adminCurriculumSchema>;
 export type AdminCoursePlacement = z.infer<typeof adminCoursePlacementSchema>;
 export type AdminCourse = z.infer<typeof adminCourseSchema>;
@@ -484,6 +495,7 @@ export type AdminCatalog = z.infer<typeof adminCatalogSchema>;
 export type CreateMajorInput = z.infer<typeof createMajorSchema>;
 export type CreateCurriculumInput = z.infer<typeof createCurriculumSchema>;
 export type CreateCourseInput = z.infer<typeof createCourseSchema>;
+export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
 export type UpsertCurriculumCourseInput = z.infer<
   typeof upsertCurriculumCourseSchema
 >;

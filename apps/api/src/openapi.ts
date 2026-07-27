@@ -136,6 +136,48 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/catalog-management/courses/{courseId}": {
+      put: {
+        operationId: "updateCatalogCourse",
+        tags: ["Admin catalog"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            name: "courseId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Course updated" },
+          "400": { description: "Invalid course ID or input" },
+          "403": { description: "Admin role required" },
+          "404": { description: "Course not found" },
+          "409": { description: "Course code already exists" },
+        },
+      },
+      delete: {
+        operationId: "deleteCatalogCourse",
+        tags: ["Admin catalog"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            name: "courseId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Course and curriculum placements deleted" },
+          "400": { description: "Invalid course ID" },
+          "403": { description: "Admin role required" },
+          "404": { description: "Course not found" },
+          "409": { description: "Course is referenced by an exam" },
+        },
+      },
+    },
     "/v1/admin/imports": {
       post: {
         operationId: "createDraftExamImport",
