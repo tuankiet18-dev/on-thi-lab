@@ -71,6 +71,11 @@ interface AppDependencies {
   attempts: AttemptRepository;
   suggestions: AnswerSuggestionService;
   reports: ReportRepository;
+  /**
+   * Public base URL for question images, including `/question-images` when
+   * configured. This is useful for an external image CDN.
+   */
+  questionImageBaseUrl?: string;
   /** Allowed CORS origins. Defaults to localhost:5173 when not set. */
   corsOrigins: string[];
 }
@@ -732,13 +737,14 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       return context.json({ error: "EXAM_NOT_FOUND" }, 404);
     }
 
-    const imageOrigin = new URL(context.req.url).origin;
     return context.json({
       data: {
         ...review,
         questions: review.questions.map(({ imageKey, ...question }) => ({
           ...question,
-          imageUrl: `${imageOrigin}/question-images/${imageKey
+          // Use a relative path by default. The web client resolves it against
+          // VITE_API_URL, preserving API Gateway's `/staging` prefix.
+          imageUrl: `${dependencies.questionImageBaseUrl ?? "/question-images"}/${imageKey
             .split("/")
             .map(encodeURIComponent)
             .join("/")}`,

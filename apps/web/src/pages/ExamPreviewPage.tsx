@@ -17,6 +17,7 @@ import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
 import { getPublishedExam } from "../lib/api";
 import { cn } from "../lib/cn";
+import { questionImageUrl } from "../lib/question-image-url";
 
 export function ExamPreviewPage() {
   const { examId } = useParams({ from: "/exams/$examId/preview" });
@@ -146,7 +147,7 @@ export function ExamPreviewPage() {
           {/* Center Image */}
           <div className="flex-1 relative bg-white flex items-center justify-center p-6 sm:p-12">
             <img
-              src={question.imageUrl}
+              src={questionImageUrl(question.imageUrl)}
               alt={question.imageAlt}
               className="max-h-[75vh] w-full object-contain cursor-zoom-in transition-transform hover:scale-[1.01]"
               onClick={() => setImageExpanded(true)}
@@ -241,7 +242,7 @@ export function ExamPreviewPage() {
           </button>
 
           <img
-            src={question.imageUrl}
+            src={questionImageUrl(question.imageUrl)}
             alt={question.imageAlt}
             className="max-h-[90dvh] max-w-[90vw] rounded-xl bg-white object-contain shadow-2xl"
             onClick={(event) => event.stopPropagation()}

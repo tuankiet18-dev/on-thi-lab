@@ -100,6 +100,7 @@ export function createRuntimeApp(
     adminCatalog: new PostgresAdminCatalogRepository(database),
     profiles: new PostgresUserProfileRepository(database),
     reviews: draftRepository,
+    ...(imageBaseUrl ? { questionImageBaseUrl: imageBaseUrl } : {}),
     ...(suggestions ? { suggestions } : {}),
     attempts: new PostgresAttemptRepository(database, {
       imageUrlForKey: imageBaseUrl

@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -34,6 +34,13 @@ import {
   saveQuestionReviewAnswer,
 } from "../lib/api";
 import { cn } from "../lib/cn";
+import { questionImageUrl } from "../lib/question-image-url";
+
+type UnsavedAnswer = {
+  type: QuestionType;
+  optionCount: number;
+  selectedOptions: number[];
+};
 
 export function AdminReviewPage() {
   const { examId } = useParams({ from: "/admin/exams/$examId/review" });
@@ -55,6 +62,7 @@ export function AdminReviewPage() {
   const [aiError, setAiError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
+  const unsavedAnswers = useRef<Record<string, UnsavedAnswer>>({});
   const canContribute =
     !configured ||
     studentProfile?.role === "admin" ||
@@ -101,6 +109,15 @@ export function AdminReviewPage() {
   const currentQuestion = review?.questions[currentIndex];
   useEffect(() => {
     if (!currentQuestion) return;
+    const unsavedAnswer = unsavedAnswers.current[currentQuestion.id];
+    if (unsavedAnswer) {
+      setQuestionType(unsavedAnswer.type);
+      setOptionCount(unsavedAnswer.optionCount);
+      setSelectedOptions(unsavedAnswer.selectedOptions);
+      setError("");
+      return;
+    }
+
     const suggestion = currentQuestion.aiSuggestion;
     const shouldPrefillSuggestion =
       currentQuestion.correctOptions.length === 0 &&
@@ -223,12 +240,17 @@ export function AdminReviewPage() {
   };
 
   const goToQuestion = (index: number) => {
-    if (isDirty && !isReadOnly) {
-      setFeedback("");
-      setError("Hãy lưu thay đổi trước khi chuyển sang câu khác.");
-      return;
+    if (currentQuestion && isDirty && !isReadOnly) {
+      // Keep unsaved choices in the current browser session. This lets an
+      // admin inspect any question before deciding which answers to persist.
+      unsavedAnswers.current[currentQuestion.id] = {
+        type: questionType,
+        optionCount,
+        selectedOptions,
+      };
     }
     setFeedback("");
+    setError("");
     setCurrentIndex(index);
   };
 
@@ -258,6 +280,7 @@ export function AdminReviewPage() {
           ? { ...question, ...saved, imageUrl: question.imageUrl }
           : question,
       );
+      delete unsavedAnswers.current[currentQuestion.id];
       const answeredCount = questions.filter(
         (question) => question.correctOptions.length > 0,
       ).length;
@@ -488,7 +511,7 @@ export function AdminReviewPage() {
                 aria-label={`Mở rộng ảnh câu hỏi ${currentQuestion.order}`}
               >
                 <img
-                  src={currentQuestion.imageUrl}
+                  src={questionImageUrl(currentQuestion.imageUrl)}
                   alt={`Câu hỏi ${currentQuestion.order} của đề ${review.examCode}`}
                   width={1920}
                   height={620}
@@ -999,7 +1022,7 @@ export function AdminReviewPage() {
             className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
           >
             <img
-              src={currentQuestion.imageUrl}
+              src={questionImageUrl(currentQuestion.imageUrl)}
               alt={`Ảnh phóng to câu hỏi ${currentQuestion.order}`}
               width={1920}
               height={620}

@@ -13,6 +13,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { cn } from "../lib/cn";
 import { listReports, resolveReport } from "../lib/api";
+import { questionImageUrl } from "../lib/question-image-url";
 
 function ReportCard({
   report,
@@ -73,7 +74,7 @@ function ReportCard({
                 aria-label="Phóng to ảnh câu hỏi"
               >
                 <img
-                  src={report.question.imageUrl}
+                  src={questionImageUrl(report.question.imageUrl)}
                   alt="Câu hỏi bị báo lỗi"
                   className="min-h-32 w-full rounded-xl border border-border bg-white object-contain sm:max-h-[350px]"
                 />
@@ -184,7 +185,7 @@ function ReportCard({
             className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
           >
             <img
-              src={report.question.imageUrl}
+              src={questionImageUrl(report.question.imageUrl)}
               alt="Ảnh phóng to"
               width={1920}
               height={620}
