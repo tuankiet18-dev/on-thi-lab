@@ -16,6 +16,7 @@ import {
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity, TokenVerifier } from "./auth";
 import { app, createApp } from "./app";
+import { demoExam } from "./fixtures";
 
 const identity: AuthIdentity = {
   subject: "cognito-user-1",
@@ -222,6 +223,40 @@ describe("attempt API", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual([]);
+  });
+
+  it("keeps published question image paths relative to the API base URL", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      catalog: {
+        listCampuses: async () => [],
+        listMajors: async () => [],
+        listCurricula: async () => [],
+        listTermCourses: async () => [],
+        listPublished: async () => [],
+        findPublishedByIdOrCode: async () => ({
+          ...demoExam,
+          questions: [
+            {
+              ...demoExam.questions[0]!,
+              imageUrl: "/question-images/drafts/example/Q1.jpg",
+            },
+          ],
+        }),
+      },
+    });
+
+    const response = await isolatedApp.request(
+      "/v1/exams/demo-swd392-sp26-fe",
+      { headers: authorization },
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        questions: [{ imageUrl: "/question-images/drafts/example/Q1.jpg" }],
+      },
+    });
   });
 
   it("publishes an OpenAPI document", async () => {

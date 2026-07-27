@@ -126,6 +126,16 @@ const unavailableAdminCatalogRepository: AdminCatalogRepository = {
 
 const uuidSchema = z.string().uuid();
 
+function studentQuestionImageUrl(imageUrl: string): string {
+  if (/^(?:https?:|data:|blob:)/i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("/")) return imageUrl;
+
+  return `/question-images/${imageUrl
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}`;
+}
+
 const unavailableProfileRepository: UserProfileRepository = {
   findBySubject: async () => {
     throw new Error("Profile storage is not configured");
@@ -912,15 +922,12 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       return context.json({ error: "EXAM_NOT_FOUND" }, 404);
     }
 
-    const apiOrigin = new URL(context.req.url).origin;
     return context.json({
       data: {
         ...exam,
         questions: exam.questions.map((question) => ({
           ...question,
-          imageUrl: question.imageUrl.startsWith("/")
-            ? `${apiOrigin}${question.imageUrl}`
-            : question.imageUrl,
+          imageUrl: studentQuestionImageUrl(question.imageUrl),
         })),
       },
     });
@@ -1084,7 +1091,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       return context.json({ error: "ATTEMPT_NOT_FOUND" }, 404);
     }
 
-    const apiOrigin = new URL(context.req.url).origin;
     return context.json(
       {
         data: {
@@ -1093,9 +1099,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
             ...session.exam,
             questions: session.exam.questions.map((question) => ({
               ...question,
-              imageUrl: question.imageUrl.startsWith("/")
-                ? `${apiOrigin}${question.imageUrl}`
-                : question.imageUrl,
+              imageUrl: studentQuestionImageUrl(question.imageUrl),
             })),
           },
         },
@@ -1172,21 +1176,13 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     roleRequiredMiddleware("admin", "contributor"),
     async (context) => {
       const pending = await dependencies.reports.listPendingReports();
-      const apiOrigin = new URL(context.req.url).origin;
       return context.json({
         data: pending.map((report) => ({
           ...report,
           question: report.question
             ? {
                 ...report.question,
-                imageUrl: report.question.imageUrl.startsWith("http")
-                  ? report.question.imageUrl
-                  : report.question.imageUrl.startsWith("/")
-                    ? `${apiOrigin}${report.question.imageUrl}`
-                    : `${apiOrigin}/question-images/${report.question.imageUrl
-                        .split("/")
-                        .map(encodeURIComponent)
-                        .join("/")}`,
+                imageUrl: studentQuestionImageUrl(report.question.imageUrl),
               }
             : undefined,
         })),
