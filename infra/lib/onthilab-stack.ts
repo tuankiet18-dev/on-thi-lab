@@ -192,9 +192,10 @@ export class OnThiLabStack extends Stack {
         handler: apiHandler,
         proxy: true,
         // Lambda proxy responses encode binary bodies as Base64. API Gateway
-        // only decodes those bodies for registered binary media types; without
-        // this the browser receives Base64 text labelled as an image.
-        binaryMediaTypes: ["image/jpeg", "image/png", "image/webp"],
+        // chooses binary handling from the first browser Accept value (often
+        // image/avif), not the response Content-Type. `*/*` guarantees that
+        // image responses are decoded instead of sent as Base64 text.
+        binaryMediaTypes: ["*/*"],
         deployOptions: {
           stageName: props.stage,
           tracingEnabled: true,
