@@ -75,6 +75,52 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/bookmarks": {
+      get: {
+        operationId: "listBookmarks",
+        tags: ["Bookmarks"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": { description: "Saved published exams and questions" },
+          "401": { description: "Missing, invalid or expired token" },
+          "403": { description: "Profile onboarding is required" },
+        },
+      },
+    },
+    "/v1/bookmarks/exams/{examId}": {
+      put: {
+        operationId: "saveExamBookmark",
+        tags: ["Bookmarks"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": { description: "Exam saved" },
+          "404": { description: "Published exam not found" },
+        },
+      },
+      delete: {
+        operationId: "removeExamBookmark",
+        tags: ["Bookmarks"],
+        security: [{ cognitoIdToken: [] }],
+        responses: { "200": { description: "Exam bookmark removed" } },
+      },
+    },
+    "/v1/bookmarks/questions/{questionId}": {
+      put: {
+        operationId: "saveQuestionBookmark",
+        tags: ["Bookmarks"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": { description: "Question saved" },
+          "404": { description: "Published question not found" },
+        },
+      },
+      delete: {
+        operationId: "removeQuestionBookmark",
+        tags: ["Bookmarks"],
+        security: [{ cognitoIdToken: [] }],
+        responses: { "200": { description: "Question bookmark removed" } },
+      },
+    },
     "/v1/admin/imports/config": {
       get: {
         operationId: "getImportConstraints",

@@ -21,6 +21,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { ResultPage } from "./pages/ResultPage";
 import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { BookmarksPage } from "./pages/BookmarksPage";
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -66,6 +67,12 @@ const catalogRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/exams",
   component: CatalogPage,
+});
+
+const bookmarksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/bookmarks",
+  component: BookmarksPage,
 });
 
 const examDetailRoute = createRoute({
@@ -161,6 +168,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   profileRoute,
   catalogRoute,
+  bookmarksRoute,
   examDetailRoute,
   examPreviewRoute,
   attemptRoute,

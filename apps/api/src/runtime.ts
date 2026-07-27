@@ -5,6 +5,7 @@ import {
   PostgresCatalogRepository,
   PostgresDraftImportRepository,
   PostgresReportRepository,
+  PostgresBookmarkRepository,
   PostgresUserProfileRepository,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/worker";
@@ -108,6 +109,11 @@ export function createRuntimeApp(
         : undefined,
     }),
     reports: new PostgresReportRepository(database, {
+      imageUrlForKey: imageBaseUrl
+        ? (key) => `${imageBaseUrl}/${key}`
+        : undefined,
+    }),
+    bookmarks: new PostgresBookmarkRepository(database, {
       imageUrlForKey: imageBaseUrl
         ? (key) => `${imageBaseUrl}/${key}`
         : undefined,

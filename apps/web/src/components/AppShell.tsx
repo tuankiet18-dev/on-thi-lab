@@ -1,6 +1,7 @@
 import {
   Archive,
   BarChart3,
+  Bookmark,
   BookOpenCheck,
   ChevronDown,
   ClipboardList,
@@ -24,6 +25,7 @@ import { cn } from "../lib/cn";
 const navigation = [
   { label: "Tổng quan", to: "/", icon: LayoutDashboard },
   { label: "Kho đề thi", to: "/exams", icon: BookOpenCheck },
+  { label: "Đề đã lưu", to: "/bookmarks", icon: Bookmark },
   { label: "Lịch sử làm bài", to: "/history", icon: ClipboardList },
   { label: "Thống kê", to: "/statistics", icon: BarChart3 },
 ];

@@ -28,6 +28,8 @@ import {
   type UserProfileRepository,
   type ReportRepository,
   ReportRepositoryError,
+  type BookmarkRepository,
+  BookmarkRepositoryError,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -71,6 +73,7 @@ interface AppDependencies {
   attempts: AttemptRepository;
   suggestions: AnswerSuggestionService;
   reports: ReportRepository;
+  bookmarks: BookmarkRepository;
   /**
    * Public base URL for question images, including `/question-images` when
    * configured. This is useful for an external image CDN.
@@ -89,6 +92,24 @@ class UnconfiguredReportRepository implements ReportRepository {
   }
   async resolveReport(): Promise<never> {
     throw new Error("Report repository not configured");
+  }
+}
+
+class UnconfiguredBookmarkRepository implements BookmarkRepository {
+  async listForUser(): Promise<never> {
+    throw new Error("Bookmark repository not configured");
+  }
+  async saveExam(): Promise<never> {
+    throw new Error("Bookmark repository not configured");
+  }
+  async removeExam(): Promise<never> {
+    throw new Error("Bookmark repository not configured");
+  }
+  async saveQuestion(): Promise<never> {
+    throw new Error("Bookmark repository not configured");
+  }
+  async removeQuestion(): Promise<never> {
+    throw new Error("Bookmark repository not configured");
   }
 }
 
@@ -258,6 +279,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     attempts: new MemoryAttemptRepository(),
     suggestions: new UnconfiguredAnswerSuggestionService(),
     reports: new UnconfiguredReportRepository(),
+    bookmarks: new UnconfiguredBookmarkRepository(),
     corsOrigins: ["http://localhost:5173"],
     ...overrides,
   };
@@ -377,6 +399,8 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/me/usage", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
+  app.use("/v1/bookmarks", requireProfile);
+  app.use("/v1/bookmarks/*", requireProfile);
   app.use("/v1/admin/*", requireProfile);
   app.use("/v1/admin/*", requireContributor);
 
@@ -1107,6 +1131,67 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       200,
       { "Cache-Control": "private, no-store" },
     );
+  });
+
+  app.get("/v1/bookmarks", async (context) => {
+    const collection = await dependencies.bookmarks.listForUser(
+      context.get("profile").id,
+    );
+    return context.json({
+      data: {
+        ...collection,
+        questions: collection.questions.map((question) => ({
+          ...question,
+          imageUrl: studentQuestionImageUrl(question.imageUrl),
+        })),
+      },
+    });
+  });
+
+  app.put("/v1/bookmarks/exams/:examId", async (context) => {
+    try {
+      await dependencies.bookmarks.saveExam(
+        context.get("profile").id,
+        context.req.param("examId"),
+      );
+      return context.json({ data: { bookmarked: true } });
+    } catch (error) {
+      if (error instanceof BookmarkRepositoryError) {
+        return context.json({ error: error.code, message: error.message }, 404);
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/v1/bookmarks/exams/:examId", async (context) => {
+    await dependencies.bookmarks.removeExam(
+      context.get("profile").id,
+      context.req.param("examId"),
+    );
+    return context.json({ data: { bookmarked: false } });
+  });
+
+  app.put("/v1/bookmarks/questions/:questionId", async (context) => {
+    try {
+      await dependencies.bookmarks.saveQuestion(
+        context.get("profile").id,
+        context.req.param("questionId"),
+      );
+      return context.json({ data: { bookmarked: true } });
+    } catch (error) {
+      if (error instanceof BookmarkRepositoryError) {
+        return context.json({ error: error.code, message: error.message }, 404);
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/v1/bookmarks/questions/:questionId", async (context) => {
+    await dependencies.bookmarks.removeQuestion(
+      context.get("profile").id,
+      context.req.param("questionId"),
+    );
+    return context.json({ data: { bookmarked: false } });
   });
 
   app.notFound((context) =>

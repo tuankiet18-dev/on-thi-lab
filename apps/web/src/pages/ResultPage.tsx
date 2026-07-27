@@ -2,6 +2,7 @@ import type { Attempt, Exam } from "@onthilab/contracts";
 import { isExactAnswer } from "@onthilab/contracts";
 import {
   ArrowLeft,
+  Bookmark,
   Check,
   CheckCircle2,
   Clock3,
@@ -18,7 +19,13 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoAnswerKey, demoExam } from "../data/demo";
-import { createReport, getAttemptSession } from "../lib/api";
+import {
+  createReport,
+  getAttemptSession,
+  getBookmarks,
+  setExamBookmark,
+  setQuestionBookmark,
+} from "../lib/api";
 import { loadAttempt, resetDemoAttempt } from "../lib/attempt-storage";
 import { questionImageUrl } from "../lib/question-image-url";
 
@@ -41,6 +48,11 @@ export function ResultPage() {
     null,
   );
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [bookmarkedExam, setBookmarkedExam] = useState(false);
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -86,6 +98,22 @@ export function ResultPage() {
         if (!active) return;
         setAttempt(loadedAttempt);
         setExam(loadedExam);
+        void getBookmarks(session.idToken)
+          .then((bookmarks) => {
+            if (!active) return;
+            setBookmarkedExam(
+              bookmarks.exams.some((saved) => saved.id === loadedExam.id),
+            );
+            setBookmarkedQuestions(
+              new Set(
+                bookmarks.questions.map((question) => question.questionId),
+              ),
+            );
+          })
+          .catch(() => {
+            // Bookmarks are a convenience feature; the submitted result must
+            // remain usable if this separate request is unavailable.
+          });
       })
       .catch(() => {
         if (active) setError("Chưa thể tải kết quả bài thi.");
@@ -116,6 +144,38 @@ export function ResultPage() {
       setReportLoading(false);
     }
   };
+
+  async function toggleExamBookmark() {
+    if (!session || !exam || bookmarkLoading) return;
+    const next = !bookmarkedExam;
+    setBookmarkLoading(`exam:${exam.id}`);
+    try {
+      setBookmarkedExam(await setExamBookmark(session.idToken, exam.id, next));
+    } finally {
+      setBookmarkLoading(null);
+    }
+  }
+
+  async function toggleQuestionBookmark(questionId: string) {
+    if (!session || bookmarkLoading) return;
+    const next = !bookmarkedQuestions.has(questionId);
+    setBookmarkLoading(`question:${questionId}`);
+    try {
+      const saved = await setQuestionBookmark(
+        session.idToken,
+        questionId,
+        next,
+      );
+      setBookmarkedQuestions((current) => {
+        const updated = new Set(current);
+        if (saved) updated.add(questionId);
+        else updated.delete(questionId);
+        return updated;
+      });
+    } finally {
+      setBookmarkLoading(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -292,6 +352,25 @@ export function ResultPage() {
           <Target size={17} aria-hidden="true" />
           Xem thống kê
         </Link>
+        {configured && (
+          <Button
+            variant="secondary"
+            onClick={() => void toggleExamBookmark()}
+            disabled={bookmarkLoading !== null}
+            icon={
+              <Bookmark
+                size={17}
+                fill={bookmarkedExam ? "currentColor" : "none"}
+              />
+            }
+          >
+            {bookmarkLoading === `exam:${exam.id}`
+              ? "Đang cập nhật..."
+              : bookmarkedExam
+                ? "Đã lưu đề"
+                : "Lưu đề này"}
+          </Button>
+        )}
       </div>
 
       <section>
@@ -401,6 +480,30 @@ export function ResultPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1 self-start sm:self-auto">
+                      {configured && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void toggleQuestionBookmark(question.id)
+                          }
+                          disabled={bookmarkLoading !== null}
+                          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 disabled:opacity-50"
+                          aria-pressed={bookmarkedQuestions.has(question.id)}
+                        >
+                          <Bookmark
+                            size={16}
+                            fill={
+                              bookmarkedQuestions.has(question.id)
+                                ? "currentColor"
+                                : "none"
+                            }
+                            aria-hidden="true"
+                          />
+                          {bookmarkedQuestions.has(question.id)
+                            ? "Đã lưu"
+                            : "Lưu câu"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
