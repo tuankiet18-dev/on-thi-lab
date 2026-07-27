@@ -420,7 +420,8 @@ describe("attempt API", () => {
     await expect(contributorResponse.json()).resolves.toMatchObject({
       data: {
         examType: "FE",
-        expectedQuestionCount: 60,
+        minQuestionCount: 1,
+        maxQuestionCount: 120,
         canPublish: false,
       },
     });
@@ -553,7 +554,7 @@ describe("attempt API", () => {
     await expect(response.json()).resolves.toEqual({ error: "FORBIDDEN" });
   });
 
-  it("creates a 60-question draft from an admin ZIP upload", async () => {
+  it("creates a draft using the actual question count from an admin ZIP upload", async () => {
     let receivedMetadata: CreateDraftImportInput | undefined;
     const isolatedApp = createApp({
       auth,

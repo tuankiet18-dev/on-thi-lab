@@ -31,7 +31,8 @@ describe("extractValidatedQuestionImages", () => {
     await finished(zipFile.outputStream);
 
     const result = await extractValidatedQuestionImages(archive, output, {
-      expectedQuestionCount: 2,
+      minQuestionCount: 1,
+      maxQuestionCount: 2,
     });
 
     expect(result.map(({ fileName }) => fileName)).toEqual([

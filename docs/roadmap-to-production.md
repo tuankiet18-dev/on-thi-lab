@@ -17,7 +17,7 @@ Roadmap này là tài liệu điều phối triển khai. Product scope chi ti�
 | 0     | Config, flags, seed, CI, tài liệu vận hành      | Done        | `pnpm validate`, CDK synth và E2E đạt          |
 | 1     | PostgreSQL persistence và API thật              | Done        | Không còn in-memory API trong luồng production |
 | 2     | Cognito, Google OAuth, onboarding, RBAC         | Done        | Auth/RBAC integration tests đạt                |
-| 3     | ZIP, S3, SQS, AI Vision, review, publish        | In progress | Import và duyệt được đề tối thiểu 60 ảnh       |
+| 3     | ZIP, S3, SQS, AI Vision, review, publish        | In progress | Import và duyệt được đề có số ảnh linh hoạt    |
 | 4     | Exam engine production                          | In progress | Autosave/timeout/idempotency/concurrency đạt   |
 | 5     | History, stats, bookmark, report, admin         | Planned     | Acceptance criteria User/Admin đạt             |
 | 6     | AWS/Supabase staging/prod, CI/CD, observability | In progress | Staging deploy/rollback/restore đạt            |
@@ -30,10 +30,10 @@ hồ sơ PostgreSQL. API yêu cầu onboarding trước khi truy cập catalog/e
 và role được trả từ database. Guard contributor/admin đã được áp dụng trên API
 nhập đề và có integration test RBAC.
 
-Phase 3 đã có validator ZIP an toàn, giải nén đúng 60 ảnh, checksum bất biến,
+Phase 3 đã có validator ZIP an toàn, giải nén ảnh đánh số liên tiếp, checksum bất biến,
 multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
 local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
-hoặc nhiều đáp án, xem tiến độ 60 câu và chuyển đề sang trạng thái `review`.
+hoặc nhiều đáp án, xem tiến độ theo số câu thực tế và chuyển đề sang trạng thái `review`.
 Mọi lần sửa đáp án đều có audit trước/sau. Pipeline gợi ý đáp án AI đã có
 provider server-side, validation JSON, trạng thái queued/processing/suggested/
 failed/confirmed, local concurrency queue, SQS producer và UI Admin xác nhận

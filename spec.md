@@ -1083,7 +1083,7 @@ chung giữa nhiều campus nhưng đề vẫn được lọc theo campus.
 ### 24.2. Nhập đề
 
 - Admin có thể tạo một đề Draft và upload nhiều ảnh.
-- Hệ thống hỗ trợ một lần nhập tối thiểu 60 ảnh và theo dõi lỗi từng ảnh.
+- Hệ thống hỗ trợ một lần nhập đề với số ảnh linh hoạt; ảnh phải được đánh số liên tiếp từ Q1 đến câu cuối cùng và theo dõi lỗi từng ảnh.
 - Mỗi ảnh trở thành một câu và có thể đổi thứ tự.
 - Admin cấu hình được Single/Multiple, A–D/A–E/A–F và đáp án.
 - Hệ thống chặn publish khi thiếu ảnh, thiếu đáp án hoặc còn đáp án AI chưa duyệt.
