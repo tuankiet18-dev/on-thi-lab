@@ -376,6 +376,39 @@ export const examSchema = examSummarySchema.extend({
   questions: z.array(questionSchema),
 });
 
+export const bookmarkedExamSchema = examSummarySchema.extend({
+  bookmarkedAt: z.string().datetime(),
+});
+
+/**
+ * Deliberately excludes correctOptions. Saving a question must not reveal its
+ * answer before the student submits an attempt.
+ */
+export const bookmarkedQuestionSchema = z.object({
+  questionId: z.string().uuid(),
+  examId: z.string().uuid(),
+  examCode: z.string(),
+  courseCode: z.string(),
+  courseName: z.string(),
+  semester: z.string(),
+  campus: z.string(),
+  order: z.number().int().positive(),
+  imageUrl: z.string(),
+  imageAlt: z.string(),
+  type: z.enum(questionTypes),
+  options: z.array(z.string()).min(2).max(6),
+  bookmarkedAt: z.string().datetime(),
+});
+
+export const bookmarkCollectionSchema = z.object({
+  exams: z.array(bookmarkedExamSchema),
+  questions: z.array(bookmarkedQuestionSchema),
+});
+
+export const bookmarkStateSchema = z.object({
+  bookmarked: z.boolean(),
+});
+
 export const createAttemptSchema = z.object({
   examId: z.string(),
   deviceId: z.string().min(8),
@@ -501,6 +534,9 @@ export type UpsertCurriculumCourseInput = z.infer<
 >;
 export type ExamSummary = z.infer<typeof examSummarySchema>;
 export type Exam = z.infer<typeof examSchema>;
+export type BookmarkedExam = z.infer<typeof bookmarkedExamSchema>;
+export type BookmarkedQuestion = z.infer<typeof bookmarkedQuestionSchema>;
+export type BookmarkCollection = z.infer<typeof bookmarkCollectionSchema>;
 export type CreateAttemptInput = z.infer<typeof createAttemptSchema>;
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;
 export type SaveAnswerResult = z.infer<typeof saveAnswerResultSchema>;

@@ -1,5 +1,6 @@
 import type {
   CreateDraftImportInput,
+  BookmarkCollection,
   ProfileOptions,
   StudentProfile,
   UpsertStudentProfileInput,
@@ -12,6 +13,7 @@ import {
   AdminCatalogRepositoryError,
   AttemptRepositoryError,
   type AdminCatalogRepository,
+  type BookmarkRepository,
 } from "@onthilab/database";
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity, TokenVerifier } from "./auth";
@@ -89,6 +91,37 @@ class MemoryProfileRepository implements UserProfileRepository {
   }
 }
 
+class MemoryBookmarkRepository implements BookmarkRepository {
+  readonly savedExamIds = new Set<string>();
+  readonly savedQuestionIds = new Set<string>();
+  lastUserId: string | null = null;
+
+  async listForUser(userId: string): Promise<BookmarkCollection> {
+    this.lastUserId = userId;
+    return { exams: [], questions: [] };
+  }
+
+  async saveExam(userId: string, examId: string): Promise<void> {
+    this.lastUserId = userId;
+    this.savedExamIds.add(examId);
+  }
+
+  async removeExam(userId: string, examId: string): Promise<void> {
+    this.lastUserId = userId;
+    this.savedExamIds.delete(examId);
+  }
+
+  async saveQuestion(userId: string, questionId: string): Promise<void> {
+    this.lastUserId = userId;
+    this.savedQuestionIds.add(questionId);
+  }
+
+  async removeQuestion(userId: string, questionId: string): Promise<void> {
+    this.lastUserId = userId;
+    this.savedQuestionIds.delete(questionId);
+  }
+}
+
 function createOnboardedProfiles(
   role: StudentProfile["role"] = "user",
 ): MemoryProfileRepository {
@@ -153,6 +186,37 @@ describe("attempt API", () => {
     await expect(response.json()).resolves.toEqual({
       error: "PROFILE_REQUIRED",
     });
+  });
+
+  it("stores bookmarks against the authenticated profile only", async () => {
+    const bookmarks = new MemoryBookmarkRepository();
+    const profiles = createOnboardedProfiles();
+    const isolatedApp = createApp({ auth, profiles, bookmarks });
+    const examId = "10000000-0000-4000-8000-000000000099";
+
+    const unauthorized = await isolatedApp.request(
+      `/v1/bookmarks/exams/${examId}`,
+      {
+        method: "PUT",
+      },
+    );
+    expect(unauthorized.status).toBe(401);
+
+    const saved = await isolatedApp.request(`/v1/bookmarks/exams/${examId}`, {
+      method: "PUT",
+      headers: authorization,
+    });
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({ data: { bookmarked: true } });
+    expect(bookmarks.savedExamIds).toEqual(new Set([examId]));
+    expect(bookmarks.lastUserId).toBe(profiles.profile?.id);
+
+    const removed = await isolatedApp.request(`/v1/bookmarks/exams/${examId}`, {
+      method: "DELETE",
+      headers: authorization,
+    });
+    expect(removed.status).toBe(200);
+    expect(bookmarks.savedExamIds.size).toBe(0);
   });
 
   it("returns the authenticated student's remaining free attempts", async () => {
@@ -269,6 +333,7 @@ describe("attempt API", () => {
     expect(response.status).toBe(200);
     expect(document.openapi).toBe("3.1.0");
     expect(document.paths["/v1/attempts"]).toBeDefined();
+    expect(document.paths["/v1/bookmarks"]).toBeDefined();
     expect(document.paths["/v1/admin/exams/{examId}/publish"]).toBeDefined();
     expect(
       document.paths["/v1/admin/exams/{examId}/ai-suggestions"],

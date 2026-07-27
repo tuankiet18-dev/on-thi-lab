@@ -6,6 +6,7 @@ import type {
 import {
   ArrowRight,
   Award,
+  Bookmark,
   BookOpenCheck,
   CheckCircle2,
   Clock3,
@@ -22,7 +23,12 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
-import { getCatalog, getDailyUsage, getStudentStatistics } from "../lib/api";
+import {
+  getBookmarks,
+  getCatalog,
+  getDailyUsage,
+  getStudentStatistics,
+} from "../lib/api";
 import { popularCourseCodes, searchCourses } from "../lib/catalog-search";
 
 const emptyStatistics: StudentStatistics = {
@@ -48,6 +54,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(Boolean(session));
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
+  const [savedCount, setSavedCount] = useState(0);
 
   useEffect(() => {
     if (!session) {
@@ -78,6 +85,16 @@ export function DashboardPage() {
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+
+    void getBookmarks(session.idToken)
+      .then((bookmarks) => {
+        if (active)
+          setSavedCount(bookmarks.exams.length + bookmarks.questions.length);
+      })
+      .catch(() => {
+        // Saved items are a shortcut, so a transient failure must not block
+        // the student's dashboard or exam search.
       });
 
     return () => {
@@ -126,6 +143,14 @@ export function DashboardPage() {
       note: "Kết quả tốt nhất của bạn",
       icon: Award,
       tone: "text-amber-600 bg-amber-50",
+    },
+    {
+      label: "Đã lưu để ôn lại",
+      value: String(savedCount),
+      note: "Đề và câu hỏi cần xem lại",
+      icon: Bookmark,
+      tone: "text-violet-600 bg-violet-50",
+      to: "/bookmarks",
     },
   ];
 
@@ -362,7 +387,7 @@ export function DashboardPage() {
             />
           )}
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {statCards.map((stat) => (
             <Card key={stat.label} className="p-5">
               <div className="flex items-start justify-between gap-4">
@@ -374,6 +399,14 @@ export function DashboardPage() {
                     {stat.value}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">{stat.note}</p>
+                  {"to" in stat && (
+                    <Link
+                      to={stat.to}
+                      className="mt-3 inline-flex min-h-10 items-center text-sm font-bold text-primary hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                    >
+                      Mở mục đã lưu
+                    </Link>
+                  )}
                 </div>
                 <span
                   className={`grid size-11 place-items-center rounded-xl ${stat.tone}`}

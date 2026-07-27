@@ -327,6 +327,24 @@ export const bookmarks = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.questionId] })],
 );
 
+/** A student's saved exams. Question bookmarks remain in `bookmarks`. */
+export const examBookmarks = pgTable(
+  "exam_bookmarks",
+  {
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    examId: uuid("exam_id")
+      .references(() => exams.id)
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.examId] }),
+    index("exam_bookmarks_user_created_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const reports = pgTable("reports", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

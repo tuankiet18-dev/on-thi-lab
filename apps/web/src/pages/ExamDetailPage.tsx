@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Bookmark,
   BookOpenCheck,
   CheckCircle2,
   Clock3,
@@ -18,7 +19,13 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
-import { ApiError, createAttempt, getPublishedExam } from "../lib/api";
+import {
+  ApiError,
+  createAttempt,
+  getBookmarks,
+  getPublishedExam,
+  setExamBookmark,
+} from "../lib/api";
 import { createOrResumeAttempt } from "../lib/attempt-storage";
 import { getOrCreateDeviceId } from "../lib/device";
 
@@ -31,14 +38,25 @@ export function ExamDetailPage() {
   const [loadError, setLoadError] = useState("");
   const [startError, setStartError] = useState("");
   const [starting, setStarting] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState("");
 
   useEffect(() => {
     if (!session) return;
     let active = true;
     setLoading(true);
-    void getPublishedExam(session.idToken, examId)
-      .then((result) => {
+    void Promise.all([
+      getPublishedExam(session.idToken, examId),
+      getBookmarks(session.idToken),
+    ])
+      .then(([result, bookmarks]) => {
         if (active) setExam(result);
+        if (active) {
+          setBookmarked(
+            bookmarks.exams.some((saved) => saved.id === result.id),
+          );
+        }
       })
       .catch(() => {
         if (active) setLoadError("Không tìm thấy đề đã xuất bản.");
@@ -50,6 +68,20 @@ export function ExamDetailPage() {
       active = false;
     };
   }, [examId, session]);
+
+  async function toggleBookmark() {
+    if (!session || !exam || bookmarkLoading) return;
+    const next = !bookmarked;
+    setBookmarkLoading(true);
+    setBookmarkError("");
+    try {
+      setBookmarked(await setExamBookmark(session.idToken, exam.id, next));
+    } catch {
+      setBookmarkError("Chưa thể cập nhật đề đã lưu. Vui lòng thử lại.");
+    } finally {
+      setBookmarkLoading(false);
+    }
+  }
 
   async function startExam() {
     if (!configured) {
@@ -220,6 +252,26 @@ export function ExamDetailPage() {
                 <Eye size={17} aria-hidden="true" />
                 Xem đề không tính lượt
               </Link>
+              {configured && (
+                <Button
+                  variant="secondary"
+                  onClick={() => void toggleBookmark()}
+                  disabled={bookmarkLoading}
+                  className="w-full"
+                  icon={
+                    <Bookmark
+                      size={17}
+                      fill={bookmarked ? "currentColor" : "none"}
+                    />
+                  }
+                >
+                  {bookmarkLoading
+                    ? "Đang cập nhật..."
+                    : bookmarked
+                      ? "Đã lưu đề"
+                      : "Lưu đề để ôn lại"}
+                </Button>
+              )}
             </div>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
               Timer bắt đầu ngay sau khi bạn nhấn nút.
@@ -230,6 +282,14 @@ export function ExamDetailPage() {
                 role="alert"
               >
                 {startError}
+              </p>
+            )}
+            {bookmarkError && (
+              <p
+                className="mt-3 text-center text-xs font-semibold text-red-700"
+                role="alert"
+              >
+                {bookmarkError}
               </p>
             )}
           </Card>

@@ -40,3 +40,4 @@ export * from "./admin-catalog-repository";
 export * from "./draft-import-repository";
 export * from "./user-profile-repository";
 export * from "./report-repository";
+export * from "./bookmark-repository";
