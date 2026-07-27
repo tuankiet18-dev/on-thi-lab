@@ -1,5 +1,6 @@
 import {
   createCourseSchema,
+  updateCourseSchema,
   createCurriculumSchema,
   createMajorSchema,
   createAttemptSchema,
@@ -33,6 +34,7 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
+import { z } from "zod";
 import {
   AuthenticationError,
   type AuthIdentity,
@@ -106,10 +108,18 @@ const unavailableAdminCatalogRepository: AdminCatalogRepository = {
   createCourse: async () => {
     throw new Error("Admin catalog storage is not configured");
   },
+  updateCourse: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
+  deleteCourse: async () => {
+    throw new Error("Admin catalog storage is not configured");
+  },
   upsertCurriculumCourse: async () => {
     throw new Error("Admin catalog storage is not configured");
   },
 };
+
+const uuidSchema = z.string().uuid();
 
 const unavailableProfileRepository: UserProfileRepository = {
   findBySubject: async () => {
@@ -497,6 +507,73 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
           return context.json(
             { error: error.code, message: error.message },
             409,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.put(
+    "/v1/admin/catalog-management/courses/:id",
+    requireAdmin,
+    async (context) => {
+      const parsedId = uuidSchema.safeParse(context.req.param("id"));
+      if (!parsedId.success) {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const id = parsedId.data;
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const parsed = updateCourseSchema.safeParse(body);
+      if (!parsed.success) {
+        return context.json(
+          { error: "INVALID_INPUT", details: parsed.error.flatten() },
+          400,
+        );
+      }
+      try {
+        return context.json(
+          {
+            data: await dependencies.adminCatalog.updateCourse(id, parsed.data),
+          },
+          200,
+        );
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          const status = error.code === "COURSE_NOT_FOUND" ? 404 : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/admin/catalog-management/courses/:id",
+    requireAdmin,
+    async (context) => {
+      const parsedId = uuidSchema.safeParse(context.req.param("id"));
+      if (!parsedId.success) {
+        return context.json({ error: "INVALID_INPUT" }, 400);
+      }
+      const id = parsedId.data;
+      try {
+        await dependencies.adminCatalog.deleteCourse(id);
+        return context.json({ success: true }, 200);
+      } catch (error) {
+        if (error instanceof AdminCatalogRepositoryError) {
+          const status = error.code === "COURSE_NOT_FOUND" ? 404 : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
           );
         }
         throw error;

@@ -29,6 +29,7 @@ import {
   type AdminExamSummary,
   type AdminCatalog,
   type CreateCourseInput,
+  type UpdateCourseInput,
   type CreateCurriculumInput,
   type CreateMajorInput,
   type UpsertCurriculumCourseInput,
@@ -549,6 +550,33 @@ export async function createAdminCourse(
     "/v1/admin/catalog-management/courses",
     idToken,
     { method: "POST", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function updateAdminCourse(
+  idToken: string,
+  id: string,
+  input: UpdateCourseInput,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/catalog-management/courses/${id}`,
+    idToken,
+    { method: "PUT", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function deleteAdminCourse(
+  idToken: string,
+  id: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/catalog-management/courses/${id}`,
+    idToken,
+    { method: "DELETE" },
     fetcher,
   );
 }

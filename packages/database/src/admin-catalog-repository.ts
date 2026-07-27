@@ -6,6 +6,7 @@ import type {
   CreateCurriculumInput,
   CreateMajorInput,
   Major,
+  UpdateCourseInput,
   UpsertCurriculumCourseInput,
 } from "@onthilab/contracts";
 import { asc, count, eq } from "drizzle-orm";
@@ -18,7 +19,8 @@ export type AdminCatalogRepositoryErrorCode =
   | "CURRICULUM_ALREADY_EXISTS"
   | "CURRICULUM_NOT_FOUND"
   | "MAJOR_ALREADY_EXISTS"
-  | "MAJOR_NOT_FOUND";
+  | "MAJOR_NOT_FOUND"
+  | "COURSE_IN_USE";
 
 export class AdminCatalogRepositoryError extends Error {
   constructor(
@@ -34,6 +36,8 @@ export interface AdminCatalogRepository {
   createMajor(input: CreateMajorInput): Promise<Major>;
   createCurriculum(input: CreateCurriculumInput): Promise<AdminCurriculum>;
   createCourse(input: CreateCourseInput): Promise<AdminCourse>;
+  updateCourse(id: string, input: UpdateCourseInput): Promise<AdminCourse>;
+  deleteCourse(id: string): Promise<void>;
   upsertCurriculumCourse(input: UpsertCurriculumCourseInput): Promise<void>;
 }
 
@@ -43,6 +47,15 @@ function isUniqueViolation(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     error.code === "23505"
+  );
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23503"
   );
 }
 
@@ -268,5 +281,66 @@ export class PostgresAdminCatalogRepository implements AdminCatalogRepository {
           isElective: input.isElective,
         },
       });
+  }
+
+  async updateCourse(
+    id: string,
+    input: UpdateCourseInput,
+  ): Promise<AdminCourse> {
+    try {
+      const [updated] = await this.db
+        .update(courses)
+        .set({ ...input, updatedAt: new Date() })
+        .where(eq(courses.id, id))
+        .returning();
+      if (!updated) {
+        throw new AdminCatalogRepositoryError(
+          "COURSE_NOT_FOUND",
+          "Môn học được chọn không tồn tại.",
+        );
+      }
+      return {
+        ...updated,
+        placements: [],
+      };
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new AdminCatalogRepositoryError(
+          "COURSE_ALREADY_EXISTS",
+          "Mã môn học này đã tồn tại.",
+        );
+      }
+      throw error;
+    }
+  }
+
+  async deleteCourse(id: string): Promise<void> {
+    try {
+      await this.db.transaction(async (tx) => {
+        // Delete placements first
+        await tx
+          .delete(curriculumCourses)
+          .where(eq(curriculumCourses.courseId, id));
+        // Delete course
+        const [deleted] = await tx
+          .delete(courses)
+          .where(eq(courses.id, id))
+          .returning({ id: courses.id });
+        if (!deleted) {
+          throw new AdminCatalogRepositoryError(
+            "COURSE_NOT_FOUND",
+            "Môn học được chọn không tồn tại.",
+          );
+        }
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new AdminCatalogRepositoryError(
+          "COURSE_IN_USE",
+          "Môn học này đã có đề thi, không thể xóa.",
+        );
+      }
+      throw error;
+    }
   }
 }

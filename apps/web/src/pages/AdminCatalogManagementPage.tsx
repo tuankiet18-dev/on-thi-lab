@@ -2,14 +2,20 @@ import { Navigate } from "@tanstack/react-router";
 import {
   BookMarked,
   BookOpen,
+  Edit2,
   GraduationCap,
   Layers3,
   Link2,
   LoaderCircle,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import type { AdminCatalog } from "@onthilab/contracts";
+import {
+  examFormatStatuses,
+  type AdminCatalog,
+  type ExamFormatStatus,
+} from "@onthilab/contracts";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -19,11 +25,17 @@ import {
   createAdminCourse,
   createAdminCurriculum,
   createAdminMajor,
+  deleteAdminCourse,
   getAdminCatalog,
   saveAdminCurriculumCourse,
+  updateAdminCourse,
 } from "../lib/api";
 
 const emptyCatalog: AdminCatalog = { majors: [], curricula: [], courses: [] };
+
+function isExamFormatStatus(value: string): value is ExamFormatStatus {
+  return examFormatStatuses.includes(value as ExamFormatStatus);
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -35,6 +47,7 @@ function errorMessage(error: unknown): string {
       MAJOR_NOT_FOUND: "Ngành đã chọn không còn tồn tại.",
       CURRICULUM_NOT_FOUND: "Chương trình đã chọn không còn tồn tại.",
       COURSE_NOT_FOUND: "Môn học đã chọn không còn tồn tại.",
+      COURSE_IN_USE: "Môn học này đã có đề thi, không thể xóa.",
     };
     return messages[error.code] ?? "Không thể lưu thay đổi. Vui lòng thử lại.";
   }
@@ -57,13 +70,18 @@ export function AdminCatalogManagementPage() {
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [courseName, setCourseName] = useState("");
-  const [examFormatStatus, setExamFormatStatus] = useState<
-    "fe_candidate" | "requires_review" | "not_fe"
-  >("fe_candidate");
+  const [examFormatStatus, setExamFormatStatus] =
+    useState<ExamFormatStatus>("fe_candidate");
   const [placementCurriculumId, setPlacementCurriculumId] = useState("");
   const [placementCourseId, setPlacementCourseId] = useState("");
   const [termNumber, setTermNumber] = useState(1);
   const [isElective, setIsElective] = useState(false);
+
+  const [editingCourseId, setEditingCourseId] = useState<string>();
+  const [editingCourseCode, setEditingCourseCode] = useState("");
+  const [editingCourseName, setEditingCourseName] = useState("");
+  const [editingCourseFormatStatus, setEditingCourseFormatStatus] =
+    useState<ExamFormatStatus>("fe_candidate");
 
   const isAdmin =
     !configured ||
@@ -181,6 +199,39 @@ export function AdminCatalogManagementPage() {
           isElective,
         }),
     );
+  };
+
+  const startEditingCourse = (course: AdminCatalog["courses"][0]) => {
+    setEditingCourseId(course.id);
+    setEditingCourseCode(course.code);
+    setEditingCourseName(course.name);
+    setEditingCourseFormatStatus(course.examFormatStatus);
+  };
+
+  const submitUpdateCourse = (event: FormEvent) => {
+    event.preventDefault();
+    if (!session || !editingCourseId) return;
+    void runSave("update_course", "Đã cập nhật môn học.", async () => {
+      await updateAdminCourse(session.idToken, editingCourseId, {
+        code: editingCourseCode,
+        name: editingCourseName,
+        examFormatStatus: editingCourseFormatStatus,
+      });
+      setEditingCourseId(undefined);
+    });
+  };
+
+  const submitDeleteCourse = (id: string, code: string) => {
+    if (!session) return;
+    if (
+      !window.confirm(
+        `Bạn có chắc chắn muốn xóa môn học ${code} không? Thao tác này sẽ xóa mọi liên kết của môn học trong các chương trình đào tạo.`,
+      )
+    )
+      return;
+    void runSave("delete_course", "Đã xóa môn học.", async () => {
+      await deleteAdminCourse(session.idToken, id);
+    });
   };
 
   return (
@@ -391,9 +442,11 @@ export function AdminCatalogManagementPage() {
               <select
                 className="input-base"
                 value={examFormatStatus}
-                onChange={(e) =>
-                  setExamFormatStatus(e.target.value as typeof examFormatStatus)
-                }
+                onChange={(e) => {
+                  if (isExamFormatStatus(e.target.value)) {
+                    setExamFormatStatus(e.target.value);
+                  }
+                }}
               >
                 <option value="fe_candidate">Có thể có FE</option>
                 <option value="requires_review">Cần kiểm tra dạng đề</option>
@@ -530,41 +583,128 @@ export function AdminCatalogManagementPage() {
           <div className="divide-y divide-border">
             {catalog.courses.map((course) => (
               <article key={course.id} className="p-5 sm:px-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-foreground">
-                      {course.code}{" "}
-                      <span className="font-normal text-slate-500">
-                        · {course.name}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {course.placements.length
-                        ? course.placements
-                            .map(
-                              (placement) =>
-                                `${placement.majorCode} / ${placement.curriculumCode} · Kỳ ${placement.termNumber}${placement.isElective ? " · tự chọn" : ""}`,
-                            )
-                            .join(" • ")
-                        : "Chưa được gán vào chương trình nào"}
-                    </p>
-                  </div>
-                  <Badge
-                    tone={
-                      course.examFormatStatus === "fe_candidate"
-                        ? "green"
-                        : course.examFormatStatus === "not_fe"
-                          ? "slate"
-                          : "amber"
-                    }
+                {editingCourseId === course.id ? (
+                  <form
+                    className="grid gap-3 rounded-lg border border-primary-soft bg-slate-50/50 p-4 sm:grid-cols-2"
+                    onSubmit={submitUpdateCourse}
                   >
-                    {course.examFormatStatus === "fe_candidate"
-                      ? "FE"
-                      : course.examFormatStatus === "not_fe"
-                        ? "Không FE"
-                        : "Cần kiểm tra"}
-                  </Badge>
-                </div>
+                    <label className="form-field">
+                      <span>Mã môn</span>
+                      <input
+                        className="input-base"
+                        value={editingCourseCode}
+                        onChange={(e) =>
+                          setEditingCourseCode(e.target.value.toUpperCase())
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Tên môn học</span>
+                      <input
+                        className="input-base"
+                        value={editingCourseName}
+                        onChange={(e) => setEditingCourseName(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="form-field sm:col-span-2">
+                      <span>Trạng thái quy đổi đề</span>
+                      <select
+                        className="input-base"
+                        value={editingCourseFormatStatus}
+                        onChange={(e) => {
+                          if (isExamFormatStatus(e.target.value)) {
+                            setEditingCourseFormatStatus(e.target.value);
+                          }
+                        }}
+                      >
+                        <option value="fe_candidate">
+                          FE - Đủ điều kiện tự động quy đổi đề thi
+                        </option>
+                        <option value="requires_review">
+                          Cần kiểm tra - Gặp lỗi cấu trúc lúc chạy test
+                        </option>
+                        <option value="not_fe">Không FE - Bỏ qua</option>
+                      </select>
+                    </label>
+                    <div className="flex justify-end gap-2 sm:col-span-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setEditingCourseId(undefined)}
+                        disabled={saving === "update_course"}
+                      >
+                        Hủy
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={saving === "update_course"}
+                      >
+                        Lưu thay đổi
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-foreground">
+                        {course.code}{" "}
+                        <span className="font-normal text-slate-500">
+                          · {course.name}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {course.placements.length
+                          ? course.placements
+                              .map(
+                                (placement) =>
+                                  `${placement.majorCode} / ${placement.curriculumCode} · Kỳ ${placement.termNumber}${placement.isElective ? " · tự chọn" : ""}`,
+                              )
+                              .join(" • ")
+                          : "Chưa được gán vào chương trình nào"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Badge
+                        tone={
+                          course.examFormatStatus === "fe_candidate"
+                            ? "green"
+                            : course.examFormatStatus === "not_fe"
+                              ? "slate"
+                              : "amber"
+                        }
+                      >
+                        {course.examFormatStatus === "fe_candidate"
+                          ? "FE"
+                          : course.examFormatStatus === "not_fe"
+                            ? "Không FE"
+                            : "Cần kiểm tra"}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditingCourse(course)}
+                          className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          title="Sửa môn học"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            submitDeleteCourse(course.id, course.code)
+                          }
+                          className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          title="Xóa môn học"
+                          disabled={saving === "delete_course"}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
             {catalog.courses.length === 0 && (
