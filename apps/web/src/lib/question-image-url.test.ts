@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./config", () => ({
   webConfig: { apiUrl: "https://api.example.test/staging/" },
+  hasConfiguredApiUrl: true,
 }));
 
 import { questionImageUrl } from "./question-image-url";
