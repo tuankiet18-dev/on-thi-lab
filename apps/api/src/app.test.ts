@@ -587,7 +587,7 @@ describe("attempt API", () => {
         questions: [
           {
             id: questionId,
-            imageUrl: "http://localhost/question-images/drafts/example/Q1.jpg",
+            imageUrl: "/question-images/drafts/example/Q1.jpg",
           },
         ],
       },

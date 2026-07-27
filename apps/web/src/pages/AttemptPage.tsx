@@ -31,6 +31,7 @@ import {
   submitAttempt as submitLocalAttempt,
 } from "../lib/attempt-storage";
 import { cn } from "../lib/cn";
+import { questionImageUrl } from "../lib/question-image-url";
 
 type SaveState = "saved" | "saving" | "offline";
 
@@ -425,7 +426,7 @@ export function AttemptPage() {
                 aria-label={`Phóng to ảnh câu ${currentIndex + 1}`}
               >
                 <img
-                  src={question.imageUrl}
+                  src={questionImageUrl(question.imageUrl)}
                   alt={question.imageAlt}
                   className="h-auto max-h-[55vh] w-full object-contain"
                   width="1200"
@@ -664,7 +665,7 @@ export function AttemptPage() {
             className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
           >
             <img
-              src={question.imageUrl}
+              src={questionImageUrl(question.imageUrl)}
               alt={`Ảnh phóng to ${question.imageAlt}`}
               width="1920"
               height="620"

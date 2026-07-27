@@ -20,6 +20,7 @@ import { Card } from "../components/ui/Card";
 import { demoAnswerKey, demoExam } from "../data/demo";
 import { createReport, getAttemptSession } from "../lib/api";
 import { loadAttempt, resetDemoAttempt } from "../lib/attempt-storage";
+import { questionImageUrl } from "../lib/question-image-url";
 
 type ReviewFilter = "all" | "correct" | "incorrect" | "unanswered";
 
@@ -436,11 +437,13 @@ export function ResultPage() {
                   {isExpanded && (
                     <div className="mt-4 overflow-hidden rounded-xl border border-border bg-slate-50">
                       <img
-                        src={question.imageUrl}
+                        src={questionImageUrl(question.imageUrl)}
                         alt={question.imageAlt}
                         loading="lazy"
                         className="max-h-[680px] w-full object-contain cursor-zoom-in transition-transform hover:scale-[1.01]"
-                        onClick={() => setZoomedImage(question.imageUrl)}
+                        onClick={() =>
+                          setZoomedImage(questionImageUrl(question.imageUrl))
+                        }
                       />
                     </div>
                   )}
