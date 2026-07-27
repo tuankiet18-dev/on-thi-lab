@@ -8,7 +8,7 @@ import {
   MapPin,
   Search,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { ExamSummary } from "@onthilab/contracts";
 import { useAuth } from "../auth/AuthContext";
@@ -20,13 +20,18 @@ import { getCatalog } from "../lib/api";
 
 export function CatalogPage() {
   const { configured, session } = useAuth();
+  const catalogSearch = useRouterState({
+    select: (state) => state.location.search as { q?: unknown },
+  });
+  const initialQuery =
+    typeof catalogSearch.q === "string" ? catalogSearch.q : undefined;
   const [exams, setExams] = useState<ExamSummary[]>(
     configured ? [] : catalogExams,
   );
   const [loading, setLoading] = useState(Boolean(session));
   const [loadError, setLoadError] = useState("");
   const [loadVersion, setLoadVersion] = useState(0);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [campus, setCampus] = useState("Tất cả campus");
   const [semester, setSemester] = useState("Tất cả kỳ học");
 
@@ -49,6 +54,10 @@ export function CatalogPage() {
       active = false;
     };
   }, [loadVersion, session]);
+
+  useEffect(() => {
+    setQuery(initialQuery ?? "");
+  }, [initialQuery]);
 
   const campuses = useMemo(
     () => [...new Set(exams.map((exam) => exam.campus))].sort(),

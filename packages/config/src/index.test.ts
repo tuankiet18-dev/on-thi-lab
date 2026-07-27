@@ -78,4 +78,10 @@ describe("runtime configuration", () => {
       },
     });
   });
+
+  it("uses the local API fallback when the browser API variable is empty", () => {
+    expect(readPublicWebConfig({ VITE_API_URL: "" }).apiUrl).toBe(
+      "http://localhost:8787",
+    );
+  });
 });

@@ -166,7 +166,7 @@ export function readPublicWebConfig(
   environment: Record<string, string | undefined>,
 ): PublicWebConfig {
   return publicWebConfigSchema.parse({
-    apiUrl: environment.VITE_API_URL ?? "http://localhost:8787",
+    apiUrl: environment.VITE_API_URL || "http://localhost:8787",
     cognitoDomain: environment.VITE_COGNITO_DOMAIN,
     cognitoClientId: environment.VITE_COGNITO_CLIENT_ID,
     cognitoRedirectUri: environment.VITE_COGNITO_REDIRECT_URI,
