@@ -15,40 +15,42 @@ const image = (
 });
 
 describe("validateZipManifest", () => {
-  it("accepts variable contiguous question counts and orders Q-prefixed images", () => {
+  it("accepts arbitrary filenames and assigns order from ZIP manifest order", () => {
     const result = validateZipManifest(
       [
         image("questions/"),
-        image("questions/Q3.webp"),
-        image("questions/Q1.jpg"),
-        image("questions/Q2.PNG"),
+        image("questions/1775674360012.webp"),
+        image("questions/image-from-crawler.jpg"),
+        image("questions/third-question.PNG"),
       ],
       2_400,
       { minQuestionCount: 1, maxQuestionCount: 3 },
     );
 
     expect(result.images.map(({ order }) => order)).toEqual([1, 2, 3]);
-    expect(result.images[1]?.extension).toBe(".png");
+    expect(result.images[1]?.extension).toBe(".jpg");
 
     for (const count of [50, 60]) {
       const variableResult = validateZipManifest(
-        Array.from({ length: count }, (_, index) => image(`Q${index + 1}.jpg`)),
+        Array.from({ length: count }, (_, index) =>
+          image(`crawler-${Date.now()}-${index}.jpg`),
+        ),
         count * 800,
       );
       expect(variableResult.images).toHaveLength(count);
     }
   });
 
-  it("rejects missing or duplicate question numbers", () => {
+  it("rejects duplicate image paths", () => {
     expect(() =>
       validateZipManifest(
-        [image("Q1.jpg"), image("Q1.png"), image("Q3.jpg")],
+        [image("Q1.jpg"), image("Q1.jpg"), image("Q3.jpg")],
         2_400,
         { minQuestionCount: 1, maxQuestionCount: 3 },
       ),
     ).toThrowError(
       expect.objectContaining<Partial<ZipValidationError>>({
-        code: "DUPLICATE_QUESTION",
+        code: "DUPLICATE_IMAGE_FILE",
       }),
     );
   });

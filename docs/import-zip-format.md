@@ -1,8 +1,9 @@
 # Định dạng ZIP nhập đề FE
 
-Mỗi ZIP chứa ảnh câu hỏi được đánh số liên tiếp từ `Q1.jpg` đến `Qn.jpg` (ví dụ
-`Q50.jpg` hoặc `Q60.jpg`; cho phép `.jpeg`,
-`.png`, `.webp` và một thư mục gốc tùy ý). Tên ảnh xác định thứ tự câu hỏi.
+Mỗi ZIP chứa từ 1 đến 120 ảnh câu hỏi (ví dụ 50 hoặc 60 ảnh; cho phép `.jpg`,
+`.jpeg`, `.png`, `.webp` và một thư mục gốc tùy ý). Tên ảnh có thể là bất kỳ
+chuỗi nào, miễn không trùng trong ZIP. Hệ thống tự gán thứ tự nội bộ theo thứ tự
+file trong manifest ZIP; thứ tự tên file không ảnh hưởng đến việc import.
 
 Có thể kèm đúng một `answers.json`. File này chỉ dùng trong lúc import để tạo
 gợi ý cho trang duyệt; hệ thống không lưu hoặc trả về tác giả hay nội dung
@@ -10,14 +11,15 @@ comment.
 
 ```json
 {
-  "Q1.jpg": [
+  "1775674360012.webp": [
     { "author": "crawler-id", "content": "AB" },
     { "author": "crawler-id-2", "content": "Đáp án đúng là A, B" }
   ]
 }
 ```
 
-- Đáp án hợp lệ là một tổ hợp từ `A` đến `F`: `A`, `AB`, `ABC`…; thứ tự được
+- Khóa trong `answers.json` phải là tên ảnh gốc (hoặc đường dẫn ảnh gốc) mà crawler
+  đã xuất ra. Đáp án hợp lệ là một tổ hợp từ `A` đến `F`: `A`, `AB`, `ABC`…; thứ tự được
   chuẩn hóa trước khi tổng hợp, nên `BA` và `AB` là cùng một lựa chọn.
 - Parser chỉ nhận dòng đầu tiên có đáp án rõ ràng hoặc mẫu `Đáp án đúng là …`;
   không suy diễn từ phần giải thích còn lại.

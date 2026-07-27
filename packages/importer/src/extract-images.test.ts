@@ -24,8 +24,8 @@ describe("extractValidatedQuestionImages", () => {
     const output = join(root, "output");
     const archive = join(root, "questions.zip");
     const zipFile = new yazl.ZipFile();
-    zipFile.addBuffer(Buffer.from("one"), "Q1.jpg");
-    zipFile.addBuffer(Buffer.from("two"), "Q2.jpg");
+    zipFile.addBuffer(Buffer.from("one"), "1775674360012.webp");
+    zipFile.addBuffer(Buffer.from("two"), "crawler/question-image.jpg");
     zipFile.end();
     zipFile.outputStream.pipe(createWriteStream(archive));
     await finished(zipFile.outputStream);
@@ -36,7 +36,7 @@ describe("extractValidatedQuestionImages", () => {
     });
 
     expect(result.map(({ fileName }) => fileName)).toEqual([
-      "Q1.jpg",
+      "Q1.webp",
       "Q2.jpg",
     ]);
     await expect(readFile(join(output, "Q2.jpg"), "utf8")).resolves.toBe("two");

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeAnswer, parseCommunityAnswer } from "./compute-answers";
+import {
+  computeAnswer,
+  computeAnswersForImages,
+  parseCommunityAnswer,
+} from "./compute-answers";
 
 describe("community answer aggregation", () => {
   it("parses exact multi-answer sets and explicit Vietnamese answers", () => {
@@ -35,5 +39,21 @@ describe("community answer aggregation", () => {
       disputed: true,
       voteBreakdown: { ab: 2, c: 1 },
     });
+  });
+
+  it("matches comments to arbitrary crawler image names", () => {
+    const results = computeAnswersForImages(
+      {
+        "1775674360012.webp": [{ content: "B" }],
+        "nested/another-crawler-image.webp": [{ content: "AC" }],
+      },
+      [
+        { order: 1, originalFileName: "images/1775674360012.webp" },
+        { order: 2, originalFileName: "nested/another-crawler-image.webp" },
+      ],
+    );
+
+    expect(results.get(1)?.answers).toEqual(["b"]);
+    expect(results.get(2)?.answers).toEqual(["a", "c"]);
   });
 });

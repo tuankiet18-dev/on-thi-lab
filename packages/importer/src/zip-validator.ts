@@ -47,15 +47,13 @@ export class ZipValidationError extends Error {
     readonly code:
       | "ARCHIVE_TOO_LARGE"
       | "CORRUPT_ARCHIVE"
-      | "DUPLICATE_QUESTION"
+      | "DUPLICATE_IMAGE_FILE"
       | "DUPLICATE_ANSWERS_FILE"
       | "ANSWERS_TOO_LARGE"
       | "IMAGE_TOO_LARGE"
       | "INVALID_ENTRY_PATH"
       | "INVALID_FILE_TYPE"
       | "INVALID_QUESTION_COUNT"
-      | "INVALID_QUESTION_NAME"
-      | "MISSING_QUESTION"
       | "SUSPICIOUS_COMPRESSION"
       | "UNCOMPRESSED_SIZE_TOO_LARGE",
     message: string,
@@ -85,15 +83,6 @@ function assertSafePath(fileName: string): void {
   }
 }
 
-function questionOrder(fileName: string): number | null {
-  const baseName = posix.basename(fileName, extname(fileName));
-  const match = baseName.match(/^(?:q(?:uestion)?[-_ ]*)?0*(\d+)$/i);
-  if (!match?.[1]) return null;
-
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
 export function validateZipManifest(
   entries: readonly ZipEntryMetadata[],
   archiveBytes: number,
@@ -112,7 +101,7 @@ export function validateZipManifest(
   }
 
   const images: ValidatedQuestionImage[] = [];
-  const seenOrders = new Set<number>();
+  const seenImagePaths = new Set<string>();
   let totalUncompressedBytes = 0;
   let answersJson: ZipEntryMetadata | undefined;
 
@@ -168,21 +157,16 @@ export function validateZipManifest(
       );
     }
 
-    const order = questionOrder(entry.fileName);
-    if (order === null || order < 1 || order > limits.maxQuestionCount) {
+    const normalizedImagePath = posix
+      .normalize(entry.fileName.replaceAll("\\", "/"))
+      .toLowerCase();
+    if (seenImagePaths.has(normalizedImagePath)) {
       throw new ZipValidationError(
-        "INVALID_QUESTION_NAME",
-        `Không xác định được số câu từ tên file: ${entry.fileName}`,
+        "DUPLICATE_IMAGE_FILE",
+        `Ảnh xuất hiện nhiều lần trong ZIP: ${entry.fileName}`,
       );
     }
-
-    if (seenOrders.has(order)) {
-      throw new ZipValidationError(
-        "DUPLICATE_QUESTION",
-        `Câu ${order} xuất hiện nhiều lần trong ZIP.`,
-      );
-    }
-    seenOrders.add(order);
+    seenImagePaths.add(normalizedImagePath);
 
     if (entry.uncompressedSize > limits.maxImageBytes) {
       throw new ZipValidationError(
@@ -193,7 +177,9 @@ export function validateZipManifest(
 
     images.push({
       ...entry,
-      order,
+      // Names are not used to derive the question number. The manifest order
+      // becomes the stable internal order for this uploaded ZIP.
+      order: images.length + 1,
       extension,
     });
   }
@@ -208,27 +194,10 @@ export function validateZipManifest(
     );
   }
 
-  const highestOrder = Math.max(...seenOrders);
-  if (highestOrder !== images.length) {
-    throw new ZipValidationError(
-      "MISSING_QUESTION",
-      "Tên ảnh phải đánh số liên tiếp từ Q1 đến câu cuối cùng.",
-    );
-  }
-
-  for (let order = 1; order <= highestOrder; order += 1) {
-    if (!seenOrders.has(order)) {
-      throw new ZipValidationError(
-        "MISSING_QUESTION",
-        `Thiếu ảnh của câu ${order}.`,
-      );
-    }
-  }
-
   return {
     archiveBytes,
     totalUncompressedBytes,
-    images: images.sort((left, right) => left.order - right.order),
+    images,
     ...(answersJson ? { answersJson } : {}),
   };
 }

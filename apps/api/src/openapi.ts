@@ -245,7 +245,7 @@ export const openApiDocument = {
                     type: "string",
                     format: "binary",
                     description:
-                      "ZIP containing contiguous question images Q1–Qn (up to 120 images)",
+                      "ZIP containing up to 120 uniquely named question images; filenames may be arbitrary",
                   },
                 },
               },
