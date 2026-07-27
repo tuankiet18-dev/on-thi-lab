@@ -244,7 +244,8 @@ export const openApiDocument = {
                   archive: {
                     type: "string",
                     format: "binary",
-                    description: "ZIP containing exactly Q1–Q60 images",
+                    description:
+                      "ZIP containing contiguous question images Q1–Qn (up to 120 images)",
                   },
                 },
               },
@@ -274,7 +275,10 @@ export const openApiDocument = {
           },
         ],
         responses: {
-          "200": { description: "Draft metadata, progress and 60 questions" },
+          "200": {
+            description:
+              "Draft metadata, review progress and imported questions",
+          },
           "403": { description: "Contributor or admin role required" },
           "404": { description: "Draft or review exam not found" },
         },

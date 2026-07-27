@@ -1,6 +1,7 @@
 # Định dạng ZIP nhập đề FE
 
-Mỗi ZIP chứa đúng 60 ảnh câu hỏi: `Q1.jpg` đến `Q60.jpg` (cho phép `.jpeg`,
+Mỗi ZIP chứa ảnh câu hỏi được đánh số liên tiếp từ `Q1.jpg` đến `Qn.jpg` (ví dụ
+`Q50.jpg` hoặc `Q60.jpg`; cho phép `.jpeg`,
 `.png`, `.webp` và một thư mục gốc tùy ý). Tên ảnh xác định thứ tự câu hỏi.
 
 Có thể kèm đúng một `answers.json`. File này chỉ dùng trong lúc import để tạo

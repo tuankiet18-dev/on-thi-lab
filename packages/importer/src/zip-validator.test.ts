@@ -15,7 +15,7 @@ const image = (
 });
 
 describe("validateZipManifest", () => {
-  it("accepts a containing directory and orders Q-prefixed images", () => {
+  it("accepts variable contiguous question counts and orders Q-prefixed images", () => {
     const result = validateZipManifest(
       [
         image("questions/"),
@@ -24,11 +24,19 @@ describe("validateZipManifest", () => {
         image("questions/Q2.PNG"),
       ],
       2_400,
-      { expectedQuestionCount: 3 },
+      { minQuestionCount: 1, maxQuestionCount: 3 },
     );
 
     expect(result.images.map(({ order }) => order)).toEqual([1, 2, 3]);
     expect(result.images[1]?.extension).toBe(".png");
+
+    for (const count of [50, 60]) {
+      const variableResult = validateZipManifest(
+        Array.from({ length: count }, (_, index) => image(`Q${index + 1}.jpg`)),
+        count * 800,
+      );
+      expect(variableResult.images).toHaveLength(count);
+    }
   });
 
   it("rejects missing or duplicate question numbers", () => {
@@ -36,7 +44,7 @@ describe("validateZipManifest", () => {
       validateZipManifest(
         [image("Q1.jpg"), image("Q1.png"), image("Q3.jpg")],
         2_400,
-        { expectedQuestionCount: 3 },
+        { minQuestionCount: 1, maxQuestionCount: 3 },
       ),
     ).toThrowError(
       expect.objectContaining<Partial<ZipValidationError>>({
@@ -48,7 +56,8 @@ describe("validateZipManifest", () => {
   it("rejects traversal paths and non-image files", () => {
     expect(() =>
       validateZipManifest([image("../Q1.jpg")], 800, {
-        expectedQuestionCount: 1,
+        minQuestionCount: 1,
+        maxQuestionCount: 1,
       }),
     ).toThrowError(
       expect.objectContaining<Partial<ZipValidationError>>({
@@ -58,7 +67,8 @@ describe("validateZipManifest", () => {
 
     expect(() =>
       validateZipManifest([image("Q1.exe")], 800, {
-        expectedQuestionCount: 1,
+        minQuestionCount: 1,
+        maxQuestionCount: 1,
       }),
     ).toThrowError(
       expect.objectContaining<Partial<ZipValidationError>>({
@@ -70,7 +80,8 @@ describe("validateZipManifest", () => {
   it("rejects oversized images and suspicious compression ratios", () => {
     expect(() =>
       validateZipManifest([image("Q1.jpg", 2_001)], 800, {
-        expectedQuestionCount: 1,
+        minQuestionCount: 1,
+        maxQuestionCount: 1,
         maxImageBytes: 2_000,
       }),
     ).toThrowError(
@@ -81,7 +92,8 @@ describe("validateZipManifest", () => {
 
     expect(() =>
       validateZipManifest([{ ...image("Q1.jpg"), compressedSize: 1 }], 800, {
-        expectedQuestionCount: 1,
+        minQuestionCount: 1,
+        maxQuestionCount: 1,
         maxCompressionRatio: 10,
       }),
     ).toThrowError(
@@ -95,7 +107,7 @@ describe("validateZipManifest", () => {
     const result = validateZipManifest(
       [image("Q1.jpg"), image("metadata/answers.json", 100)],
       900,
-      { expectedQuestionCount: 1 },
+      { minQuestionCount: 1, maxQuestionCount: 1 },
     );
     expect(result.answersJson?.fileName).toBe("metadata/answers.json");
     expect(result.totalUncompressedBytes).toBe(1_100);
@@ -104,7 +116,7 @@ describe("validateZipManifest", () => {
       validateZipManifest(
         [image("Q1.jpg"), image("answers.json"), image("copy/answers.json")],
         900,
-        { expectedQuestionCount: 1 },
+        { minQuestionCount: 1, maxQuestionCount: 1 },
       ),
     ).toThrowError(
       expect.objectContaining<Partial<ZipValidationError>>({
@@ -114,7 +126,8 @@ describe("validateZipManifest", () => {
 
     expect(() =>
       validateZipManifest([image("Q1.jpg"), image("answers.json", 101)], 900, {
-        expectedQuestionCount: 1,
+        minQuestionCount: 1,
+        maxQuestionCount: 1,
         maxAnswersBytes: 100,
       }),
     ).toThrowError(

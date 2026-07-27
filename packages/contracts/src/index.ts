@@ -30,7 +30,8 @@ export const examStatuses = [
 export const userRoles = ["user", "contributor", "admin"] as const;
 
 export const feZipImportConstraints = {
-  expectedQuestionCount: 60,
+  minQuestionCount: 1,
+  maxQuestionCount: 120,
   maxArchiveBytes: 250 * 1024 * 1024,
   maxImageBytes: 20 * 1024 * 1024,
   maxTotalUncompressedBytes: 500 * 1024 * 1024,

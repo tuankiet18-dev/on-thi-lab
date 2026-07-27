@@ -3,7 +3,8 @@ import { extname, posix } from "node:path";
 import yauzl, { type Entry, type ZipFile } from "yauzl";
 
 export const defaultZipValidationLimits = {
-  expectedQuestionCount: 60,
+  minQuestionCount: 1,
+  maxQuestionCount: 120,
   maxArchiveBytes: 250 * 1024 * 1024,
   maxImageBytes: 20 * 1024 * 1024,
   maxAnswersBytes: 1024 * 1024,
@@ -13,7 +14,8 @@ export const defaultZipValidationLimits = {
 } as const;
 
 export interface ZipValidationLimits {
-  expectedQuestionCount: number;
+  minQuestionCount: number;
+  maxQuestionCount: number;
   maxArchiveBytes: number;
   maxImageBytes: number;
   maxAnswersBytes: number;
@@ -167,7 +169,7 @@ export function validateZipManifest(
     }
 
     const order = questionOrder(entry.fileName);
-    if (order === null || order < 1 || order > limits.expectedQuestionCount) {
+    if (order === null || order < 1 || order > limits.maxQuestionCount) {
       throw new ZipValidationError(
         "INVALID_QUESTION_NAME",
         `Không xác định được số câu từ tên file: ${entry.fileName}`,
@@ -196,14 +198,25 @@ export function validateZipManifest(
     });
   }
 
-  if (images.length !== limits.expectedQuestionCount) {
+  if (
+    images.length < limits.minQuestionCount ||
+    images.length > limits.maxQuestionCount
+  ) {
     throw new ZipValidationError(
       "INVALID_QUESTION_COUNT",
-      `Cần đúng ${limits.expectedQuestionCount} ảnh, nhận được ${images.length}.`,
+      `Số ảnh câu hỏi phải từ ${limits.minQuestionCount} đến ${limits.maxQuestionCount}, nhận được ${images.length}.`,
     );
   }
 
-  for (let order = 1; order <= limits.expectedQuestionCount; order += 1) {
+  const highestOrder = Math.max(...seenOrders);
+  if (highestOrder !== images.length) {
+    throw new ZipValidationError(
+      "MISSING_QUESTION",
+      "Tên ảnh phải đánh số liên tiếp từ Q1 đến câu cuối cùng.",
+    );
+  }
+
+  for (let order = 1; order <= highestOrder; order += 1) {
     if (!seenOrders.has(order)) {
       throw new ZipValidationError(
         "MISSING_QUESTION",
