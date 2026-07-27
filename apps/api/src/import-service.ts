@@ -15,10 +15,11 @@ import type {
   DraftQuestionInput,
 } from "@onthilab/database";
 import {
-  computeAllAnswers,
+  computeAnswersForImages,
   defaultZipValidationLimits,
   extractValidatedQuestionImages,
   ZipValidationError,
+  type AnswerResult,
   type ExtractedQuestionImage,
   type RawVote,
 } from "@onthilab/importer";
@@ -133,14 +134,9 @@ function draftQuestionsFromImages(
   storagePrefix: string,
   answers?: CommunityAnswers,
 ): DraftQuestionInput[] {
-  const suggestions = new Map(
-    answers
-      ? computeAllAnswers(answers).map((answer) => [
-          answer.questionNumber,
-          answer,
-        ])
-      : [],
-  );
+  const suggestions = answers
+    ? computeAnswersForImages(answers, images)
+    : new Map<number, AnswerResult>();
   const updatedAt = new Date().toISOString();
 
   return images.map((image) => {

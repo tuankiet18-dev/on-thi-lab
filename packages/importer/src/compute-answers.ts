@@ -152,6 +152,39 @@ export function computeAllAnswers(
   );
 }
 
+function answerLookupKeys(fileName: string): string[] {
+  const normalized = fileName.replaceAll("\\", "/").replace(/^\.\//, "");
+  const baseName = normalized.split("/").at(-1) ?? normalized;
+  return [...new Set([normalized.toLowerCase(), baseName.toLowerCase()])];
+}
+
+/**
+ * Associates crawled comments with the image that produced them, without
+ * imposing a Q1/Q2 filename convention. Exact paths are preferred; the base
+ * filename is accepted for ZIPs that add a parent directory around images.
+ */
+export function computeAnswersForImages(
+  answersJson: Record<string, readonly RawVote[]>,
+  images: readonly { order: number; originalFileName: string }[],
+): Map<number, AnswerResult> {
+  const votesByFileName = new Map<string, readonly RawVote[]>();
+  for (const [fileName, votes] of Object.entries(answersJson)) {
+    if (!Array.isArray(votes)) continue;
+    for (const key of answerLookupKeys(fileName)) {
+      if (!votesByFileName.has(key)) votesByFileName.set(key, votes);
+    }
+  }
+
+  const results = new Map<number, AnswerResult>();
+  for (const image of images) {
+    const votes = answerLookupKeys(image.originalFileName)
+      .map((key) => votesByFileName.get(key))
+      .find((candidate) => candidate !== undefined);
+    if (votes) results.set(image.order, computeAnswer(image.order, votes));
+  }
+  return results;
+}
+
 export function letterToIndex(letter: AnswerLetter): number {
   return answerLetters.indexOf(letter);
 }

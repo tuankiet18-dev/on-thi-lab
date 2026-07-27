@@ -126,7 +126,7 @@ export function AdminImportPage() {
           COURSE_NOT_FOUND: "Mã môn chưa có trong danh mục.",
           EXAM_ALREADY_EXISTS: "Đề thi này đã tồn tại.",
           INVALID_ARCHIVE:
-            "ZIP không hợp lệ. Ảnh phải được đánh số liên tiếp từ Q1 đến câu cuối cùng và không có file lạ.",
+            "ZIP không hợp lệ. Chỉ chứa ảnh câu hỏi hợp lệ, không trùng tên file và không có file lạ.",
         };
         setError(
           messages[reason.code] ?? "Không thể nhập đề. Vui lòng thử lại.",
@@ -298,8 +298,8 @@ export function AdminImportPage() {
                   {archive?.name || "Chọn file ZIP chứa ảnh và đáp án"}
                 </span>
                 <span className="mt-2 block text-sm text-slate-500">
-                  Chứa ảnh câu hỏi đánh số liên tiếp Q1 → Qn (ví dụ 50 hoặc 60
-                  ảnh), có thể kèm answers.json
+                  Chứa ảnh câu hỏi với tên bất kỳ (ví dụ 50 hoặc 60 ảnh), có thể
+                  kèm answers.json
                 </span>
               </label>
             </div>
@@ -364,8 +364,8 @@ export function AdminImportPage() {
               </li>
               <li className="flex gap-2">
                 <FileImage size={17} className="mt-0.5 shrink-0 text-primary" />
-                Tên ảnh theo mẫu Q1.jpg → Qn.jpg (hoặc 001.webp → 050.webp),
-                đánh số liên tiếp và không bỏ câu.
+                Tên ảnh bất kỳ đều hợp lệ; hệ thống tự gán thứ tự theo file
+                trong ZIP. Không trùng tên file.
               </li>
               <li className="flex gap-2">
                 <Sparkles size={17} className="mt-0.5 shrink-0 text-primary" />

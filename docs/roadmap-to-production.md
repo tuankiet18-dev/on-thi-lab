@@ -30,7 +30,7 @@ hồ sơ PostgreSQL. API yêu cầu onboarding trước khi truy cập catalog/e
 và role được trả từ database. Guard contributor/admin đã được áp dụng trên API
 nhập đề và có integration test RBAC.
 
-Phase 3 đã có validator ZIP an toàn, giải nén ảnh đánh số liên tiếp, checksum bất biến,
+Phase 3 đã có validator ZIP an toàn, giải nén ảnh tên tùy ý, checksum bất biến,
 multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
 local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
 hoặc nhiều đáp án, xem tiến độ theo số câu thực tế và chuyển đề sang trạng thái `review`.
