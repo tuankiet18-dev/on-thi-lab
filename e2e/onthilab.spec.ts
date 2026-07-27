@@ -48,18 +48,21 @@ test("desktop student can complete a practice exam", async ({
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: "Luyện đề thật, tự tin bước vào phòng thi.",
+      name: "Tìm đúng đề, vào thi ngay.",
     }),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("dashboard.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Bắt đầu luyện thi" }).click();
-  await expect(page).toHaveURL(/\/exams$/);
-
-  await page.getByPlaceholder("Tìm mã môn hoặc tên môn...").fill("SWD392");
-  await page.getByRole("link", { name: "Chi tiết" }).click();
+  await page
+    .getByPlaceholder("Tìm mã hoặc tên môn: SWD, PRF192, Java Web...")
+    .fill("SWD");
+  const newestExamLink = page.getByRole("link", {
+    name: "Xem đề mới nhất",
+  });
+  await expect(newestExamLink).toBeVisible();
+  await newestExamLink.click();
   await expect(page).toHaveURL(/\/exams\/demo-swd392-sp26-fe$/);
   await page.getByRole("button", { name: "Bắt đầu làm bài" }).click();
   await expect(page).toHaveURL(/\/attempts\/demo-attempt$/);
@@ -95,10 +98,13 @@ test("desktop student can complete a practice exam", async ({
 });
 
 test("catalog is responsive without horizontal overflow", async ({ page }) => {
-  await page.goto("/exams");
+  await page.goto("/exams?q=SWD392");
   await expect(
     page.getByRole("heading", { name: "Kho đề thi FE" }),
   ).toBeVisible();
+  await expect(page.getByPlaceholder("Tìm mã môn hoặc tên môn...")).toHaveValue(
+    "SWD392",
+  );
 
   const measurements = await page.locator("body").evaluate((body) => ({
     scrollWidth: body.scrollWidth,

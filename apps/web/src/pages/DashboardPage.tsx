@@ -12,16 +12,18 @@ import {
   LoaderCircle,
   MapPin,
   Play,
+  Search,
   Target,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
 import { getCatalog, getDailyUsage, getStudentStatistics } from "../lib/api";
+import { popularCourseCodes, searchCourses } from "../lib/catalog-search";
 
 const emptyStatistics: StudentStatistics = {
   totalAttempts: 0,
@@ -45,6 +47,7 @@ export function DashboardPage() {
   );
   const [loading, setLoading] = useState(Boolean(session));
   const [loadError, setLoadError] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!session) {
@@ -90,6 +93,12 @@ export function DashboardPage() {
     ? Math.min(100, (usage.attemptsStarted / usage.limit) * 100)
     : 0;
   const featuredExams = exams.slice(0, 3);
+  const matchingCourses = useMemo(
+    () => searchCourses(exams, query, studentProfile?.campus.name).slice(0, 4),
+    [exams, query, studentProfile?.campus.name],
+  );
+  const quickCourseCodes = useMemo(() => popularCourseCodes(exams), [exams]);
+  const trimmedQuery = query.trim();
   const statCards = [
     {
       label: "Bài đã hoàn thành",
@@ -130,27 +139,49 @@ export function DashboardPage() {
               Chào mừng trở lại, {firstName}
             </p>
             <h1 className="mt-2 font-heading text-3xl font-bold leading-tight sm:text-4xl">
-              Luyện đề thật, tự tin bước vào phòng thi.
+              Tìm đúng đề, vào thi ngay.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
-              Mô phỏng đúng thời gian, cấu trúc và cách làm bài FE. Điểm số chỉ
-              mang tính tham khảo.
+              Nhập mã hoặc tên môn như SWD, PRF192, Java Web. Đề mới nhất sẽ
+              luôn được ưu tiên để bạn bắt đầu ôn không cần tìm lâu.
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                to="/exams"
-                className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-primary shadow-md transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              >
-                <Play size={18} fill="currentColor" aria-hidden="true" />
-                Bắt đầu luyện thi
-              </Link>
-              <Link
-                to="/statistics"
-                className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition-colors duration-200 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              >
-                Xem tiến độ
-                <ArrowRight size={18} aria-hidden="true" />
-              </Link>
+            <div className="mt-7 rounded-2xl border border-white/20 bg-slate-950/10 p-3 shadow-lg backdrop-blur-sm sm:p-4">
+              <label className="relative block">
+                <span className="sr-only">Tìm mã hoặc tên môn học</span>
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-primary"
+                  size={20}
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Tìm mã hoặc tên môn: SWD, PRF192, Java Web..."
+                  className="min-h-13 w-full rounded-xl border border-white/60 bg-white py-3 pl-12 pr-4 text-base font-semibold text-foreground shadow-sm outline-none transition focus:border-white focus:ring-3 focus:ring-white/40"
+                  aria-describedby="course-search-hint"
+                />
+              </label>
+              <p id="course-search-hint" className="mt-3 text-sm text-blue-100">
+                Gõ mã môn để xem các đề theo campus của bạn và từ kỳ gần nhất.
+              </p>
+              {quickCourseCodes.length > 0 && !trimmedQuery && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-blue-100">
+                    Tìm nhanh:
+                  </span>
+                  {quickCourseCodes.map((courseCode) => (
+                    <button
+                      key={courseCode}
+                      type="button"
+                      onClick={() => setQuery(courseCode)}
+                      className="min-h-9 cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+                    >
+                      {courseCode}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <Target
@@ -213,6 +244,101 @@ export function DashboardPage() {
           </div>
         </Card>
       </section>
+
+      {trimmedQuery && (
+        <section aria-live="polite">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="section-kicker">Kết quả tìm môn</p>
+              <h2 className="section-title">
+                {matchingCourses.length > 0
+                  ? `Đề thi cho “${trimmedQuery}”`
+                  : `Chưa có đề cho “${trimmedQuery}”`}
+              </h2>
+            </div>
+            {matchingCourses.length > 0 && (
+              <Link
+                to="/exams"
+                search={{ q: trimmedQuery }}
+                className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg text-sm font-semibold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+              >
+                Xem tất cả kết quả
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            )}
+          </div>
+
+          {matchingCourses.length === 0 ? (
+            <Card className="p-5 sm:p-6">
+              <p className="font-heading text-lg font-bold text-foreground">
+                Chưa tìm thấy môn phù hợp
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Hãy thử mã môn ngắn như SWD hoặc PRF, hoặc tìm bằng một phần tên
+                môn. Bạn cũng có thể mở toàn bộ kho đề để lọc thêm.
+              </p>
+              <Link
+                to="/exams"
+                className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+              >
+                Mở kho đề thi
+                <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+            </Card>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {matchingCourses.map((course) => {
+                const newestExam = course.exams[0]!;
+                return (
+                  <Card key={course.courseCode} className="p-5 sm:p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                          {course.courseCode}
+                        </p>
+                        <h3 className="mt-1 font-heading text-xl font-bold text-foreground">
+                          {course.courseName}
+                        </h3>
+                        <p className="mt-2 text-sm text-slate-600">
+                          {course.exams.length} đề đã phát hành · Ưu tiên campus{" "}
+                          {studentProfile?.campus.name ?? "của bạn"}
+                        </p>
+                      </div>
+                      <Badge tone="blue">Đề mới nhất</Badge>
+                    </div>
+                    <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-primary-soft p-4 text-sm text-slate-700">
+                      <span className="font-bold text-primary">
+                        {newestExam.semester}
+                      </span>
+                      <span>{newestExam.campus}</span>
+                      <span>{newestExam.questionCount} câu</span>
+                      <span>{newestExam.durationMinutes} phút</span>
+                      {newestExam.isRetake && <Badge tone="pink">Retake</Badge>}
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Link
+                        to="/exams/$examId"
+                        params={{ examId: newestExam.id }}
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                      >
+                        Xem đề mới nhất
+                        <ArrowRight size={17} aria-hidden="true" />
+                      </Link>
+                      <Link
+                        to="/exams"
+                        search={{ q: course.courseCode }}
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-white px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                      >
+                        Xem {course.exams.length} đề
+                      </Link>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {loadError && (
         <p

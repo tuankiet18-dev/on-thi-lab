@@ -32,6 +32,7 @@ export default defineConfig({
       "npx pnpm@10.13.1 --filter @onthilab/web dev --host 127.0.0.1 --port 4173 --strictPort",
     env: {
       ...process.env,
+      VITE_API_URL: "",
       VITE_COGNITO_DOMAIN: "",
       VITE_COGNITO_CLIENT_ID: "",
       VITE_COGNITO_REDIRECT_URI: "",
