@@ -75,6 +75,8 @@
   }
 
   .input-base {
+    width: 100%;
+    min-width: 0;
     min-height: 2.75rem;
     border: 1px solid var(--color-border-strong);
     border-radius: 0.75rem;
@@ -103,6 +105,7 @@
     color: #334155;
     font-size: 0.875rem;
     font-weight: 600;
+    min-width: 0;
   }
 }
 
