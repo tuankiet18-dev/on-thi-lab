@@ -142,23 +142,38 @@ test("student can preview a published exam without starting an attempt", async (
   ).toBeVisible();
 });
 
-test("draft import form captures metadata and a ZIP archive", async ({
+test("draft import form queues multiple ZIP archives with independent metadata", async ({
   page,
 }) => {
   await page.goto("/admin/import");
   await expect(
-    page.getByRole("heading", { name: "Tạo đề thi mới" }),
+    page.getByRole("heading", { name: "Tạo nhiều đề thi" }),
   ).toBeVisible();
 
   await page.getByLabel("Kỳ học").fill("SP26");
-  await page.getByLabel("Chọn file ZIP chứa ảnh câu hỏi").setInputFiles({
-    name: "questions.zip",
-    mimeType: "application/zip",
-    buffer: Buffer.from("PK"),
-  });
+  await page
+    .getByLabel("Chọn một hoặc nhiều file ZIP chứa ảnh câu hỏi")
+    .setInputFiles([
+      {
+        name: "questions-1.zip",
+        mimeType: "application/zip",
+        buffer: Buffer.from("PK"),
+      },
+      {
+        name: "questions-2.zip",
+        mimeType: "application/zip",
+        buffer: Buffer.from("PK"),
+      },
+    ]);
+
+  await expect(page.getByText("questions-1.zip")).toBeVisible();
+  await expect(page.getByText("questions-2.zip")).toBeVisible();
+  await expect(
+    page.getByText("2 ZIP · 0 đã tạo nháp · 0 cần thử lại"),
+  ).toBeVisible();
 
   const submit = page.getByRole("button", {
-    name: "Kiểm tra và tạo đề nháp",
+    name: "Nhập 2 đề",
   });
   await expect(submit).toBeEnabled();
   await submit.click();
