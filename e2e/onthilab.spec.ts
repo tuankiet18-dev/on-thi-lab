@@ -48,19 +48,20 @@ test("desktop student can complete a practice exam", async ({
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: "Tìm đúng đề, vào thi ngay.",
+      name: "Ôn đúng môn. Vào đề ngay.",
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Luyện thi không giới hạn" }),
+    page.getByText("Đề nên làm ngay", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Mở đề và bắt đầu" }),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("dashboard.png"),
     fullPage: true,
   });
-  await page
-    .getByPlaceholder("Tìm mã hoặc tên môn: SWD, PRF192, Java Web...")
-    .fill("SWD");
+  await page.getByPlaceholder("Ví dụ: SWD, PRF192, Java Web...").fill("SWD");
   const newestExamLink = page.getByRole("link", {
     name: "Xem đề mới nhất",
   });
@@ -109,6 +110,26 @@ test("catalog is responsive without horizontal overflow", async ({ page }) => {
   await expect(page.getByPlaceholder("Tìm mã môn hoặc tên môn...")).toHaveValue(
     "SWD392",
   );
+
+  const measurements = await page.locator("body").evaluate((body) => ({
+    scrollWidth: body.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth,
+  );
+});
+
+test("dashboard keeps the first action readable without horizontal overflow", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Ôn đúng môn. Vào đề ngay." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Mở đề và bắt đầu" }),
+  ).toBeVisible();
 
   const measurements = await page.locator("body").evaluate((body) => ({
     scrollWidth: body.scrollWidth,
