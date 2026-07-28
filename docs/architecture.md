@@ -64,8 +64,8 @@ API Gateway ── Lambda/Hono ── Supabase PostgreSQL
   trước khi người duyệt áp dụng và lưu.
 - Chỉ Admin được approve revision và publish; Contributor chỉ nhập/duyệt đáp án.
 - Chỉ Admin được khởi tạo batch AI vì thao tác có thể phát sinh chi phí.
-- Free user tạo tối đa 2 attempt mới mỗi ngày theo múi giờ Việt Nam; attempt
-  đang hoạt động được resume mà không trừ thêm lượt.
+- Người dùng có thể tạo attempt mới không giới hạn trong giai đoạn ra mắt;
+  attempt đang hoạt động vẫn được resume trên cùng thiết bị.
 - Ảnh gốc và ảnh phát hành dùng object key bất biến, checksum để chống trùng.
 
 ## Chi phí AWS và Supabase

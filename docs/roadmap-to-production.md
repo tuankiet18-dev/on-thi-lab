@@ -43,9 +43,9 @@ còn lại của phase là presigned S3 và deploy SQS consumer worker trên AWS
 
 Phase 4 đã thay catalog và exam demo bằng API PostgreSQL. Attempt lưu revision,
 thứ tự câu đã trộn, timer server, autosave có sequence, submit idempotent và
-exact-match score. Đáp án đúng chỉ được trả về sau khi nộp. Free user bị giới
-hạn tối đa 2 lượt mới mỗi ngày; subscription đang active không áp dụng giới hạn
-này. Còn lại là integration/load test concurrency và lịch sử làm bài.
+exact-match score. Đáp án đúng chỉ được trả về sau khi nộp. Người dùng có thể
+bắt đầu lượt thi mới không giới hạn trong giai đoạn ra mắt. Còn lại là
+integration/load test concurrency và lịch sử làm bài.
 
 Phase 6 dùng Supabase PostgreSQL thay Aurora Serverless để phù hợp closed beta.
 AWS vẫn là lớp deploy: CloudFront/S3 cho web, API Gateway/Lambda cho API, S3

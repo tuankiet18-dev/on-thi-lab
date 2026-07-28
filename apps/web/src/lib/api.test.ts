@@ -5,7 +5,6 @@ import {
   getAttempt,
   getAttemptSession,
   getCatalog,
-  getDailyUsage,
   getDraftExamReview,
   getPublishedExam,
   markExamReviewReady,
@@ -69,31 +68,6 @@ describe("profile API client", () => {
         new Response(JSON.stringify({ data: null }), { status: 200 }),
       );
     await expect(getMyProfile("signed-id-token", fetcher)).resolves.toBeNull();
-  });
-
-  it("loads the authenticated student's daily free quota", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: { attemptsStarted: 1, limit: 2, remainingAttempts: 1 },
-        }),
-        { status: 200 },
-      ),
-    );
-
-    await expect(getDailyUsage("signed-id-token", fetcher)).resolves.toEqual({
-      attemptsStarted: 1,
-      limit: 2,
-      remainingAttempts: 1,
-    });
-    expect(fetcher).toHaveBeenCalledWith(
-      "http://localhost:8787/v1/me/usage",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer signed-id-token",
-        }),
-      }),
-    );
   });
 
   it("preserves API status and error code", async () => {

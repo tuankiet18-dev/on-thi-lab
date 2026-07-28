@@ -396,7 +396,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/catalog", requireProfile);
   app.use("/v1/exams/*", requireProfile);
   app.use("/v1/me/statistics", requireProfile);
-  app.use("/v1/me/usage", requireProfile);
   app.use("/v1/attempts", requireProfile);
   app.use("/v1/attempts/*", requireProfile);
   app.use("/v1/bookmarks", requireProfile);
@@ -965,14 +964,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     }),
   );
 
-  app.get("/v1/me/usage", async (context) =>
-    context.json({
-      data: await dependencies.attempts.getDailyUsage(
-        context.get("profile").id,
-      ),
-    }),
-  );
-
   app.get("/v1/attempts", async (context) => {
     const attempts = await dependencies.attempts.listUserAttempts(
       context.get("profile").id,
@@ -1004,12 +995,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
       return context.json({ data: launch }, launch.resumed ? 200 : 201);
     } catch (error) {
       if (error instanceof AttemptRepositoryError) {
-        const status =
-          error.code === "EXAM_NOT_FOUND"
-            ? 404
-            : error.code === "DAILY_LIMIT_REACHED"
-              ? 429
-              : 409;
+        const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
         return context.json(
           { error: error.code, message: error.message },
           status,

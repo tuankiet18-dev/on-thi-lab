@@ -60,21 +60,6 @@ export const openApiDocument = {
         },
       },
     },
-    "/v1/me/usage": {
-      get: {
-        operationId: "getDailyUsage",
-        tags: ["Attempts"],
-        security: [{ cognitoIdToken: [] }],
-        responses: {
-          "200": {
-            description:
-              "Number of attempts started today and the user's current limit",
-          },
-          "401": { description: "Missing, invalid or expired token" },
-          "403": { description: "Profile onboarding is required" },
-        },
-      },
-    },
     "/v1/bookmarks": {
       get: {
         operationId: "listBookmarks",
@@ -443,7 +428,6 @@ export const openApiDocument = {
         responses: {
           "201": { description: "Attempt created" },
           "200": { description: "Active attempt resumed" },
-          "429": { description: "Daily free attempt limit reached" },
           "409": { description: "Attempt conflict" },
         },
       },

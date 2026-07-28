@@ -11,7 +11,6 @@ import type {
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
-  AttemptRepositoryError,
   type AdminCatalogRepository,
   type BookmarkRepository,
 } from "@onthilab/database";
@@ -217,22 +216,6 @@ describe("attempt API", () => {
     });
     expect(removed.status).toBe(200);
     expect(bookmarks.savedExamIds.size).toBe(0);
-  });
-
-  it("returns the authenticated student's remaining free attempts", async () => {
-    const isolatedApp = createApp({
-      auth,
-      profiles: createOnboardedProfiles(),
-    });
-
-    const response = await isolatedApp.request("/v1/me/usage", {
-      headers: authorization,
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      data: { attemptsStarted: 0, limit: 2, remainingAttempts: 2 },
-    });
   });
 
   it("blocks non-admin users from accessing admin routes", async () => {
@@ -941,49 +924,31 @@ describe("attempt API", () => {
     });
   });
 
-  it("returns a clear limit response after two free attempts", async () => {
+  it("allows a student to start more than two practice attempts", async () => {
     const isolatedApp = createApp({
       auth,
       profiles: createOnboardedProfiles(),
-      attempts: {
-        createOrResume: async () => {
-          throw new AttemptRepositoryError(
-            "DAILY_LIMIT_REACHED",
-            "Bạn đã dùng hết 2 lượt thi miễn phí hôm nay.",
-          );
-        },
-        findForUser: async () => null,
-        findSessionForUser: async () => null,
-        listUserAttempts: async () => [],
-        saveAnswer: async () => {
-          throw new Error("not used");
-        },
-        submit: async () => {
-          throw new Error("not used");
-        },
-        getStatistics: async () => {
-          throw new Error("not used");
-        },
-        getDailyUsage: async () => {
-          throw new Error("not used");
-        },
-      },
-    });
-    const response = await isolatedApp.request("/v1/attempts", {
-      method: "POST",
-      headers: {
-        ...authorization,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        examId: "20000000-0000-4000-8000-000000000001",
-        deviceId: "test-device-0001",
-      }),
     });
 
-    expect(response.status).toBe(429);
-    await expect(response.json()).resolves.toMatchObject({
-      error: "DAILY_LIMIT_REACHED",
-    });
+    const responses = await Promise.all(
+      ["unlimited-device-1", "unlimited-device-2", "unlimited-device-3"].map(
+        (deviceId) =>
+          isolatedApp.request("/v1/attempts", {
+            method: "POST",
+            headers: {
+              ...authorization,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              examId: "demo-swd392-sp26-fe",
+              deviceId,
+            }),
+          }),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([
+      201, 201, 201,
+    ]);
   });
 });

@@ -1,8 +1,4 @@
-import type {
-  DailyUsage,
-  ExamSummary,
-  StudentStatistics,
-} from "@onthilab/contracts";
+import type { ExamSummary, StudentStatistics } from "@onthilab/contracts";
 import {
   ArrowRight,
   Award,
@@ -23,12 +19,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { catalogExams } from "../data/demo";
-import {
-  getBookmarks,
-  getCatalog,
-  getDailyUsage,
-  getStudentStatistics,
-} from "../lib/api";
+import { getBookmarks, getCatalog, getStudentStatistics } from "../lib/api";
 import { popularCourseCodes, searchCourses } from "../lib/catalog-search";
 
 const emptyStatistics: StudentStatistics = {
@@ -38,16 +29,9 @@ const emptyStatistics: StudentStatistics = {
   recentAttempts: [],
 };
 
-const emptyUsage: DailyUsage = {
-  attemptsStarted: 0,
-  limit: 2,
-  remainingAttempts: 2,
-};
-
 export function DashboardPage() {
   const { configured, session, studentProfile } = useAuth();
   const [statistics, setStatistics] = useState(emptyStatistics);
-  const [usage, setUsage] = useState(emptyUsage);
   const [exams, setExams] = useState<ExamSummary[]>(
     configured ? [] : catalogExams,
   );
@@ -67,13 +51,11 @@ export function DashboardPage() {
     setLoadError("");
     void Promise.all([
       getStudentStatistics(session.idToken),
-      getDailyUsage(session.idToken),
       getCatalog(session.idToken),
     ])
-      .then(([nextStatistics, nextUsage, nextExams]) => {
+      .then(([nextStatistics, nextExams]) => {
         if (!active) return;
         setStatistics(nextStatistics);
-        setUsage(nextUsage);
         setExams(nextExams);
       })
       .catch(() => {
@@ -106,9 +88,6 @@ export function DashboardPage() {
     studentProfile?.fullName.trim().split(/\s+/).at(-1) ??
     session?.user.name.trim().split(/\s+/).at(-1) ??
     "bạn";
-  const usagePercent = usage.limit
-    ? Math.min(100, (usage.attemptsStarted / usage.limit) * 100)
-    : 0;
   const featuredExams = exams.slice(0, 3);
   const matchingCourses = useMemo(
     () => searchCourses(exams, query, studentProfile?.campus.name).slice(0, 4),
@@ -221,36 +200,17 @@ export function DashboardPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-slate-500">
-                Hạn mức hôm nay
+                Giai đoạn ra mắt
               </p>
               <h2 className="mt-1 font-heading text-xl font-bold text-foreground">
-                {usage.limit === null ? "Không giới hạn" : "Miễn phí"}
+                Luyện thi không giới hạn
               </h2>
             </div>
-            <Badge tone="blue">
-              {usage.limit === null
-                ? "Không giới hạn"
-                : `${usage.attemptsStarted} / ${usage.limit} lượt`}
-            </Badge>
-          </div>
-          <div className="mt-6 h-2.5 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-200"
-              style={{ width: `${usagePercent}%` }}
-            />
+            <Badge tone="green">Không giới hạn</Badge>
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            {usage.remainingAttempts === null ? (
-              "Bạn có thể bắt đầu luyện thi bất cứ lúc nào."
-            ) : (
-              <>
-                Bạn còn{" "}
-                <strong className="text-foreground">
-                  {usage.remainingAttempts} lượt thi
-                </strong>{" "}
-                hôm nay. Hạn mức được làm mới lúc 00:00.
-              </>
-            )}
+            Bạn có thể làm lại bất kỳ đề nào để ôn tập. Điểm số và lịch sử làm
+            bài luôn được lưu trong tài khoản của bạn.
           </p>
           <div className="my-5 border-t border-border" />
           <div className="space-y-3 text-sm text-slate-600">
