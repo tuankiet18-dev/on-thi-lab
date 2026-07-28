@@ -165,15 +165,6 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {canContribute && (
-              <Link
-                to="/admin/import"
-                className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 md:flex"
-              >
-                <FileUp size={17} aria-hidden="true" />
-                Nhập đề
-              </Link>
-            )}
             {session ? (
               <div className="relative hidden sm:block">
                 <button
@@ -216,9 +207,20 @@ export function AppShell() {
                       <UserRound size={17} aria-hidden="true" />
                       Hồ sơ của tôi
                     </Link>
-                    {isAdmin && (
+                    {canContribute && (
                       <>
                         <div className="my-1 h-px bg-border" />
+                        <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Quản trị
+                        </p>
+                        <Link
+                          to="/admin/import"
+                          onClick={() => setAccountOpen(false)}
+                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <FileUp size={17} aria-hidden="true" />
+                          Nhập đề
+                        </Link>
                         <Link
                           to="/admin/drafts"
                           onClick={() => setAccountOpen(false)}
@@ -227,38 +229,42 @@ export function AppShell() {
                           <FileText size={17} aria-hidden="true" />
                           Đề chờ duyệt
                         </Link>
-                        <Link
-                          to="/admin/exams"
-                          onClick={() => setAccountOpen(false)}
-                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          <Archive size={17} aria-hidden="true" />
-                          Kho đề
-                        </Link>
-                        <Link
-                          to="/admin/catalog-management"
-                          onClick={() => setAccountOpen(false)}
-                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          <GraduationCap size={17} aria-hidden="true" />
-                          Danh mục đào tạo
-                        </Link>
-                        <Link
-                          to="/admin/users"
-                          onClick={() => setAccountOpen(false)}
-                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          <ShieldCheck size={17} aria-hidden="true" />
-                          Phân quyền
-                        </Link>
-                        <Link
-                          to="/admin/reports"
-                          onClick={() => setAccountOpen(false)}
-                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          <MessageSquareText size={17} aria-hidden="true" />
-                          Quản lý báo cáo
-                        </Link>
+                        {isAdmin && (
+                          <>
+                            <Link
+                              to="/admin/exams"
+                              onClick={() => setAccountOpen(false)}
+                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <Archive size={17} aria-hidden="true" />
+                              Kho đề
+                            </Link>
+                            <Link
+                              to="/admin/catalog-management"
+                              onClick={() => setAccountOpen(false)}
+                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <GraduationCap size={17} aria-hidden="true" />
+                              Danh mục đào tạo
+                            </Link>
+                            <Link
+                              to="/admin/users"
+                              onClick={() => setAccountOpen(false)}
+                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <ShieldCheck size={17} aria-hidden="true" />
+                              Phân quyền
+                            </Link>
+                            <Link
+                              to="/admin/reports"
+                              onClick={() => setAccountOpen(false)}
+                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <MessageSquareText size={17} aria-hidden="true" />
+                              Quản lý báo cáo
+                            </Link>
+                          </>
+                        )}
                       </>
                     )}
                     <div className="my-1 h-px bg-border" />
@@ -321,6 +327,10 @@ export function AppShell() {
               ))}
               {canContribute && (
                 <>
+                  <div className="my-1 h-px bg-border" />
+                  <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Quản trị
+                  </p>
                   <Link
                     to="/admin/import"
                     onClick={() => setMenuOpen(false)}
@@ -337,22 +347,42 @@ export function AppShell() {
                     <FileText size={18} aria-hidden="true" />
                     Đề chờ duyệt
                   </Link>
-                  <Link
-                    to="/admin/catalog-management"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-                  >
-                    <GraduationCap size={18} aria-hidden="true" />
-                    Danh mục đào tạo
-                  </Link>
-                  <Link
-                    to="/admin/exams"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-                  >
-                    <Archive size={18} aria-hidden="true" />
-                    Kho đề
-                  </Link>
+                  {isAdmin && (
+                    <>
+                      <Link
+                        to="/admin/catalog-management"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                      >
+                        <GraduationCap size={18} aria-hidden="true" />
+                        Danh mục đào tạo
+                      </Link>
+                      <Link
+                        to="/admin/exams"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                      >
+                        <Archive size={18} aria-hidden="true" />
+                        Kho đề
+                      </Link>
+                      <Link
+                        to="/admin/users"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                      >
+                        <ShieldCheck size={18} aria-hidden="true" />
+                        Phân quyền
+                      </Link>
+                      <Link
+                        to="/admin/reports"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                      >
+                        <MessageSquareText size={18} aria-hidden="true" />
+                        Quản lý báo cáo
+                      </Link>
+                    </>
+                  )}
                 </>
               )}
               {session ? (
