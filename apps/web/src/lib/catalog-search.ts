@@ -6,16 +6,6 @@ export interface CourseSearchResult {
   exams: ExamSummary[];
 }
 
-export type CatalogSort = "newest" | "oldest";
-
-export interface CatalogExamFilters {
-  query?: string;
-  campus?: string;
-  semester?: string;
-  examType?: ExamSummary["examType"];
-  sort?: CatalogSort;
-}
-
 function normalized(value: string): string {
   return value
     .normalize("NFD")
@@ -23,40 +13,6 @@ function normalized(value: string): string {
     .replace(/đ/gi, "d")
     .toLocaleLowerCase("vi-VN")
     .trim();
-}
-
-/**
- * Applies the filters supported by the catalog API response. Keeping this
- * client-side lets the page move to server-side filtering later without
- * changing its UI contract.
- */
-export function filterCatalogExams(
-  exams: ExamSummary[],
-  filters: CatalogExamFilters,
-): ExamSummary[] {
-  const keyword = normalized(filters.query ?? "");
-  const direction = filters.sort === "oldest" ? 1 : -1;
-
-  return exams
-    .filter((exam) => {
-      const searchText = normalized(
-        `${exam.courseCode} ${exam.courseName} ${exam.code}`,
-      );
-      return (
-        (!keyword || searchText.includes(keyword)) &&
-        (!filters.campus || exam.campus === filters.campus) &&
-        (!filters.semester || exam.semester === filters.semester) &&
-        (!filters.examType || exam.examType === filters.examType)
-      );
-    })
-    .sort((left, right) => {
-      const publishedDifference =
-        new Date(left.publishedAt).getTime() -
-        new Date(right.publishedAt).getTime();
-      if (publishedDifference) return publishedDifference * direction;
-      if (left.isRetake !== right.isRetake) return left.isRetake ? 1 : -1;
-      return left.code.localeCompare(right.code, "vi-VN") * direction;
-    });
 }
 
 function sortExams(exams: ExamSummary[], campusName?: string): ExamSummary[] {

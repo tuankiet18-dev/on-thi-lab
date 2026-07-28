@@ -114,9 +114,9 @@ test("catalog is responsive without horizontal overflow", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Kho đề thi FE" }),
   ).toBeVisible();
-  await expect(
-    page.getByPlaceholder("Tìm theo mã môn hoặc tên môn..."),
-  ).toHaveValue("SWD392");
+  await expect(page.getByPlaceholder("Tìm mã môn hoặc tên môn...")).toHaveValue(
+    "SWD392",
+  );
 
   const measurements = await page.locator("body").evaluate((body) => ({
     scrollWidth: body.scrollWidth,
@@ -125,27 +125,6 @@ test("catalog is responsive without horizontal overflow", async ({ page }) => {
   expect(measurements.scrollWidth).toBeLessThanOrEqual(
     measurements.viewportWidth,
   );
-});
-
-test("catalog keeps search and filters in a shareable URL", async ({
-  page,
-}) => {
-  await page.goto("/exams");
-  const search = page.getByPlaceholder("Tìm theo mã môn hoặc tên môn...");
-  await search.fill("prn");
-  await expect(page).toHaveURL(/\/exams\?q=prn$/);
-  await expect(page.getByText("Tìm thấy 1 đề phù hợp")).toBeVisible();
-
-  await page.getByLabel("Campus").selectOption("Hồ Chí Minh");
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get("campus"))
-    .toBe("Hồ Chí Minh");
-  await page.getByRole("button", { name: "Xóa bộ lọc Hồ Chí Minh" }).click();
-  await expect(page).toHaveURL(/\/exams\?q=prn$/);
-  await expect(page.getByRole("button", { name: "Xóa tất cả" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Xóa tất cả" }).click();
-  await expect(page).toHaveURL(/\/exams$/);
 });
 
 test("dashboard keeps the first action readable without horizontal overflow", async ({

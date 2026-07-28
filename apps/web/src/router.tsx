@@ -23,14 +23,6 @@ import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { BookmarksPage } from "./pages/BookmarksPage";
 
-interface CatalogRouteSearch {
-  q?: string;
-  campus?: string;
-  semester?: string;
-  examType?: "FE" | "PE";
-  sort?: "newest" | "oldest";
-}
-
 const rootRoute = createRootRoute({
   component: AppShell,
   notFoundComponent: () => (
@@ -74,19 +66,6 @@ const profileRoute = createRoute({
 const catalogRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/exams",
-  validateSearch: (search: Record<string, unknown>): CatalogRouteSearch => {
-    const result: CatalogRouteSearch = {};
-    if (typeof search.q === "string") result.q = search.q;
-    if (typeof search.campus === "string") result.campus = search.campus;
-    if (typeof search.semester === "string") result.semester = search.semester;
-    if (search.examType === "FE" || search.examType === "PE") {
-      result.examType = search.examType;
-    }
-    if (search.sort === "newest" || search.sort === "oldest") {
-      result.sort = search.sort;
-    }
-    return result;
-  },
   component: CatalogPage,
 });
 
