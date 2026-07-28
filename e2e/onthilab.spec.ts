@@ -52,7 +52,7 @@ test("desktop student can complete a practice exam", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByText("Đề nên làm ngay", { exact: true }),
+    page.getByText("Đề mới nhất của campus bạn", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Mở đề và bắt đầu" }),
@@ -61,12 +61,19 @@ test("desktop student can complete a practice exam", async ({
     path: testInfo.outputPath("dashboard.png"),
     fullPage: true,
   });
-  await page.getByPlaceholder("Ví dụ: SWD, PRF192, Java Web...").fill("SWD");
-  const newestExamLink = page.getByRole("link", {
-    name: "Xem đề mới nhất",
+  const courseSearch = page.getByRole("combobox", {
+    name: "Tìm mã hoặc tên môn học",
   });
-  await expect(newestExamLink).toBeVisible();
-  await newestExamLink.click();
+  await courseSearch.fill("SWD");
+  await expect(
+    page.getByRole("listbox", { name: "Kết quả tìm kiếm" }),
+  ).toBeVisible();
+  await courseSearch.press("ArrowDown");
+  await expect(courseSearch).toHaveAttribute(
+    "aria-activedescendant",
+    "search-option-0",
+  );
+  await courseSearch.press("Enter");
   await expect(page).toHaveURL(/\/exams\/demo-swd392-sp26-fe$/);
   await expect(page.getByText("Tối đa 2 lượt/ngày")).toHaveCount(0);
   await page.getByRole("button", { name: "Bắt đầu làm bài" }).click();
@@ -138,6 +145,23 @@ test("dashboard keeps the first action readable without horizontal overflow", as
   expect(measurements.scrollWidth).toBeLessThanOrEqual(
     measurements.viewportWidth,
   );
+});
+
+test("mobile admin menu exposes all administration tools", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Mở menu" }).click();
+
+  const navigation = page.getByRole("navigation", { name: "Di động" });
+  await expect(navigation.getByText("Quản trị", { exact: true })).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Phân quyền" }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Quản lý báo cáo" }),
+  ).toBeVisible();
 });
 
 test("student can preview a published exam without starting an attempt", async ({
