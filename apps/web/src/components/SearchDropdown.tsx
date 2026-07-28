@@ -16,6 +16,7 @@ interface SearchDropdownProps {
   placeholder?: string;
   describedBy?: string;
   className?: string;
+  onViewAllResults?: (query: string) => void;
 }
 
 export function SearchDropdown({
@@ -26,6 +27,7 @@ export function SearchDropdown({
   placeholder = "Ví dụ: SWD, PRF192, Java Web...",
   describedBy,
   className,
+  onViewAllResults,
 }: SearchDropdownProps) {
   const listboxId = useId();
   const inputId = useId();
@@ -240,10 +242,14 @@ export function SearchDropdown({
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    void navigate({
-                      to: "/exams",
-                      search: { q: query.trim() },
-                    });
+                    if (onViewAllResults) {
+                      onViewAllResults(query.trim());
+                    } else {
+                      void navigate({
+                        to: "/exams",
+                        search: { q: query.trim() },
+                      });
+                    }
                     setIsOpen(false);
                   }}
                   className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
