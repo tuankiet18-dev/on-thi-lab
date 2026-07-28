@@ -5,12 +5,13 @@ import {
   Bookmark,
   BookOpenCheck,
   CheckCircle2,
+  CirclePlay,
   Clock3,
+  FileText,
+  GraduationCap,
   LoaderCircle,
   MapPin,
-  Play,
   Search,
-  Target,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -88,7 +89,24 @@ export function DashboardPage() {
     studentProfile?.fullName.trim().split(/\s+/).at(-1) ??
     session?.user.name.trim().split(/\s+/).at(-1) ??
     "bạn";
-  const featuredExams = exams.slice(0, 3);
+  const featuredExams = useMemo(
+    () =>
+      [...exams]
+        .sort((left, right) => {
+          const leftCampus =
+            left.campus === studentProfile?.campus.name ? 0 : 1;
+          const rightCampus =
+            right.campus === studentProfile?.campus.name ? 0 : 1;
+          if (leftCampus !== rightCampus) return leftCampus - rightCampus;
+          return (
+            new Date(right.publishedAt).getTime() -
+            new Date(left.publishedAt).getTime()
+          );
+        })
+        .slice(0, 3),
+    [exams, studentProfile?.campus.name],
+  );
+  const recommendedExam = featuredExams[0];
   const matchingCourses = useMemo(
     () => searchCourses(exams, query, studentProfile?.campus.name).slice(0, 4),
     [exams, query, studentProfile?.campus.name],
@@ -135,97 +153,169 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-5 xl:grid-cols-[1fr_380px]">
-        <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#173b8f] via-primary to-[#477bea] p-6 text-white shadow-panel sm:p-8 lg:p-10">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
+        <div className="relative isolate overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-panel sm:p-8 lg:p-10">
+          <span
+            className="absolute -right-20 -top-24 size-80 rounded-full bg-primary/70 blur-3xl"
+            aria-hidden="true"
+          />
+          <span
+            className="absolute -bottom-28 left-1/3 size-72 rounded-full bg-cyan-400/20 blur-3xl"
+            aria-hidden="true"
+          />
           <div className="relative z-10 max-w-2xl">
-            <Badge tone="amber">Miễn phí giai đoạn ra mắt</Badge>
-            <p className="mt-5 text-sm font-semibold text-blue-100">
-              Chào mừng trở lại, {firstName}
-            </p>
-            <h1 className="mt-2 font-heading text-3xl font-bold leading-tight sm:text-4xl">
-              Tìm đúng đề, vào thi ngay.
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge tone="amber">Bắt đầu ở đây</Badge>
+              <span className="text-sm font-semibold text-blue-100">
+                Chào {firstName}, chọn môn bạn đang ôn
+              </span>
+            </div>
+            <h1 className="mt-5 max-w-xl font-heading text-4xl font-bold leading-[1.12] tracking-tight sm:text-5xl">
+              Ôn đúng môn.
+              <span className="block text-blue-200">Vào đề ngay.</span>
             </h1>
-            <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
-              Nhập mã hoặc tên môn như SWD, PRF192, Java Web. Đề mới nhất sẽ
-              luôn được ưu tiên để bạn bắt đầu ôn không cần tìm lâu.
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-200 sm:text-lg">
+              Gõ mã môn như SWD, PRF192 hoặc tên môn. OnThiLab sẽ đưa đề mới
+              nhất, ưu tiên campus của bạn, lên trước.
             </p>
-            <div className="mt-7 rounded-2xl border border-white/20 bg-slate-950/10 p-3 shadow-lg backdrop-blur-sm sm:p-4">
+
+            <div className="mt-7 rounded-2xl border border-white/15 bg-white/10 p-3 shadow-xl backdrop-blur-sm sm:p-4">
               <label className="relative block">
                 <span className="sr-only">Tìm mã hoặc tên môn học</span>
                 <Search
                   className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-primary"
-                  size={20}
+                  size={21}
                   aria-hidden="true"
                 />
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Tìm mã hoặc tên môn: SWD, PRF192, Java Web..."
-                  className="min-h-13 w-full rounded-xl border border-white/60 bg-white py-3 pl-12 pr-4 text-base font-semibold text-foreground shadow-sm outline-none transition focus:border-white focus:ring-3 focus:ring-white/40"
+                  placeholder="Ví dụ: SWD, PRF192, Java Web..."
+                  className="min-h-14 w-full rounded-xl border border-white bg-white py-3 pl-12 pr-4 text-base font-semibold text-foreground shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:border-blue-200 focus:ring-3 focus:ring-white/35"
                   aria-describedby="course-search-hint"
                 />
               </label>
-              <p id="course-search-hint" className="mt-3 text-sm text-blue-100">
-                Gõ mã môn để xem các đề theo campus của bạn và từ kỳ gần nhất.
-              </p>
-              {quickCourseCodes.length > 0 && !trimmedQuery && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-blue-100">
-                    Tìm nhanh:
-                  </span>
-                  {quickCourseCodes.map((courseCode) => (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <p
+                  id="course-search-hint"
+                  className="mr-1 text-sm text-blue-100"
+                >
+                  Môn phổ biến:
+                </p>
+                {quickCourseCodes.length > 0 ? (
+                  quickCourseCodes.map((courseCode) => (
                     <button
                       key={courseCode}
                       type="button"
                       onClick={() => setQuery(courseCode)}
-                      className="min-h-9 cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+                      className="min-h-10 cursor-pointer rounded-lg border border-white/20 bg-slate-950/20 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
                     >
                       {courseCode}
                     </button>
-                  ))}
-                </div>
-              )}
+                  ))
+                ) : (
+                  <span className="text-sm text-blue-100">
+                    Đề mới sẽ xuất hiện sau khi được xuất bản.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2 text-sm text-blue-100">
+              <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3">
+                <MapPin size={16} aria-hidden="true" />
+                {studentProfile?.campus.name ?? "Campus đang cập nhật"}
+              </span>
+              <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3">
+                <GraduationCap size={16} aria-hidden="true" />
+                {studentProfile?.major.name ?? "Ngành đang cập nhật"}
+              </span>
             </div>
           </div>
-          <Target
-            className="absolute bottom-8 right-8 hidden text-white/15 lg:block"
-            size={150}
-            strokeWidth={1.2}
-            aria-hidden="true"
-          />
         </div>
 
-        <Card className="flex flex-col p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-500">
-                Giai đoạn ra mắt
-              </p>
-              <h2 className="mt-1 font-heading text-xl font-bold text-foreground">
-                Luyện thi không giới hạn
-              </h2>
+        <Card className="relative overflow-hidden border-blue-100 p-5 sm:p-6">
+          <span
+            className="absolute right-0 top-0 size-36 -translate-y-1/2 translate-x-1/2 rounded-full bg-primary-soft"
+            aria-hidden="true"
+          />
+          <div className="relative flex h-full flex-col">
+            <div className="flex items-center justify-between gap-3">
+              <Badge tone="blue">Đề nên làm ngay</Badge>
+              <CirclePlay
+                className="text-primary"
+                size={24}
+                aria-hidden="true"
+              />
             </div>
-            <Badge tone="green">Không giới hạn</Badge>
-          </div>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Bạn có thể làm lại bất kỳ đề nào để ôn tập. Điểm số và lịch sử làm
-            bài luôn được lưu trong tài khoản của bạn.
-          </p>
-          <div className="my-5 border-t border-border" />
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="flex items-center gap-3">
-              <span className="grid size-8 place-items-center rounded-lg bg-blue-50 text-primary">
-                <MapPin size={16} aria-hidden="true" />
-              </span>
-              Campus: {studentProfile?.campus.name ?? "Đang cập nhật"}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="grid size-8 place-items-center rounded-lg bg-amber-50 text-amber-600">
-                <BookOpenCheck size={16} aria-hidden="true" />
-              </span>
-              Ngành: {studentProfile?.major.name ?? "Đang cập nhật"}
-            </div>
+            {recommendedExam ? (
+              <>
+                <p className="mt-6 text-xs font-bold uppercase tracking-wider text-primary">
+                  {recommendedExam.courseCode} · {recommendedExam.semester}
+                </p>
+                <h2 className="mt-2 font-heading text-2xl font-bold leading-tight text-foreground">
+                  {recommendedExam.courseName}
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  {recommendedExam.campus} · đề {recommendedExam.examType}
+                  {recommendedExam.isRetake ? " · thi lại" : ""}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <span className="rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">
+                    <FileText
+                      className="mb-2 text-primary"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    {recommendedExam.questionCount} câu
+                  </span>
+                  <span className="rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">
+                    <Clock3
+                      className="mb-2 text-primary"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    {recommendedExam.durationMinutes} phút
+                  </span>
+                </div>
+                <Link
+                  to="/exams/$examId"
+                  params={{ examId: recommendedExam.id }}
+                  className="mt-6 inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                >
+                  Mở đề và bắt đầu
+                  <ArrowRight size={18} aria-hidden="true" />
+                </Link>
+                <Link
+                  to="/exams"
+                  className="mt-3 inline-flex min-h-10 items-center justify-center text-sm font-bold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+                >
+                  Hoặc tìm môn khác
+                </Link>
+              </>
+            ) : (
+              <div className="my-auto py-8 text-center">
+                <BookOpenCheck
+                  className="mx-auto text-primary"
+                  size={38}
+                  aria-hidden="true"
+                />
+                <h2 className="mt-4 font-heading text-xl font-bold text-foreground">
+                  Đề đang được bổ sung
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Bạn có thể mở kho đề để xem các môn đã được phát hành.
+                </p>
+                <Link
+                  to="/exams"
+                  className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white"
+                >
+                  Mở kho đề
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            )}
           </div>
         </Card>
       </section>
