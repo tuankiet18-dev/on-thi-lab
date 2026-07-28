@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ExamSummary } from "@onthilab/contracts";
-import { popularCourseCodes, searchCourses } from "./catalog-search";
+import {
+  filterCatalogExams,
+  popularCourseCodes,
+  searchCourses,
+} from "./catalog-search";
 
 const exams: ExamSummary[] = [
   {
@@ -80,5 +84,29 @@ describe("searchCourses", () => {
 
   it("returns the most represented courses as quick search suggestions", () => {
     expect(popularCourseCodes(exams)).toEqual(["SWD392", "PRF192"]);
+  });
+});
+
+describe("filterCatalogExams", () => {
+  it("filters by a trimmed, case-insensitive course keyword and preserves no mutation", () => {
+    const originalOrder = exams.map((exam) => exam.id);
+
+    expect(
+      filterCatalogExams(exams, { query: "  swd392 ", sort: "newest" }).map(
+        (exam) => exam.id,
+      ),
+    ).toEqual(["swd-hcm-new", "swd-hl-old", "swd-hl-retake"]);
+    expect(exams.map((exam) => exam.id)).toEqual(originalOrder);
+  });
+
+  it("combines catalog filters and supports oldest-first ordering", () => {
+    expect(
+      filterCatalogExams(exams, {
+        campus: "Hòa Lạc",
+        semester: "SU25",
+        examType: "FE",
+        sort: "oldest",
+      }).map((exam) => exam.id),
+    ).toEqual(["swd-hl-old", "swd-hl-retake"]);
   });
 });
