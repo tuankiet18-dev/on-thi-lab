@@ -20,7 +20,6 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
 import {
-  ApiError,
   createAttempt,
   getBookmarks,
   getPublishedExam,
@@ -106,11 +105,7 @@ export function ExamDetailPage() {
         params: { attemptId: launch.attempt.id },
       });
     } catch (reason) {
-      setStartError(
-        reason instanceof ApiError && reason.code === "DAILY_LIMIT_REACHED"
-          ? "Bạn đã dùng hết 2 lượt thi miễn phí hôm nay."
-          : "Chưa thể bắt đầu bài thi. Vui lòng thử lại.",
-      );
+      setStartError("Chưa thể bắt đầu bài thi. Vui lòng thử lại.");
     } finally {
       setStarting(false);
     }
@@ -231,10 +226,6 @@ export function ExamDetailPage() {
                 chỉ mang tính tham khảo.
               </p>
             </div>
-            <div className="mt-5 flex items-center justify-between text-sm">
-              <span className="text-slate-500">Lượt miễn phí hôm nay</span>
-              <strong className="text-foreground">Tối đa 2 lượt/ngày</strong>
-            </div>
             <div className="mt-5 grid gap-3">
               <Button
                 onClick={() => void startExam()}
@@ -250,7 +241,7 @@ export function ExamDetailPage() {
                 className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
               >
                 <Eye size={17} aria-hidden="true" />
-                Xem đề không tính lượt
+                Xem đề trước khi làm
               </Link>
               {configured && (
                 <Button

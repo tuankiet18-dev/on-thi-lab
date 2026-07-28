@@ -51,6 +51,9 @@ test("desktop student can complete a practice exam", async ({
       name: "Tìm đúng đề, vào thi ngay.",
     }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Luyện thi không giới hạn" }),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("dashboard.png"),
     fullPage: true,
@@ -64,6 +67,7 @@ test("desktop student can complete a practice exam", async ({
   await expect(newestExamLink).toBeVisible();
   await newestExamLink.click();
   await expect(page).toHaveURL(/\/exams\/demo-swd392-sp26-fe$/);
+  await expect(page.getByText("Tối đa 2 lượt/ngày")).toHaveCount(0);
   await page.getByRole("button", { name: "Bắt đầu làm bài" }).click();
   await expect(page).toHaveURL(/\/attempts\/demo-attempt$/);
 

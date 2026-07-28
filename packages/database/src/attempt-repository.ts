@@ -6,22 +6,19 @@ import {
   type SaveAnswerInput,
 } from "@onthilab/contracts";
 import { createHash, randomInt } from "node:crypto";
-import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
 import {
   attemptAnswers,
   attempts,
   campuses,
   courses,
-  dailyUsage,
   examRevisions,
   exams,
   questions,
-  subscriptions,
 } from "./schema";
 import type {
   AttemptSummary,
-  DailyUsage,
   AttemptSession,
   Exam,
   StudentStatistics,
@@ -31,7 +28,6 @@ export type AttemptRepositoryErrorCode =
   | "ATTEMPT_CLOSED"
   | "ATTEMPT_EXPIRED"
   | "ATTEMPT_NOT_FOUND"
-  | "DAILY_LIMIT_REACHED"
   | "EXAM_NOT_FOUND"
   | "QUESTION_NOT_FOUND";
 
@@ -68,20 +64,10 @@ export interface AttemptRepository {
     reason: "user" | "timeout";
   }): Promise<{ result: AttemptResult; idempotent: boolean }>;
   getStatistics(userId: string): Promise<StudentStatistics>;
-  getDailyUsage(userId: string): Promise<DailyUsage>;
 }
 
 function hashDeviceId(deviceId: string): string {
   return createHash("sha256").update(deviceId).digest("hex");
-}
-
-function usageDateInVietnam(date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
 }
 
 function shuffled<T>(values: readonly T[]): T[] {
@@ -161,37 +147,6 @@ export class PostgresAttemptRepository implements AttemptRepository {
         );
       }
 
-      const [activeSubscription] = await transaction
-        .select({ id: subscriptions.id })
-        .from(subscriptions)
-        .where(
-          and(
-            eq(subscriptions.userId, input.userId),
-            eq(subscriptions.status, "active"),
-            gt(subscriptions.expiresAt, now),
-          ),
-        )
-        .limit(1);
-      const usageDate = usageDateInVietnam(now);
-      if (!activeSubscription) {
-        const [usage] = await transaction
-          .select({ attemptsStarted: dailyUsage.attemptsStarted })
-          .from(dailyUsage)
-          .where(
-            and(
-              eq(dailyUsage.userId, input.userId),
-              eq(dailyUsage.usageDate, usageDate),
-            ),
-          )
-          .limit(1);
-        if ((usage?.attemptsStarted ?? 0) >= 2) {
-          throw new AttemptRepositoryError(
-            "DAILY_LIMIT_REACHED",
-            "Bạn đã dùng hết 2 lượt thi miễn phí hôm nay.",
-          );
-        }
-      }
-
       const questionRows = await transaction
         .select({ id: questions.id })
         .from(questions)
@@ -221,70 +176,12 @@ export class PostgresAttemptRepository implements AttemptRepository {
         .returning({ id: attempts.id });
       if (!created) throw new Error("Không thể tạo lượt thi.");
 
-      if (!activeSubscription) {
-        await transaction
-          .insert(dailyUsage)
-          .values({
-            userId: input.userId,
-            usageDate,
-            attemptsStarted: 1,
-          })
-          .onConflictDoUpdate({
-            target: [dailyUsage.userId, dailyUsage.usageDate],
-            set: {
-              attemptsStarted: sql`${dailyUsage.attemptsStarted} + 1`,
-            },
-          });
-      }
-
       return created.id;
     });
 
     const attempt = await this.findForUser(attemptId, input.userId);
     if (!attempt) throw new Error("Không thể tải lượt thi vừa tạo.");
     return { attempt, resumed: false };
-  }
-
-  async getDailyUsage(userId: string): Promise<DailyUsage> {
-    const now = new Date();
-    const [activeSubscription, usage] = await Promise.all([
-      this.db
-        .select({ id: subscriptions.id })
-        .from(subscriptions)
-        .where(
-          and(
-            eq(subscriptions.userId, userId),
-            eq(subscriptions.status, "active"),
-            gt(subscriptions.expiresAt, now),
-          ),
-        )
-        .limit(1),
-      this.db
-        .select({ attemptsStarted: dailyUsage.attemptsStarted })
-        .from(dailyUsage)
-        .where(
-          and(
-            eq(dailyUsage.userId, userId),
-            eq(dailyUsage.usageDate, usageDateInVietnam(now)),
-          ),
-        )
-        .limit(1),
-    ]);
-
-    if (activeSubscription[0]) {
-      return {
-        attemptsStarted: usage[0]?.attemptsStarted ?? 0,
-        limit: null,
-        remainingAttempts: null,
-      };
-    }
-
-    const attemptsStarted = usage[0]?.attemptsStarted ?? 0;
-    return {
-      attemptsStarted,
-      limit: 2,
-      remainingAttempts: Math.max(0, 2 - attemptsStarted),
-    };
   }
 
   async listUserAttempts(userId: string): Promise<AttemptSummary[]> {
