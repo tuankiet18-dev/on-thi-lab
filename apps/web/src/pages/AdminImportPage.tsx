@@ -355,7 +355,7 @@ export function AdminImportPage() {
               <label className="form-field">
                 <span>Mã môn</span>
                 <select
-                  className="input-base"
+                  className="input-base truncate"
                   value={courseCode}
                   onChange={(event) => setCourseCode(event.target.value)}
                   disabled={submitting}
@@ -381,7 +381,7 @@ export function AdminImportPage() {
               <label className="form-field">
                 <span>Kỳ học</span>
                 <input
-                  className="input-base"
+                  className="input-base truncate"
                   value={semester}
                   onChange={(event) => setSemester(event.target.value)}
                   placeholder="SP26"
@@ -392,7 +392,7 @@ export function AdminImportPage() {
               <label className="form-field">
                 <span>Campus</span>
                 <select
-                  className="input-base"
+                  className="input-base truncate"
                   value={campusCode}
                   onChange={(event) => setCampusCode(event.target.value)}
                   disabled={submitting}
