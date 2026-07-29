@@ -247,7 +247,7 @@ export function AppShell() {
                               className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
                             >
                               <GraduationCap size={17} aria-hidden="true" />
-                              Danh mục đào tạo
+                              Môn học
                             </Link>
                             <Link
                               to="/admin/users"
@@ -365,7 +365,7 @@ export function AppShell() {
                         className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
                       >
                         <GraduationCap size={18} aria-hidden="true" />
-                        Danh mục đào tạo
+                        Môn học
                       </Link>
                       <Link
                         to="/admin/exams"

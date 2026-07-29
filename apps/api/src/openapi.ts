@@ -398,9 +398,9 @@ export const openApiDocument = {
         },
       },
     },
-    "/v1/admin/exams/{examId}/ai-suggestions": {
+    "/v1/admin/exams/{examId}/questions/{questionId}/ai-suggestion": {
       post: {
-        operationId: "queueAiAnswerSuggestions",
+        operationId: "queueAiAnswerSuggestion",
         tags: ["Admin review"],
         security: [{ cognitoIdToken: [] }],
         parameters: [
@@ -410,11 +410,16 @@ export const openApiDocument = {
             required: true,
             schema: { type: "string", format: "uuid" },
           },
+          {
+            in: "path",
+            name: "questionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         responses: {
           "202": {
-            description:
-              "Unanswered questions queued for AI answer suggestions",
+            description: "Current question queued for an AI answer suggestion",
           },
           "403": { description: "Admin role required" },
           "404": { description: "Exam not found" },

@@ -29,10 +29,21 @@ export class AnswerSuggestionServiceError extends Error {
 
 export interface AnswerSuggestionService {
   queueExam(examId: string): Promise<QueueAiSuggestionsResult>;
+  queueQuestion(
+    examId: string,
+    questionId: string,
+  ): Promise<QueueAiSuggestionsResult>;
 }
 
 export class UnconfiguredAnswerSuggestionService implements AnswerSuggestionService {
   async queueExam(): Promise<QueueAiSuggestionsResult> {
+    throw new AnswerSuggestionServiceError(
+      "AI_NOT_CONFIGURED",
+      "Dịch vụ gợi ý AI chưa được cấu hình.",
+    );
+  }
+
+  async queueQuestion(): Promise<QueueAiSuggestionsResult> {
     throw new AnswerSuggestionServiceError(
       "AI_NOT_CONFIGURED",
       "Dịch vụ gợi ý AI chưa được cấu hình.",
@@ -70,19 +81,40 @@ export class LocalAsyncAnswerSuggestionService implements AnswerSuggestionServic
 
   async queueExam(examId: string): Promise<QueueAiSuggestionsResult> {
     const queued = await this.repository.queueUnanswered(examId);
-    void runWithConcurrency(queued.jobs, this.concurrency, async (job) =>
-      processAnswerSuggestionJob(job, {
-        repository: this.repository,
-        images: this.images,
-        provider: this.provider,
-      }),
-    );
+    this.process(queued.jobs);
 
     return {
       examId,
       queuedCount: queued.jobs.length,
       skippedCount: queued.skippedCount,
     };
+  }
+
+  async queueQuestion(
+    examId: string,
+    questionId: string,
+  ): Promise<QueueAiSuggestionsResult> {
+    const queued = await this.repository.queueQuestion(examId, questionId);
+    // A single-question request is used by the review screen and must finish
+    // before a Lambda invocation returns. Work scheduled after the response
+    // may be frozen by the Lambda runtime before the suggestion is persisted.
+    await this.process(queued.jobs);
+
+    return {
+      examId,
+      queuedCount: queued.jobs.length,
+      skippedCount: queued.skippedCount,
+    };
+  }
+
+  private process(jobs: AiSuggestionJob[]): Promise<void> {
+    return runWithConcurrency(jobs, this.concurrency, async (job) =>
+      processAnswerSuggestionJob(job, {
+        repository: this.repository,
+        images: this.images,
+        provider: this.provider,
+      }),
+    );
   }
 }
 
@@ -103,6 +135,21 @@ export class SqsAnswerSuggestionService implements AnswerSuggestionService {
 
   async queueExam(examId: string): Promise<QueueAiSuggestionsResult> {
     const queued = await this.repository.queueUnanswered(examId);
+    return this.publish(examId, queued);
+  }
+
+  async queueQuestion(
+    examId: string,
+    questionId: string,
+  ): Promise<QueueAiSuggestionsResult> {
+    const queued = await this.repository.queueQuestion(examId, questionId);
+    return this.publish(examId, queued);
+  }
+
+  private async publish(
+    examId: string,
+    queued: { jobs: AiSuggestionJob[]; skippedCount: number },
+  ): Promise<QueueAiSuggestionsResult> {
     const publishedQuestionIds = new Set<string>();
 
     try {

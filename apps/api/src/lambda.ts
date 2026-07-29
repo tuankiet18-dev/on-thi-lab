@@ -16,6 +16,7 @@ async function getHandler(): Promise<LambdaHandler> {
     handlerPromise = (async () => {
       const environment = { ...process.env };
       const parameterName = environment.DATABASE_PARAMETER_NAME;
+      const aiApiKeyParameterName = environment.AI_API_KEY_PARAMETER_NAME;
 
       if (parameterName) {
         const response = await ssmClient.send(
@@ -29,6 +30,22 @@ async function getHandler(): Promise<LambdaHandler> {
           throw new Error("DATABASE_PARAMETER_NAME did not resolve to a value");
         }
         environment.DATABASE_URL = databaseUrl;
+      }
+
+      if (aiApiKeyParameterName) {
+        const response = await ssmClient.send(
+          new GetParameterCommand({
+            Name: aiApiKeyParameterName,
+            WithDecryption: true,
+          }),
+        );
+        const aiApiKey = response.Parameter?.Value;
+        if (!aiApiKey) {
+          throw new Error(
+            "AI_API_KEY_PARAMETER_NAME did not resolve to a value",
+          );
+        }
+        environment.AI_API_KEY = aiApiKey;
       }
 
       return handle(createRuntimeApp(environment));

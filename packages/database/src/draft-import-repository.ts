@@ -115,6 +115,13 @@ export interface AiSuggestionRepository {
     jobs: AiSuggestionJob[];
     skippedCount: number;
   }>;
+  queueQuestion(
+    examId: string,
+    questionId: string,
+  ): Promise<{
+    jobs: AiSuggestionJob[];
+    skippedCount: number;
+  }>;
   markProcessing(questionId: string): Promise<void>;
   saveSuggestion(
     questionId: string,
@@ -606,6 +613,106 @@ export class PostgresDraftImportRepository
           optionCount: question.options.length,
         })),
         skippedCount: questionRows.length - candidates.length,
+      };
+    });
+  }
+
+  async queueQuestion(
+    examId: string,
+    questionId: string,
+  ): Promise<{
+    jobs: AiSuggestionJob[];
+    skippedCount: number;
+  }> {
+    return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({
+          id: exams.id,
+          status: exams.status,
+          courseCode: courses.code,
+        })
+        .from(exams)
+        .innerJoin(courses, eq(exams.courseId, courses.id))
+        .where(eq(exams.id, examId))
+        .limit(1);
+      if (!exam) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy đề thi.",
+        );
+      }
+      if (exam.status !== "draft") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_EDITABLE",
+          "Chỉ có thể tạo gợi ý cho đề đang ở trạng thái nháp.",
+        );
+      }
+
+      const [revision] = await transaction
+        .select({ id: examRevisions.id })
+        .from(examRevisions)
+        .where(eq(examRevisions.examId, examId))
+        .orderBy(desc(examRevisions.revision))
+        .limit(1);
+      if (!revision) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Đề chưa có phiên bản để xử lý.",
+        );
+      }
+
+      const [question] = await transaction
+        .select({
+          id: questions.id,
+          imageKey: questions.imageKey,
+          options: questions.options,
+          correctOptions: questions.correctOptions,
+          aiMetadata: questions.aiMetadata,
+        })
+        .from(questions)
+        .where(
+          and(
+            eq(questions.id, questionId),
+            eq(questions.revisionId, revision.id),
+          ),
+        )
+        .limit(1);
+      if (!question) {
+        throw new DraftImportRepositoryError(
+          "QUESTION_NOT_FOUND",
+          "Không tìm thấy câu hỏi trong đề thi.",
+        );
+      }
+
+      const alreadyHandled =
+        question.correctOptions.length > 0 ||
+        ["queued", "processing", "confirmed"].includes(
+          question.aiMetadata?.status ?? "",
+        );
+      if (alreadyHandled) {
+        return { jobs: [], skippedCount: 1 };
+      }
+
+      const updatedAt = new Date().toISOString();
+      await transaction
+        .update(questions)
+        .set({
+          aiMetadata: { status: "queued", updatedAt },
+          updatedAt: new Date(updatedAt),
+        })
+        .where(eq(questions.id, question.id));
+
+      return {
+        jobs: [
+          {
+            examId,
+            questionId: question.id,
+            imageKey: question.imageKey,
+            courseCode: exam.courseCode,
+            optionCount: question.options.length,
+          },
+        ],
+        skippedCount: 0,
       };
     });
   }

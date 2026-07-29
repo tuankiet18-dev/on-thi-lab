@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, GraduationCap, UserRoundCheck } from "lucide-react";
+import { ArrowRight, MapPin, UserRoundCheck } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError, getProfileOptions } from "../lib/api";
@@ -11,16 +11,11 @@ export function OnboardingPage() {
   const navigate = useNavigate();
   const search = routeApi.useSearch();
   const { saveStudentProfile, session, studentProfile } = useAuth();
-  const [fullName, setFullName] = useState(
-    studentProfile?.fullName ?? session?.user.name ?? "",
-  );
-  const [studentCode, setStudentCode] = useState(
-    studentProfile?.studentCode ?? "",
-  );
+  const fullName =
+    studentProfile?.fullName ?? session?.user.name ?? "Sinh viên OnThiLab";
   const [campusCode, setCampusCode] = useState(
     studentProfile?.campus.code ?? "",
   );
-  const [majorCode, setMajorCode] = useState(studentProfile?.major.code ?? "");
   const [options, setOptions] = useState<ProfileOptions>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -31,9 +26,7 @@ export function OnboardingPage() {
     void getProfileOptions(session.idToken)
       .then(setOptions)
       .catch(() => {
-        setError(
-          "Không thể tải danh sách campus và ngành học. Vui lòng tải lại trang.",
-        );
+        setError("Không thể tải danh sách campus. Vui lòng tải lại trang.");
       });
   }, [session]);
 
@@ -41,16 +34,8 @@ export function OnboardingPage() {
     event.preventDefault();
     setError(undefined);
 
-    const normalizedStudentCode = studentCode.trim().toUpperCase();
-    if (
-      normalizedStudentCode &&
-      !/^[A-Z0-9-]{4,20}$/.test(normalizedStudentCode)
-    ) {
-      setError("MSSV phải có 4–20 ký tự chữ, số hoặc dấu gạch ngang.");
-      return;
-    }
-    if (!fullName.trim() || !campusCode || !majorCode) {
-      setError("Vui lòng điền đầy đủ thông tin hồ sơ.");
+    if (!campusCode) {
+      setError("Vui lòng chọn campus.");
       return;
     }
 
@@ -58,9 +43,7 @@ export function OnboardingPage() {
     try {
       await saveStudentProfile({
         fullName: fullName.trim(),
-        studentCode: normalizedStudentCode || undefined,
         campusCode,
-        majorCode,
       });
       await navigate({ to: search.redirect || "/", replace: true });
     } catch (reason) {
@@ -91,12 +74,11 @@ export function OnboardingPage() {
             Hoàn thiện hồ sơ học tập
           </h1>
           <p className="mt-4 leading-7 text-blue-100">
-            Campus và ngành học giúp OnThiLab ưu tiên đúng môn và đề thi phù hợp
-            với bạn.
+            Chọn campus để OnThiLab ưu tiên các đề thi phù hợp với bạn.
           </p>
         </div>
         <p className="text-sm text-blue-200">
-          Bạn có thể cập nhật lại thông tin này sau.
+          MSSV và ngành học có thể bổ sung sau trong Hồ sơ.
         </p>
       </aside>
 
@@ -114,33 +96,12 @@ export function OnboardingPage() {
             <strong className="text-foreground">{session?.user.email}</strong>
           </p>
 
-          <div className="mt-7 grid gap-5 sm:grid-cols-2">
-            <label className="form-field sm:col-span-2">
-              Họ và tên
-              <input
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                className="input-base"
-                autoComplete="name"
-                required
-              />
-            </label>
+          <div className="mt-7 grid gap-5">
             <label className="form-field">
-              Mã số sinh viên{" "}
-              <span className="font-normal">(không bắt buộc)</span>
-              <input
-                value={studentCode}
-                onChange={(event) => setStudentCode(event.target.value)}
-                className="input-base uppercase"
-                placeholder="Ví dụ: HE170001"
-                autoComplete="off"
-              />
-              <span className="text-xs font-normal text-slate-500">
-                Bạn có thể bổ sung hoặc chỉnh sửa sau trong Hồ sơ.
+              <span className="flex items-center gap-2">
+                <MapPin size={16} aria-hidden="true" />
+                Campus
               </span>
-            </label>
-            <label className="form-field">
-              Campus
               <select
                 value={campusCode}
                 onChange={(event) => setCampusCode(event.target.value)}
@@ -155,23 +116,11 @@ export function OnboardingPage() {
                 ))}
               </select>
             </label>
-            <label className="form-field sm:col-span-2">
-              Ngành học
-              <select
-                value={majorCode}
-                onChange={(event) => setMajorCode(event.target.value)}
-                className="input-base"
-                required
-              >
-                <option value="">Chọn ngành học</option>
-                {options?.majors.map((major) => (
-                  <option key={major.code} value={major.code}>
-                    {major.name}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
+
+          <p className="mt-4 text-sm text-slate-500">
+            Bạn có thể bổ sung họ tên, MSSV và ngành học trong Hồ sơ.
+          </p>
 
           {error && (
             <p
