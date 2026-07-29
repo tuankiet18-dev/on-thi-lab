@@ -66,7 +66,8 @@ API Gateway ── Lambda/Hono ── Supabase PostgreSQL
 - Gợi ý AI chỉ nằm trong `ai_metadata`; không được dùng làm đáp án chính thức
   trước khi người duyệt áp dụng và lưu.
 - Chỉ Admin được approve revision và publish; Contributor chỉ nhập/duyệt đáp án.
-- Chỉ Admin được khởi tạo batch AI vì thao tác có thể phát sinh chi phí.
+- Chỉ Admin được yêu cầu AI cho từng câu đang duyệt vì thao tác có thể phát sinh
+  chi phí.
 - Người dùng có thể tạo attempt mới không giới hạn trong giai đoạn ra mắt;
   attempt đang hoạt động vẫn được resume trên cùng thiết bị.
 - Ảnh gốc và ảnh phát hành dùng object key bất biến, checksum để chống trùng.

@@ -80,6 +80,9 @@ export function createRuntimeApp(
               model: env.AI_MODEL,
               baseUrl: env.AI_BASE_URL,
               providerName,
+              ...(env.APP_ENV === "production"
+                ? { timeoutMs: 20_000, maxRetries: 0 }
+                : {}),
               reasoningEffort:
                 providerName === "groq" && env.AI_MODEL === "qwen/qwen3.6-27b"
                   ? "none"

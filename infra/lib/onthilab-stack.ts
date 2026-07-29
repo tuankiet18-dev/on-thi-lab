@@ -28,6 +28,10 @@ interface OnThiLabStackProps extends StackProps {
   databaseParameterName?: string;
   webDomainName?: string;
   webCertificateArn?: string;
+  aiProvider?: string;
+  aiModel?: string;
+  aiBaseUrl?: string;
+  aiApiKeyParameterName?: string;
 }
 
 export class OnThiLabStack extends Stack {
@@ -157,6 +161,16 @@ export class OnThiLabStack extends Stack {
             version: 1,
           },
         );
+      const aiApiKeyParameter = props.aiApiKeyParameterName
+        ? ssm.StringParameter.fromSecureStringParameterAttributes(
+            this,
+            "AiApiKeyParameter",
+            {
+              parameterName: props.aiApiKeyParameterName,
+              version: 1,
+            },
+          )
+        : undefined;
       const apiHandler = new lambdaNodejs.NodejsFunction(this, "ApiHandler", {
         runtime: lambda.Runtime.NODEJS_22_X,
         entry: join(projectRoot, "apps/api/src/lambda.ts"),
@@ -175,16 +189,27 @@ export class OnThiLabStack extends Stack {
           COGNITO_USER_POOL_ID: props.cognitoUserPoolId,
           COGNITO_CLIENT_ID: props.cognitoClientId,
           QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+          ...(props.aiApiKeyParameterName
+            ? {
+                AI_API_KEY_PARAMETER_NAME: props.aiApiKeyParameterName,
+                AI_PROVIDER: props.aiProvider ?? "disabled",
+                AI_MODEL: props.aiModel ?? "",
+                AI_BASE_URL: props.aiBaseUrl ?? "https://api.openai.com/v1",
+              }
+            : {}),
           CORS_ORIGINS: [
             `https://${distribution.distributionDomainName}`,
             ...(props.webDomainName ? [`https://${props.webDomainName}`] : []),
           ].join(","),
           FEATURE_GOOGLE_AUTH_ENABLED: "true",
-          FEATURE_AI_IMPORT_ENABLED: "false",
+          FEATURE_AI_IMPORT_ENABLED: props.aiApiKeyParameterName
+            ? "true"
+            : "false",
           FEATURE_MONETIZATION_ENABLED: "false",
         },
       });
       databaseParameter.grantRead(apiHandler);
+      aiApiKeyParameter?.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
       importQueue.grantSendMessages(apiHandler);
 

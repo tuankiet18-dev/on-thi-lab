@@ -14,6 +14,15 @@ const domainPrefix =
 const databaseParameterName = app.node.tryGetContext("databaseParameterName");
 const webDomainName = app.node.tryGetContext("webDomainName");
 const webCertificateArn = app.node.tryGetContext("webCertificateArn");
+const aiProvider =
+  app.node.tryGetContext("aiProvider") ??
+  (stage === "prod" ? "groq" : "disabled");
+const aiModel =
+  app.node.tryGetContext("aiModel") ??
+  (stage === "prod" ? "qwen/qwen3.6-27b" : undefined);
+const aiBaseUrl =
+  app.node.tryGetContext("aiBaseUrl") ??
+  (stage === "prod" ? "https://api.groq.com/openai/v1" : undefined);
 const webBaseUrl =
   app.node.tryGetContext("webBaseUrl") ??
   (stage === "dev"
@@ -64,5 +73,10 @@ new OnThiLabStack(app, `OnThiLab-${stage}`, {
   databaseParameterName,
   webDomainName,
   webCertificateArn,
+  aiProvider,
+  aiModel,
+  aiBaseUrl,
+  aiApiKeyParameterName:
+    aiProvider !== "disabled" ? `/onthilab/${stage}/ai/api-key` : undefined,
   description: `OnThiLab ${stage} serverless foundation`,
 });

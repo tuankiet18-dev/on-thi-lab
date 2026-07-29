@@ -412,7 +412,9 @@ describe("attempt API", () => {
     expect(document.paths["/v1/bookmarks"]).toBeDefined();
     expect(document.paths["/v1/admin/exams/{examId}/publish"]).toBeDefined();
     expect(
-      document.paths["/v1/admin/exams/{examId}/ai-suggestions"],
+      document.paths[
+        "/v1/admin/exams/{examId}/questions/{questionId}/ai-suggestion"
+      ],
     ).toBeDefined();
   });
 
@@ -872,13 +874,19 @@ describe("attempt API", () => {
     });
   });
 
-  it("allows only admins to queue cost-bearing AI suggestions", async () => {
+  it("allows only admins to queue an AI suggestion for the current question", async () => {
     const examId = "20000000-0000-4000-8000-000000000001";
+    const questionId = "40000000-0000-4000-8000-000000000001";
     let queuedExamId = "";
+    let queuedQuestionId = "";
     const suggestions = {
       queueExam: async (inputExamId: string) => {
+        return { examId: inputExamId, queuedCount: 0, skippedCount: 0 };
+      },
+      queueQuestion: async (inputExamId: string, inputQuestionId: string) => {
         queuedExamId = inputExamId;
-        return { examId: inputExamId, queuedCount: 58, skippedCount: 2 };
+        queuedQuestionId = inputQuestionId;
+        return { examId: inputExamId, queuedCount: 1, skippedCount: 0 };
       },
     };
     const contributorApp = createApp({
@@ -887,7 +895,7 @@ describe("attempt API", () => {
       suggestions,
     });
     const forbidden = await contributorApp.request(
-      `/v1/admin/exams/${examId}/ai-suggestions`,
+      `/v1/admin/exams/${examId}/questions/${questionId}/ai-suggestion`,
       { method: "POST", headers: authorization },
     );
     expect(forbidden.status).toBe(403);
@@ -898,13 +906,14 @@ describe("attempt API", () => {
       suggestions,
     });
     const queued = await adminApp.request(
-      `/v1/admin/exams/${examId}/ai-suggestions`,
+      `/v1/admin/exams/${examId}/questions/${questionId}/ai-suggestion`,
       { method: "POST", headers: authorization },
     );
     expect(queued.status).toBe(202);
     expect(queuedExamId).toBe(examId);
+    expect(queuedQuestionId).toBe(questionId);
     await expect(queued.json()).resolves.toEqual({
-      data: { examId, queuedCount: 58, skippedCount: 2 },
+      data: { examId, queuedCount: 1, skippedCount: 0 },
     });
   });
 

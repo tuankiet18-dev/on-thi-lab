@@ -13,6 +13,7 @@ const job = {
 function createRepository(): AiSuggestionRepository {
   return {
     queueUnanswered: vi.fn(),
+    queueQuestion: vi.fn(),
     markProcessing: vi.fn(),
     saveSuggestion: vi.fn(),
     markFailed: vi.fn(),

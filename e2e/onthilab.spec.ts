@@ -199,42 +199,43 @@ test("student can preview a published exam without starting an attempt", async (
   ).toBeVisible();
 });
 
-test("draft import form queues multiple ZIP archives with independent metadata", async ({
+test("draft import queues ZIP archives without prefilled metadata", async ({
   page,
 }) => {
   await page.goto("/admin/import");
   await expect(
-    page.getByRole("heading", { name: "Tạo nhiều đề thi" }),
+    page.getByRole("heading", { name: "Nhập đề thi" }),
   ).toBeVisible();
 
-  await page.getByLabel("Kỳ học").fill("SP26");
-  await page
-    .getByLabel("Chọn một hoặc nhiều file ZIP chứa ảnh câu hỏi")
-    .setInputFiles([
-      {
-        name: "questions-1.zip",
-        mimeType: "application/zip",
-        buffer: Buffer.from("PK"),
-      },
-      {
-        name: "questions-2.zip",
-        mimeType: "application/zip",
-        buffer: Buffer.from("PK"),
-      },
-    ]);
+  await page.getByLabel("Chọn một hoặc nhiều file ZIP").setInputFiles([
+    {
+      name: "questions-1.zip",
+      mimeType: "application/zip",
+      buffer: Buffer.from("PK"),
+    },
+    {
+      name: "questions-2.zip",
+      mimeType: "application/zip",
+      buffer: Buffer.from("PK"),
+    },
+  ]);
 
   await expect(page.getByText("questions-1.zip")).toBeVisible();
   await expect(page.getByText("questions-2.zip")).toBeVisible();
   await expect(
-    page.getByText("2 ZIP · 0 đã tạo nháp · 0 cần thử lại"),
+    page.getByText("2 ZIP · 0 đã tạo · 2 thiếu thông tin"),
   ).toBeVisible();
 
-  const submit = page.getByRole("button", {
-    name: "Nhập 2 đề",
+  const firstArchive = page.getByRole("article", {
+    name: "ZIP 1: questions-1.zip",
   });
-  await expect(submit).toBeEnabled();
-  await submit.click();
-  await expect(page.getByRole("alert")).toContainText("Bạn cần đăng nhập");
+  await expect(firstArchive.getByLabel("Môn học")).toHaveValue("");
+  await expect(firstArchive.getByLabel("Kỳ học")).toHaveValue("");
+  await expect(firstArchive.getByLabel("Campus")).toHaveValue("");
+  await expect(firstArchive.getByLabel("Thời gian (phút)")).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "Điền đủ thông tin" }),
+  ).toBeDisabled();
 });
 
 test("answer review route has a safe unauthenticated state", async ({

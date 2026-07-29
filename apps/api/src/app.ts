@@ -884,17 +884,22 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   });
 
   app.post(
-    "/v1/admin/exams/:examId/ai-suggestions",
+    "/v1/admin/exams/:examId/questions/:questionId/ai-suggestion",
     requireAdmin,
     async (context) => {
       try {
-        const result = await dependencies.suggestions.queueExam(
+        const result = await dependencies.suggestions.queueQuestion(
           context.req.param("examId"),
+          context.req.param("questionId"),
         );
         return context.json({ data: result }, 202);
       } catch (error) {
         if (error instanceof DraftImportRepositoryError) {
-          const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
+          const status =
+            error.code === "EXAM_NOT_FOUND" ||
+            error.code === "QUESTION_NOT_FOUND"
+              ? 404
+              : 409;
           return context.json(
             { error: error.code, message: error.message },
             status,
