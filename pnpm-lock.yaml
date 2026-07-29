@@ -35,8 +35,8 @@ importers:
         specifier: ^3.1094.0
         version: 3.1094.0
       "@hono/node-server":
-        specifier: ^1.15.0
-        version: 1.19.14(hono@4.12.31)
+        specifier: ^2.0.10
+        version: 2.0.10(hono@4.12.31)
       "@onthilab/contracts":
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -185,8 +185,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
       drizzle-orm:
-        specifier: ^0.44.2
-        version: 0.44.7(postgres@3.4.9)
+        specifier: ^0.45.2
+        version: 0.45.2(postgres@3.4.9)
       postgres:
         specifier: ^3.4.7
         version: 3.4.9
@@ -1320,12 +1320,12 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  "@hono/node-server@1.19.14":
+  "@hono/node-server@2.0.10":
     resolution:
       {
-        integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==,
+        integrity: sha512-ZcnNVhKTmyDJeg0UlnZjvM73JBsTAuhrH/J4fjwGOw59PwOW51r4J+p6CsKZWXdKSme4MFqU62CZMOsdDrU4CA==,
       }
-    engines: { node: ">=18.14.1" }
+    engines: { node: ">=20" }
     peerDependencies:
       hono: ^4
 
@@ -2276,10 +2276,10 @@ packages:
       }
     hasBin: true
 
-  drizzle-orm@0.44.7:
+  drizzle-orm@0.45.2:
     resolution:
       {
-        integrity: sha512-quIpnYznjU9lHshEOAYLoZ9s3jweleHlZIAWR/jX9gAWNg/JhQ1wj0KGRf7/Zm+obRrYd9GjPVJg790QY9N5AQ==,
+        integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==,
       }
     peerDependencies:
       "@aws-sdk/client-rds-data": ">=3"
@@ -3848,7 +3848,7 @@ snapshots:
   "@esbuild/win32-x64@0.28.1":
     optional: true
 
-  "@hono/node-server@1.19.14(hono@4.12.31)":
+  "@hono/node-server@2.0.10(hono@4.12.31)":
     dependencies:
       hono: 4.12.31
 
@@ -4341,7 +4341,7 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.1
 
-  drizzle-orm@0.44.7(postgres@3.4.9):
+  drizzle-orm@0.45.2(postgres@3.4.9):
     optionalDependencies:
       postgres: 3.4.9
 
