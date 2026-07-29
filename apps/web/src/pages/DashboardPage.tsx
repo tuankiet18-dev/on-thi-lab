@@ -29,7 +29,7 @@ import {
   getStudentStatistics,
   listAttempts,
 } from "../lib/api";
-import { popularCourseCodes } from "../lib/catalog-search";
+import { popularCourseCodes, searchCourses } from "../lib/catalog-search";
 
 const emptyStatistics: StudentStatistics = {
   totalAttempts: 0,
@@ -130,6 +130,24 @@ export function DashboardPage() {
   );
 
   const recommendedExam = featuredExams[0];
+  const featuredCourses = useMemo(
+    () =>
+      searchCourses(exams, "", studentProfile?.campus.name)
+        .filter((course) => course.courseCode !== recommendedExam?.courseCode)
+        .map((course) => ({
+          ...course,
+          newestExam: course.exams[0],
+        }))
+        .filter(
+          (
+            course,
+          ): course is typeof course & {
+            newestExam: ExamSummary;
+          } => Boolean(course.newestExam),
+        )
+        .slice(0, 3),
+    [exams, recommendedExam?.courseCode, studentProfile?.campus.name],
+  );
   const quickCourseCodes = useMemo(() => popularCourseCodes(exams), [exams]);
   const hasStats = statistics.totalAttempts > 0;
 
@@ -175,15 +193,14 @@ export function DashboardPage() {
         aria-label="Tìm kiếm đề thi"
       >
         {/* Hero */}
-        <div className="relative isolate overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-panel sm:p-7 lg:p-8">
-          <span
-            className="absolute -right-20 -top-24 size-80 rounded-full bg-primary/70 blur-3xl"
+        <div className="relative z-20 isolate rounded-3xl p-5 text-white shadow-panel sm:p-7 lg:p-8">
+          <div
+            className="absolute inset-0 overflow-hidden rounded-3xl bg-slate-950"
             aria-hidden="true"
-          />
-          <span
-            className="absolute -bottom-28 left-1/3 size-72 rounded-full bg-cyan-400/20 blur-3xl"
-            aria-hidden="true"
-          />
+          >
+            <span className="absolute -right-20 -top-24 size-80 rounded-full bg-primary/70 blur-3xl" />
+            <span className="absolute -bottom-28 left-1/3 size-72 rounded-full bg-cyan-400/20 blur-3xl" />
+          </div>
           <div className="relative z-10 max-w-2xl">
             <span className="text-sm font-semibold text-blue-100">
               Chào {firstName}
@@ -402,12 +419,12 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* ── Featured exam cards ── */}
+      {/* ── Recently updated courses ── */}
       <section aria-labelledby="exams-heading">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
             <h2 id="exams-heading" className="section-title">
-              Đề mới
+              Môn có đề mới
             </h2>
           </div>
           <Link
@@ -418,7 +435,7 @@ export function DashboardPage() {
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
         </div>
-        {featuredExams.length === 0 ? (
+        {featuredCourses.length === 0 ? (
           <Card className="p-8 text-center">
             <BookOpenCheck
               className="mx-auto text-slate-300"
@@ -431,46 +448,45 @@ export function DashboardPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {featuredExams.map((exam) => (
+            {featuredCourses.map((course) => (
               <Link
-                key={exam.id}
-                to="/exams/$examId"
-                params={{ examId: exam.id }}
+                key={course.courseCode}
+                to="/exams"
+                search={{ q: course.courseCode }}
                 className="group flex flex-col rounded-2xl border border-border bg-white p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-panel focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
-                title={exam.courseName}
+                title={`Xem đề môn ${course.courseCode}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <span
                     className="grid size-11 place-items-center rounded-xl bg-primary-soft font-heading text-sm font-bold text-primary"
                     aria-hidden="true"
                   >
-                    {exam.courseCode.slice(0, 3)}
+                    {course.courseCode.slice(0, 3)}
                   </span>
-                  <div className="flex gap-2">
-                    {exam.isRetake && <Badge tone="pink">Retake</Badge>}
-                    <Badge tone="blue">{exam.examType}</Badge>
-                  </div>
+                  <Badge tone="blue">{course.exams.length} đề</Badge>
                 </div>
                 <p className="mt-4 text-xs font-bold uppercase tracking-wider text-primary">
-                  {exam.code}
+                  {course.courseCode}
                 </p>
                 <h3 className="mt-1 line-clamp-2 font-heading text-base font-bold text-foreground">
-                  {exam.courseName}
+                  {course.courseName}
                 </h3>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
                   <span className="flex items-center gap-1.5">
-                    <BookOpenCheck size={14} aria-hidden="true" />
-                    {exam.questionCount} câu
+                    <FileText size={14} aria-hidden="true" />
+                    Mới nhất: {course.newestExam.semester}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <Clock3 size={14} aria-hidden="true" />
-                    {exam.durationMinutes} phút
+                    {course.newestExam.durationMinutes} phút
                   </span>
                 </div>
-                <div className="mt-auto flex items-center justify-between border-t border-border pt-4 mt-4">
-                  <span className="text-sm text-slate-500">{exam.campus}</span>
+                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                  <span className="text-sm text-slate-500">
+                    {course.newestExam.campus}
+                  </span>
                   <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary">
-                    Xem đề
+                    Xem các đề
                     <ArrowRight
                       size={15}
                       className="transition-transform group-hover:translate-x-0.5"

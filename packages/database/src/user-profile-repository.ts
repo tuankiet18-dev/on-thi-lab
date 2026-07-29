@@ -75,7 +75,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
       })
       .from(users)
       .innerJoin(campuses, eq(users.campusId, campuses.id))
-      .innerJoin(majors, eq(users.majorId, majors.id))
+      .leftJoin(majors, eq(users.majorId, majors.id))
       .leftJoin(curricula, eq(users.curriculumId, curricula.id))
       .where(and(eq(users.cognitoSubject, subject), eq(users.isActive, true)))
       .limit(1);
@@ -87,7 +87,10 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
           fullName: row.fullName,
           studentCode: row.studentCode,
           campus: { code: row.campusCode, name: row.campusName },
-          major: { code: row.majorCode, name: row.majorName },
+          major:
+            row.majorCode && row.majorName
+              ? { code: row.majorCode, name: row.majorName }
+              : null,
           curriculum: row.curriculumId
             ? {
                 id: row.curriculumId,
@@ -134,7 +137,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
     identity: ProfileIdentity,
     input: UpsertStudentProfileInput,
   ): Promise<StudentProfile> {
-    const [[campus], [major], [existingUser]] = await Promise.all([
+    const [[campus], majorRows, [existingUser]] = await Promise.all([
       this.db
         .select({ id: campuses.id })
         .from(campuses)
@@ -142,11 +145,13 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
           and(eq(campuses.code, input.campusCode), eq(campuses.isActive, true)),
         )
         .limit(1),
-      this.db
-        .select({ id: majors.id })
-        .from(majors)
-        .where(eq(majors.code, input.majorCode))
-        .limit(1),
+      input.majorCode
+        ? this.db
+            .select({ id: majors.id })
+            .from(majors)
+            .where(eq(majors.code, input.majorCode))
+            .limit(1)
+        : Promise.resolve([]),
       this.db
         .select({ isActive: users.isActive })
         .from(users)
@@ -166,12 +171,14 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
         "Campus is not available",
       );
     }
-    if (!major) {
+    const major = majorRows[0];
+    if (input.majorCode && !major) {
       throw new ProfileRepositoryError(
         "MAJOR_NOT_FOUND",
         "Major is not available",
       );
     }
+    const curriculumId = major ? (input.curriculumId ?? null) : null;
 
     try {
       await this.db
@@ -182,8 +189,8 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
           fullName: input.fullName,
           studentCode: input.studentCode ?? null,
           campusId: campus.id,
-          majorId: major.id,
-          curriculumId: input.curriculumId,
+          majorId: major?.id ?? null,
+          curriculumId,
         })
         .onConflictDoUpdate({
           target: users.cognitoSubject,
@@ -192,8 +199,8 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
             fullName: input.fullName,
             studentCode: input.studentCode ?? null,
             campusId: campus.id,
-            majorId: major.id,
-            curriculumId: input.curriculumId,
+            majorId: major?.id ?? null,
+            curriculumId,
             updatedAt: new Date(),
           },
         });
@@ -247,12 +254,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
       .limit(10);
 
     return rows.map((row) => {
-      if (
-        !row.campusCode ||
-        !row.campusName ||
-        !row.majorCode ||
-        !row.majorName
-      ) {
+      if (!row.campusCode || !row.campusName) {
         throw new Error("Missing related data");
       }
       return {
@@ -261,7 +263,10 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
         fullName: row.fullName,
         studentCode: row.studentCode,
         campus: { code: row.campusCode, name: row.campusName },
-        major: { code: row.majorCode, name: row.majorName },
+        major:
+          row.majorCode && row.majorName
+            ? { code: row.majorCode, name: row.majorName }
+            : null,
         curriculum:
           row.curriculumId && row.curriculumCode && row.curriculumName
             ? {

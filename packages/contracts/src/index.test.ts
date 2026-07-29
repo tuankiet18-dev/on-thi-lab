@@ -49,12 +49,10 @@ describe("student profile input", () => {
       upsertStudentProfileSchema.parse({
         fullName: "Lương Tuấn Kiệt",
         campusCode: "HL",
-        majorCode: "SE",
       }),
     ).toEqual({
       fullName: "Lương Tuấn Kiệt",
       campusCode: "HL",
-      majorCode: "SE",
     });
   });
 });

@@ -91,7 +91,7 @@ export function AdminUsersPage() {
                 Sinh viên
               </th>
               <th scope="col" className="px-6 py-4">
-                Cơ sở / Ngành
+                Campus / Ngành (nếu có)
               </th>
               <th scope="col" className="px-6 py-4">
                 Quyền hiện tại
@@ -136,7 +136,9 @@ export function AdminUsersPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div>{user.campus.name}</div>
-                    <div className="text-xs">{user.major.name}</div>
+                    <div className="text-xs">
+                      {user.major?.name ?? "Chưa cập nhật ngành"}
+                    </div>
                   </td>
                   <td className="px-6 py-4 font-medium capitalize">
                     {user.role}

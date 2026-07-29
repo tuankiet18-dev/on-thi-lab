@@ -14,7 +14,7 @@ export function ProfilePage() {
   const [campusCode, setCampusCode] = useState(
     studentProfile?.campus.code ?? "",
   );
-  const [majorCode, setMajorCode] = useState(studentProfile?.major.code ?? "");
+  const [majorCode, setMajorCode] = useState(studentProfile?.major?.code ?? "");
   const [options, setOptions] = useState<ProfileOptions>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -26,9 +26,7 @@ export function ProfilePage() {
     void getProfileOptions(session.idToken)
       .then(setOptions)
       .catch(() => {
-        setError(
-          "Không thể tải danh sách campus và ngành học. Vui lòng tải lại trang.",
-        );
+        setError("Không thể tải thông tin hồ sơ. Vui lòng tải lại trang.");
       });
   }, [session]);
 
@@ -37,7 +35,7 @@ export function ProfilePage() {
     setFullName(studentProfile.fullName);
     setStudentCode(studentProfile.studentCode ?? "");
     setCampusCode(studentProfile.campus.code);
-    setMajorCode(studentProfile.major.code);
+    setMajorCode(studentProfile.major?.code ?? "");
   }, [studentProfile]);
 
   if (!session) return <Navigate to="/login" replace />;
@@ -55,8 +53,8 @@ export function ProfilePage() {
       setError("MSSV phải có 4–20 ký tự chữ, số hoặc dấu gạch ngang.");
       return;
     }
-    if (!fullName.trim() || !campusCode || !majorCode) {
-      setError("Vui lòng điền đầy đủ thông tin hồ sơ.");
+    if (!fullName.trim() || !campusCode) {
+      setError("Họ tên và campus là thông tin bắt buộc.");
       return;
     }
 
@@ -66,7 +64,7 @@ export function ProfilePage() {
         fullName: fullName.trim(),
         studentCode: normalizedStudentCode || undefined,
         campusCode,
-        majorCode,
+        majorCode: majorCode || undefined,
       });
       setSaved(true);
     } catch (reason) {
@@ -85,9 +83,7 @@ export function ProfilePage() {
       <header>
         <p className="section-kicker">Tài khoản</p>
         <h1 className="section-title">Hồ sơ của tôi</h1>
-        <p className="mt-2 text-slate-600">
-          Campus và ngành học giúp OnThiLab ưu tiên đề phù hợp với bạn.
-        </p>
+        <p className="mt-2 text-slate-600">Chỉ họ tên và campus là bắt buộc.</p>
       </header>
 
       <form
@@ -152,15 +148,14 @@ export function ProfilePage() {
             </select>
           </label>
           <label className="form-field sm:col-span-2">
-            Ngành học
+            Ngành học <span className="font-normal">(không bắt buộc)</span>
             <select
               value={majorCode}
               onChange={(event) => setMajorCode(event.target.value)}
               className="input-base"
               disabled={!options}
-              required
             >
-              <option value="">Chọn ngành học</option>
+              <option value="">Chưa cập nhật</option>
               {options?.majors.map((major) => (
                 <option key={major.code} value={major.code}>
                   {major.name}
