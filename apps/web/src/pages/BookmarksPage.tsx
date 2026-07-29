@@ -105,24 +105,13 @@ export function BookmarksPage() {
 
   const isEmpty = !bookmarks.exams.length && !bookmarks.questions.length;
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <section className="rounded-3xl bg-linear-to-br from-[#173b8f] to-primary p-7 text-white sm:p-9">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="section-kicker !text-blue-100">Ôn tập của tôi</p>
-            <h1 className="mt-2 font-heading text-3xl font-bold">
-              Đề và câu hỏi đã lưu
-            </h1>
-            <p className="mt-3 max-w-2xl leading-7 text-blue-100">
-              Gom những nội dung cần ôn lại ở một nơi. Đáp án chỉ hiển thị sau
-              khi bạn đã hoàn thành bài thi.
-            </p>
-          </div>
-          <Badge tone="amber">
-            {bookmarks.exams.length + bookmarks.questions.length} mục đã lưu
-          </Badge>
-        </div>
-      </section>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header className="flex items-center justify-between gap-4">
+        <h1 className="section-title">Đã lưu</h1>
+        <Badge tone="blue">
+          {bookmarks.exams.length + bookmarks.questions.length}
+        </Badge>
+      </header>
 
       {error && (
         <p
@@ -139,17 +128,16 @@ export function BookmarksPage() {
             <Bookmark size={26} aria-hidden="true" />
           </div>
           <h2 className="mt-5 font-heading text-2xl font-bold text-foreground">
-            Chưa có nội dung nào được lưu
+            Chưa có mục đã lưu
           </h2>
           <p className="mx-auto mt-2 max-w-md leading-7 text-slate-600">
-            Lưu một đề trước khi ôn, hoặc lưu câu cần xem lại ở trang kết quả
-            bài thi.
+            Lưu đề hoặc câu hỏi để xem lại.
           </p>
           <Link
             to="/exams"
             className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
           >
-            Mở kho đề thi
+            Kho đề
           </Link>
         </Card>
       ) : (
@@ -157,12 +145,9 @@ export function BookmarksPage() {
           {bookmarks.exams.length > 0 && (
             <section>
               <div className="mb-4 flex items-end justify-between gap-4">
-                <div>
-                  <p className="section-kicker">Đề thi</p>
-                  <h2 className="section-title">Đề đã lưu</h2>
-                </div>
+                <h2 className="section-title">Đề</h2>
                 <span className="text-sm font-semibold text-slate-500">
-                  {bookmarks.exams.length} đề
+                  {bookmarks.exams.length}
                 </span>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -215,12 +200,9 @@ export function BookmarksPage() {
           {bookmarks.questions.length > 0 && (
             <section>
               <div className="mb-4 flex items-end justify-between gap-4">
-                <div>
-                  <p className="section-kicker">Cần xem lại</p>
-                  <h2 className="section-title">Câu hỏi đã lưu</h2>
-                </div>
+                <h2 className="section-title">Câu hỏi</h2>
                 <span className="text-sm font-semibold text-slate-500">
-                  {bookmarks.questions.length} câu
+                  {bookmarks.questions.length}
                 </span>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
@@ -268,7 +250,7 @@ export function BookmarksPage() {
                           params={{ examId: question.examId }}
                           className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-border-strong bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
                         >
-                          Xem đề để ôn lại
+                          Xem đề
                         </Link>
                       </div>
                     </div>

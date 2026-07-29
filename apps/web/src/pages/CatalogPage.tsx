@@ -1,7 +1,6 @@
 import {
   ArrowRight,
   BookOpenCheck,
-  Check,
   ChevronDown,
   Clock3,
   Filter,
@@ -82,24 +81,11 @@ export function CatalogPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="section-kicker">
-            Danh mục đầy đủ, dữ liệu phát hành dần
-          </p>
-          <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
-            Kho đề thi FE
-          </h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
-            Tìm đúng môn, campus và kỳ thi bạn muốn luyện. Mỗi đề giữ nguyên cấu
-            trúc của lần thi đã công bố.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Check size={17} className="text-emerald-600" aria-hidden="true" />
-          Đáp án được duyệt trước khi phát hành
-        </div>
+    <div className="space-y-5">
+      <header>
+        <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
+          Kho đề
+        </h1>
       </header>
 
       <Card className="p-4 sm:p-5">
@@ -115,7 +101,7 @@ export function CatalogPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm mã môn hoặc tên môn..."
+              placeholder="Tìm mã hoặc tên môn"
               className="input-base w-full pl-11"
             />
           </label>
@@ -172,8 +158,7 @@ export function CatalogPage() {
 
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-slate-600">
-          Tìm thấy <strong className="text-foreground">{results.length}</strong>{" "}
-          đề phù hợp
+          <strong className="text-foreground">{results.length}</strong> đề
         </p>
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
           <Filter size={16} aria-hidden="true" />
@@ -231,7 +216,7 @@ export function CatalogPage() {
                 params={{ examId: exam.id }}
                 className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
               >
-                Chi tiết
+                Xem đề
                 <ArrowRight size={17} aria-hidden="true" />
               </Link>
             </Card>
@@ -248,10 +233,10 @@ export function CatalogPage() {
               aria-hidden="true"
             />
             <h2 className="mt-4 font-heading text-xl font-bold text-foreground">
-              Chưa tìm thấy đề phù hợp
+              Không có đề phù hợp
             </h2>
             <p className="mt-2 text-slate-500">
-              Hãy thử bỏ bớt bộ lọc hoặc tìm bằng mã môn.
+              Đổi bộ lọc hoặc tìm bằng mã môn.
             </p>
           </div>
         </Card>

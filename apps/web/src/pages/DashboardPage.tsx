@@ -12,12 +12,7 @@ import {
   CirclePlay,
   Clock3,
   FileText,
-  GraduationCap,
-  ListChecks,
   LoaderCircle,
-  MapPin,
-  Rocket,
-  Search,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -142,7 +137,6 @@ export function DashboardPage() {
     {
       label: "Bài đã hoàn thành",
       value: String(statistics.totalAttempts),
-      note: "Tất cả bài đã nộp",
       icon: CheckCircle2,
       tone: "text-emerald-600 bg-emerald-50",
     },
@@ -152,7 +146,6 @@ export function DashboardPage() {
         statistics.averageScore === null
           ? "Chưa có"
           : statistics.averageScore.toFixed(2),
-      note: "Trên thang điểm 10",
       icon: TrendingUp,
       tone: "text-blue-600 bg-blue-50",
     },
@@ -162,14 +155,12 @@ export function DashboardPage() {
         statistics.highestScore === null
           ? "Chưa có"
           : statistics.highestScore.toFixed(2),
-      note: "Kết quả tốt nhất của bạn",
       icon: Award,
       tone: "text-amber-600 bg-amber-50",
     },
     {
-      label: "Đã lưu để ôn lại",
+      label: "Đã lưu",
       value: String(savedCount),
-      note: "Đề và câu hỏi cần xem lại",
       icon: Bookmark,
       tone: "text-violet-600 bg-violet-50",
       to: "/bookmarks" as const,
@@ -194,12 +185,9 @@ export function DashboardPage() {
             aria-hidden="true"
           />
           <div className="relative z-10 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge tone="amber">Bắt đầu ở đây</Badge>
-              <span className="text-sm font-semibold text-blue-100">
-                Chào {firstName}, chọn môn bạn đang ôn
-              </span>
-            </div>
+            <span className="text-sm font-semibold text-blue-100">
+              Chào {firstName}
+            </span>
             <h1 className="mt-4 max-w-xl font-heading text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
               Ôn đúng môn.
               <span className="block text-blue-200">Vào đề ngay.</span>
@@ -212,7 +200,7 @@ export function DashboardPage() {
                 campusName={studentProfile?.campus.name}
                 query={query}
                 onQueryChange={setQuery}
-                placeholder="Ví dụ: SWD, PRF192, Java Web..."
+                placeholder="Nhập mã môn, ví dụ SWD392"
                 describedBy="course-search-hint"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -220,7 +208,7 @@ export function DashboardPage() {
                   id="course-search-hint"
                   className="mr-1 text-sm text-blue-100"
                 >
-                  Môn phổ biến:
+                  Gợi ý:
                 </p>
                 {quickCourseCodes.length > 0 ? (
                   quickCourseCodes.map((courseCode) => (
@@ -240,17 +228,6 @@ export function DashboardPage() {
                 )}
               </div>
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2 text-sm text-blue-100">
-              <span className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3">
-                <MapPin size={15} aria-hidden="true" />
-                {studentProfile?.campus.name ?? "Campus đang cập nhật"}
-              </span>
-              <span className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3">
-                <GraduationCap size={15} aria-hidden="true" />
-                {studentProfile?.major.name ?? "Ngành đang cập nhật"}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -262,7 +239,7 @@ export function DashboardPage() {
           />
           <div className="relative flex h-full flex-col">
             <div className="flex items-center justify-between gap-3">
-              <Badge tone="blue">Đề mới nhất của campus bạn</Badge>
+              <Badge tone="blue">Đề mới</Badge>
               <CirclePlay
                 className="text-primary"
                 size={22}
@@ -311,7 +288,7 @@ export function DashboardPage() {
                   to="/exams"
                   className="mt-2 inline-flex min-h-10 items-center justify-center text-sm text-slate-500 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
                 >
-                  Hoặc tìm môn khác
+                  Xem tất cả
                 </Link>
               </>
             ) : (
@@ -322,11 +299,8 @@ export function DashboardPage() {
                   aria-hidden="true"
                 />
                 <h2 className="mt-4 font-heading text-lg font-bold text-foreground">
-                  Đề đang được bổ sung
+                  Chưa có đề
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Bạn có thể mở kho đề để xem các môn đã được phát hành.
-                </p>
                 <Link
                   to="/exams"
                   className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white"
@@ -357,9 +331,8 @@ export function DashboardPage() {
       <section aria-labelledby="stats-heading">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="section-kicker">Tiến độ của bạn</p>
             <h2 id="stats-heading" className="section-title">
-              Mỗi lần luyện là một bước tiến
+              Tiến độ
             </h2>
           </div>
           {loading && (
@@ -375,52 +348,22 @@ export function DashboardPage() {
           <Card className="p-6 sm:p-8">
             <div className="mx-auto max-w-lg text-center">
               <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary-soft">
-                <Rocket className="text-primary" size={26} aria-hidden="true" />
+                <CirclePlay
+                  className="text-primary"
+                  size={26}
+                  aria-hidden="true"
+                />
               </span>
               <h3 className="mt-5 font-heading text-xl font-bold text-foreground">
-                Bắt đầu hành trình ôn thi
+                Chưa có bài làm
               </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Hoàn thành bài đầu tiên để theo dõi điểm số, tiến độ và những
-                chủ đề cần cải thiện.
-              </p>
-
-              <ol className="mt-6 grid gap-3 text-left sm:grid-cols-3">
-                {(
-                  [
-                    { step: "1", label: "Chọn đề", icon: Search },
-                    { step: "2", label: "Làm bài", icon: ListChecks },
-                    {
-                      step: "3",
-                      label: "Xem kết quả & ôn câu sai",
-                      icon: TrendingUp,
-                    },
-                  ] as const
-                ).map(({ step, label, icon: Icon }) => (
-                  <li
-                    key={step}
-                    className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
-                  >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-white">
-                      {step}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                      <Icon
-                        size={14}
-                        className="text-slate-400"
-                        aria-hidden="true"
-                      />
-                      {label}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+              <p className="mt-2 text-sm text-slate-500">Chọn đề để bắt đầu.</p>
 
               <Link
                 to="/exams"
                 className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
               >
-                Tìm đề đầu tiên
+                Kho đề
                 <ArrowRight size={16} aria-hidden="true" />
               </Link>
             </div>
@@ -438,13 +381,12 @@ export function DashboardPage() {
                     <p className="mt-2 font-heading text-3xl font-bold text-foreground">
                       {stat.value}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">{stat.note}</p>
                     {"to" in stat && typeof stat.to === "string" && (
                       <Link
                         to={stat.to as "/bookmarks"}
                         className="mt-3 inline-flex min-h-10 items-center text-sm font-bold text-primary hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
                       >
-                        Mở mục đã lưu
+                        Mở
                       </Link>
                     )}
                   </div>
@@ -464,9 +406,8 @@ export function DashboardPage() {
       <section aria-labelledby="exams-heading">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="section-kicker">Kho đề</p>
             <h2 id="exams-heading" className="section-title">
-              Chọn đề để bắt đầu
+              Đề mới
             </h2>
           </div>
           <Link
@@ -485,11 +426,8 @@ export function DashboardPage() {
               aria-hidden="true"
             />
             <h3 className="mt-4 font-heading text-lg font-bold text-foreground">
-              Chưa có đề phù hợp
+              Chưa có đề
             </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Đề mới sẽ xuất hiện tại đây sau khi được duyệt và xuất bản.
-            </p>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

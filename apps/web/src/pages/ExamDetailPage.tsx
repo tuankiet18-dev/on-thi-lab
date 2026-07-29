@@ -8,7 +8,6 @@ import {
   Info,
   MapPin,
   Play,
-  Repeat2,
   Shuffle,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
@@ -134,6 +133,11 @@ export function ExamDetailPage() {
     );
   }
 
+  const instructions = exam.instructions.filter(
+    (instruction) =>
+      !instruction.toLocaleLowerCase("vi-VN").includes("tham khảo"),
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Link
@@ -141,44 +145,41 @@ export function ExamDetailPage() {
         className="inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-slate-600 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
       >
         <ArrowLeft size={17} aria-hidden="true" />
-        Quay lại kho đề
+        Kho đề
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
           <Card className="overflow-hidden">
-            <div className="border-b border-border bg-linear-to-r from-primary-soft to-white p-6 sm:p-8">
+            <div className="border-b border-border bg-linear-to-r from-primary-soft to-white p-5 sm:p-6">
               <div className="flex flex-wrap gap-2">
                 <Badge tone="blue">{exam.examType}</Badge>
                 <Badge tone="slate">{exam.semester}</Badge>
                 {exam.isRetake && <Badge tone="pink">Retake</Badge>}
               </div>
-              <p className="mt-5 text-sm font-bold uppercase tracking-wider text-primary">
+              <p className="mt-4 text-sm font-bold uppercase tracking-wider text-primary">
                 {exam.code}
               </p>
               <h1 className="mt-2 font-heading text-3xl font-bold leading-tight text-foreground">
                 {exam.courseName}
               </h1>
-              <p className="mt-2 text-slate-600">
-                Mã môn {exam.courseCode} · Đề thi cuối kỳ
-              </p>
             </div>
             <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
               {[
-                [BookOpenCheck, `${exam.questionCount} câu`, "Số câu hỏi"],
+                [BookOpenCheck, `${exam.questionCount} câu`, "Câu hỏi"],
                 [Clock3, `${exam.durationMinutes} phút`, "Thời gian"],
                 [MapPin, exam.campus, "Campus"],
-                [Shuffle, "Có", "Trộn câu hỏi"],
+                [Shuffle, exam.shuffleQuestions ? "Có" : "Không", "Trộn câu"],
               ].map(([Icon, value, label]) => {
                 const MetricIcon = Icon as typeof BookOpenCheck;
                 return (
-                  <div key={String(label)} className="bg-white p-5">
+                  <div key={String(label)} className="bg-white p-4 sm:p-5">
                     <MetricIcon
                       size={19}
                       className="text-primary"
                       aria-hidden="true"
                     />
-                    <p className="mt-3 font-heading font-bold text-foreground">
+                    <p className="mt-2 font-heading font-bold text-foreground">
                       {String(value)}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
@@ -190,12 +191,12 @@ export function ExamDetailPage() {
             </div>
           </Card>
 
-          <Card className="p-6 sm:p-8">
+          <Card className="p-5 sm:p-6">
             <h2 className="font-heading text-xl font-bold text-foreground">
-              Quy định làm bài
+              Lưu ý
             </h2>
-            <ul className="mt-5 space-y-4">
-              {exam.instructions.map((instruction) => (
+            <ul className="mt-4 space-y-3">
+              {instructions.map((instruction) => (
                 <li key={instruction} className="flex gap-3 text-slate-600">
                   <CheckCircle2
                     size={19}
@@ -205,14 +206,6 @@ export function ExamDetailPage() {
                   <span>{instruction}</span>
                 </li>
               ))}
-              <li className="flex gap-3 text-slate-600">
-                <Repeat2
-                  size={19}
-                  className="mt-0.5 shrink-0 text-emerald-600"
-                  aria-hidden="true"
-                />
-                <span>Bạn có thể làm lại cùng đề sau khi hoàn thành.</span>
-              </li>
             </ul>
           </Card>
         </div>
@@ -222,8 +215,7 @@ export function ExamDetailPage() {
             <div className="flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-amber-900">
               <Info size={19} className="mt-0.5 shrink-0" aria-hidden="true" />
               <p className="text-sm leading-6">
-                Đáp án do AI đề xuất và đã được quản trị viên rà soát. Điểm số
-                chỉ mang tính tham khảo.
+                Đáp án tham khảo đã được duyệt.
               </p>
             </div>
             <div className="mt-5 grid gap-3">
@@ -233,7 +225,7 @@ export function ExamDetailPage() {
                 className="w-full"
                 icon={<Play size={18} fill="currentColor" />}
               >
-                {starting ? "Đang tạo lượt thi..." : "Bắt đầu làm bài"}
+                {starting ? "Đang tạo lượt thi..." : "Bắt đầu"}
               </Button>
               <Link
                 to="/exams/$examId/preview"
@@ -241,7 +233,7 @@ export function ExamDetailPage() {
                 className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
               >
                 <Eye size={17} aria-hidden="true" />
-                Xem đề trước khi làm
+                Xem trước
               </Link>
               {configured && (
                 <Button
@@ -259,13 +251,13 @@ export function ExamDetailPage() {
                   {bookmarkLoading
                     ? "Đang cập nhật..."
                     : bookmarked
-                      ? "Đã lưu đề"
-                      : "Lưu đề để ôn lại"}
+                      ? "Đã lưu"
+                      : "Lưu đề"}
                 </Button>
               )}
             </div>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-              Timer bắt đầu ngay sau khi bạn nhấn nút.
+              Thời gian bắt đầu khi vào bài.
             </p>
             {startError && (
               <p
