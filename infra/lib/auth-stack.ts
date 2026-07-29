@@ -2,11 +2,12 @@ import {
   CfnOutput,
   Duration,
   RemovalPolicy,
+  SecretValue,
   Stack,
   type StackProps,
 } from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import type { Construct } from "constructs";
 
 interface OnThiLabAuthStackProps extends StackProps {
@@ -14,7 +15,8 @@ interface OnThiLabAuthStackProps extends StackProps {
   domainPrefix: string;
   callbackUrls: string[];
   logoutUrls: string[];
-  googleSecretName: string;
+  googleClientIdParameterName: string;
+  googleClientSecretParameterName: string;
 }
 
 export class OnThiLabAuthStack extends Stack {
@@ -60,21 +62,25 @@ export class OnThiLabAuthStack extends Stack {
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
     });
 
-    const googleOauthSecret = secretsmanager.Secret.fromSecretNameV2(
+    // Cognito's CloudFormation resource does not support ssm-secure dynamic
+    // references. These parameters are therefore standard String parameters;
+    // IAM access is restricted to deployment operators and values are never
+    // exposed as stack outputs or browser configuration.
+    const googleClientId = ssm.StringParameter.valueForStringParameter(
       this,
-      "GoogleOauthSecret",
-      props.googleSecretName,
+      props.googleClientIdParameterName,
+    );
+    const googleClientSecret = ssm.StringParameter.valueForStringParameter(
+      this,
+      props.googleClientSecretParameterName,
     );
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(
       this,
       "GoogleProvider",
       {
         userPool,
-        clientId: googleOauthSecret
-          .secretValueFromJson("clientId")
-          .unsafeUnwrap(),
-        clientSecretValue:
-          googleOauthSecret.secretValueFromJson("clientSecret"),
+        clientId: googleClientId,
+        clientSecretValue: SecretValue.unsafePlainText(googleClientSecret),
         scopes: ["openid", "email", "profile"],
         attributeMapping: {
           email: cognito.ProviderAttribute.GOOGLE_EMAIL,

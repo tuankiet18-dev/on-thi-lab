@@ -61,13 +61,15 @@ Kiểm tra trước khi bật flag:
 Tên secret/parameter trên AWS:
 
 ```text
-/onthilab/staging/google/oauth
+/onthilab/staging/google/client-id
+/onthilab/staging/google/client-secret
 /onthilab/staging/payos/client-id
 /onthilab/staging/payos/api-key
 /onthilab/staging/payos/checksum-key
 /onthilab/staging/ai/api-key
 
-/onthilab/prod/google/oauth
+/onthilab/prod/google/client-id
+/onthilab/prod/google/client-secret
 /onthilab/prod/payos/client-id
 /onthilab/prod/payos/api-key
 /onthilab/prod/payos/checksum-key
@@ -85,14 +87,12 @@ Database connection string dùng SSM Parameter Store `SecureString` tier
 Secret được tham chiếu bằng ARN/name trong CDK, không đọc rồi ghi lại vào
 CloudFormation output.
 
-Google OAuth dùng một JSON secret để giảm số secret phải trả phí:
-
-```json
-{
-  "clientId": "...",
-  "clientSecret": "..."
-}
-```
+Google OAuth dùng hai SSM Parameter Store Standard `String` parameters
+(`client-id` và `client-secret`) vì CloudFormation Cognito không hỗ trợ
+`ssm-secure` dynamic reference cho Google provider. Chỉ deploy operator được
+đọc các parameter này; giá trị không đi vào output của CloudFormation hoặc
+browser. Nếu yêu cầu mã hóa at-rest, giữ client secret trong Secrets Manager
+hoặc triển khai custom resource Cognito riêng.
 
 Supabase connection string cũng được lưu server-side trong Parameter Store,
 chỉ cho Lambda đọc:
