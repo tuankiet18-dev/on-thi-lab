@@ -121,6 +121,15 @@ export class OnThiLabAuthStack extends Stack {
     });
     userPoolClient.node.addDependency(googleProvider);
 
+    // Managed Login v2 returns "Login pages unavailable" until the app client
+    // has a branding resource. Use Cognito's defaults now; this can be
+    // customized later without changing the OAuth client or callback URLs.
+    new cognito.CfnManagedLoginBranding(this, "ManagedLoginBranding", {
+      userPoolId: userPool.userPoolId,
+      clientId: userPoolClient.userPoolClientId,
+      useCognitoProvidedValues: true,
+    });
+
     const domainBaseUrl = `https://${props.domainPrefix}.auth.${this.region}.amazoncognito.com`;
     this.userPool = userPool;
     this.userPoolClient = userPoolClient;
