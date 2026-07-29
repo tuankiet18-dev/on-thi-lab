@@ -180,7 +180,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
           cognitoSubject: identity.subject,
           email: identity.email,
           fullName: input.fullName,
-          studentCode: input.studentCode,
+          studentCode: input.studentCode ?? null,
           campusId: campus.id,
           majorId: major.id,
           curriculumId: input.curriculumId,
@@ -190,7 +190,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
           set: {
             email: identity.email,
             fullName: input.fullName,
-            studentCode: input.studentCode,
+            studentCode: input.studentCode ?? null,
             campusId: campus.id,
             majorId: major.id,
             curriculumId: input.curriculumId,

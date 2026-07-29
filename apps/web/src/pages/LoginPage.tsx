@@ -6,7 +6,7 @@ import {
   GraduationCap,
   LockKeyhole,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { webConfig } from "../lib/config";
 
@@ -37,6 +37,24 @@ export function LoginPage() {
   const { configured, status, signIn } = useAuth();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState<"google" | "cognito">();
+
+  useEffect(() => {
+    const resetPending = () => setPending(undefined);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") resetPending();
+    };
+
+    // Cognito runs on another origin. When the user returns using Back or
+    // closes the hosted login page, the browser may restore this route from
+    // bfcache with the previous React state still intact.
+    window.addEventListener("pageshow", resetPending);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pageshow", resetPending);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   if (status === "authenticated") {
     return <Navigate to="/" replace />;

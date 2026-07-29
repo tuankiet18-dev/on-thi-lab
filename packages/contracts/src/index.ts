@@ -164,7 +164,7 @@ export const studentProfileSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   fullName: z.string().min(1),
-  studentCode: z.string().min(4),
+  studentCode: z.string().min(4).nullable(),
   campus: profileOptionSchema,
   major: profileOptionSchema,
   curriculum: curriculumSchema.nullable(),
@@ -183,7 +183,8 @@ export const upsertStudentProfileSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9-]{4,20}$/),
+    .regex(/^[A-Z0-9-]{4,20}$/)
+    .optional(),
   campusCode: z.string().trim().min(1).max(20),
   majorCode: z.string().trim().min(1).max(30),
   curriculumId: z.string().uuid().optional(),

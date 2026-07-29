@@ -126,7 +126,7 @@ export const users = pgTable("users", {
   cognitoSubject: text("cognito_subject").notNull().unique(),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
-  studentCode: text("student_code").notNull().unique(),
+  studentCode: text("student_code").unique(),
   campusId: uuid("campus_id").references(() => campuses.id),
   majorId: uuid("major_id").references(() => majors.id),
   curriculumId: uuid("curriculum_id").references(() => curricula.id),

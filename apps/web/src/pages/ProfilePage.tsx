@@ -35,7 +35,7 @@ export function ProfilePage() {
   useEffect(() => {
     if (!studentProfile) return;
     setFullName(studentProfile.fullName);
-    setStudentCode(studentProfile.studentCode);
+    setStudentCode(studentProfile.studentCode ?? "");
     setCampusCode(studentProfile.campus.code);
     setMajorCode(studentProfile.major.code);
   }, [studentProfile]);
@@ -48,7 +48,10 @@ export function ProfilePage() {
     setSaved(false);
 
     const normalizedStudentCode = studentCode.trim().toUpperCase();
-    if (!/^[A-Z0-9-]{4,20}$/.test(normalizedStudentCode)) {
+    if (
+      normalizedStudentCode &&
+      !/^[A-Z0-9-]{4,20}$/.test(normalizedStudentCode)
+    ) {
       setError("MSSV phải có 4–20 ký tự chữ, số hoặc dấu gạch ngang.");
       return;
     }
@@ -61,7 +64,7 @@ export function ProfilePage() {
     try {
       await saveStudentProfile({
         fullName: fullName.trim(),
-        studentCode: normalizedStudentCode,
+        studentCode: normalizedStudentCode || undefined,
         campusCode,
         majorCode,
       });
@@ -118,15 +121,18 @@ export function ProfilePage() {
             />
           </label>
           <label className="form-field">
-            Mã số sinh viên
+            Mã số sinh viên{" "}
+            <span className="font-normal">(không bắt buộc)</span>
             <input
               value={studentCode}
               onChange={(event) => setStudentCode(event.target.value)}
               className="input-base uppercase"
               placeholder="Ví dụ: HE170001"
               autoComplete="off"
-              required
             />
+            <span className="text-xs font-normal text-slate-500">
+              Có thể bổ sung hoặc chỉnh sửa bất cứ lúc nào.
+            </span>
           </label>
           <label className="form-field">
             Campus

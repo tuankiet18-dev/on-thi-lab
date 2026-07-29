@@ -60,7 +60,7 @@ class MemoryProfileRepository implements UserProfileRepository {
       id: "10000000-0000-4000-8000-000000000001",
       email: profileIdentity.email,
       fullName: input.fullName,
-      studentCode: input.studentCode,
+      studentCode: input.studentCode ?? null,
       campus: this.options.campuses[0]!,
       major: this.options.majors[0]!,
       curriculum: null,
@@ -82,7 +82,7 @@ class MemoryProfileRepository implements UserProfileRepository {
     if (!this.profile) return [];
     if (
       this.profile.email.includes(query) ||
-      this.profile.studentCode.includes(query)
+      this.profile.studentCode?.includes(query)
     ) {
       return [this.profile];
     }
@@ -369,6 +369,29 @@ describe("attempt API", () => {
       headers: authorization,
     });
     await expect(loadedResponse.json()).resolves.toEqual(saved);
+  });
+
+  it("allows onboarding without a student code", async () => {
+    const profiles = new MemoryProfileRepository();
+    const isolatedApp = createApp({ auth, profiles });
+
+    const response = await isolatedApp.request("/v1/me", {
+      method: "PUT",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        fullName: "Lương Tuấn Kiệt",
+        campusCode: "HL",
+        majorCode: "SE",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { studentCode: null },
+    });
   });
 
   it("rejects malformed onboarding payloads", async () => {
