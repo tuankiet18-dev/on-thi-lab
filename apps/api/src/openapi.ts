@@ -106,6 +106,66 @@ export const openApiDocument = {
         responses: { "200": { description: "Question bookmark removed" } },
       },
     },
+    "/v1/feedback": {
+      post: {
+        operationId: "createFeedback",
+        tags: ["Feedback"],
+        security: [{ cognitoIdToken: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["title", "detail"],
+                properties: {
+                  title: { type: "string", minLength: 3, maxLength: 100 },
+                  detail: { type: "string", minLength: 10, maxLength: 2000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Feedback created" },
+          "400": { description: "Invalid feedback" },
+          "401": { description: "Missing, invalid or expired token" },
+          "403": { description: "Profile onboarding is required" },
+        },
+      },
+    },
+    "/v1/admin/feedback": {
+      get: {
+        operationId: "listNewFeedback",
+        tags: ["Admin feedback"],
+        security: [{ cognitoIdToken: [] }],
+        responses: {
+          "200": { description: "Unresolved feedback, newest first" },
+          "403": { description: "Admin role required" },
+        },
+      },
+    },
+    "/v1/admin/feedback/{feedbackId}/resolve": {
+      post: {
+        operationId: "resolveFeedback",
+        tags: ["Admin feedback"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            name: "feedbackId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Feedback marked as resolved" },
+          "400": { description: "Invalid feedback ID" },
+          "403": { description: "Admin role required" },
+          "404": { description: "Feedback not found" },
+        },
+      },
+    },
     "/v1/admin/imports/config": {
       get: {
         operationId: "getImportConstraints",

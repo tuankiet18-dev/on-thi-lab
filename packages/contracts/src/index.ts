@@ -467,6 +467,23 @@ export const resolveReportSchema = z.object({
   correctOptions: z.array(z.number().int().nonnegative()).max(6).optional(),
 });
 
+export const feedbackStatuses = ["new", "resolved"] as const;
+
+export const createFeedbackSchema = z.object({
+  title: z.string().trim().min(3).max(100),
+  detail: z.string().trim().min(10).max(2000),
+});
+
+export const feedbackSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().nullable(),
+  title: z.string(),
+  detail: z.string(),
+  status: z.enum(feedbackStatuses),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
 export const attemptResultSchema = z.object({
   attemptId: z.string().uuid(),
   status: z.enum(["submitted", "auto_submitted"]),
@@ -546,6 +563,9 @@ export type AttemptSummary = z.infer<typeof attemptSummarySchema>;
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 export type Report = z.infer<typeof reportSchema>;
 export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+export type CreateFeedbackInput = z.infer<typeof createFeedbackSchema>;
+export type Feedback = z.infer<typeof feedbackSchema>;
+export type FeedbackStatus = (typeof feedbackStatuses)[number];
 export type ReportStatus = (typeof reportStatuses)[number];
 export type AttemptStatus = (typeof attemptStatuses)[number];
 export type QuestionType = (typeof questionTypes)[number];

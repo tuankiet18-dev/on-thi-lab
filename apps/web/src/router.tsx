@@ -7,6 +7,7 @@ import { AppShell, PlaceholderPage } from "./components/AppShell";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { AdminImportPage } from "./pages/AdminImportPage";
 import { AdminReportPage } from "./pages/AdminReportPage";
+import { AdminFeedbackPage } from "./pages/AdminFeedbackPage";
 import { AdminReviewPage } from "./pages/AdminReviewPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminCatalogManagementPage } from "./pages/AdminCatalogManagementPage";
@@ -128,6 +129,12 @@ const adminReportsRoute = createRoute({
   component: AdminReportPage,
 });
 
+const adminFeedbackRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "feedback",
+  component: AdminFeedbackPage,
+});
+
 const adminReviewRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "exams/$examId/review",
@@ -179,6 +186,7 @@ const routeTree = rootRoute.addChildren([
     adminImportRoute,
     adminReviewRoute,
     adminReportsRoute,
+    adminFeedbackRoute,
     adminUsersRoute,
     adminDraftsRoute,
     adminExamsRoute,

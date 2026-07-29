@@ -11,6 +11,7 @@ import {
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
   createReportSchema,
+  createFeedbackSchema,
   resolveReportSchema,
   upsertCurriculumCourseSchema,
   type StudentProfile,
@@ -30,6 +31,7 @@ import {
   ReportRepositoryError,
   type BookmarkRepository,
   BookmarkRepositoryError,
+  type FeedbackRepository,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -74,6 +76,7 @@ interface AppDependencies {
   suggestions: AnswerSuggestionService;
   reports: ReportRepository;
   bookmarks: BookmarkRepository;
+  feedback: FeedbackRepository;
   /**
    * Public base URL for question images, including `/question-images` when
    * configured. This is useful for an external image CDN.
@@ -110,6 +113,18 @@ class UnconfiguredBookmarkRepository implements BookmarkRepository {
   }
   async removeQuestion(): Promise<never> {
     throw new Error("Bookmark repository not configured");
+  }
+}
+
+class UnconfiguredFeedbackRepository implements FeedbackRepository {
+  async create(): Promise<never> {
+    throw new Error("Feedback repository not configured");
+  }
+  async listNew(): Promise<never[]> {
+    throw new Error("Feedback repository not configured");
+  }
+  async resolve(): Promise<null> {
+    throw new Error("Feedback repository not configured");
   }
 }
 
@@ -280,6 +295,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     suggestions: new UnconfiguredAnswerSuggestionService(),
     reports: new UnconfiguredReportRepository(),
     bookmarks: new UnconfiguredBookmarkRepository(),
+    feedback: new UnconfiguredFeedbackRepository(),
     corsOrigins: ["http://localhost:5173"],
     ...overrides,
   };
@@ -1239,6 +1255,49 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         }
         throw error;
       }
+    },
+  );
+
+  app.post("/v1/feedback", requireProfile, async (context) => {
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    const parsed = createFeedbackSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
+    }
+    const created = await dependencies.feedback.create(
+      context.get("profile").id,
+      parsed.data,
+    );
+    return context.json({ data: created }, 201);
+  });
+
+  app.get(
+    "/v1/admin/feedback",
+    roleRequiredMiddleware("admin"),
+    async (context) =>
+      context.json({ data: await dependencies.feedback.listNew() }),
+  );
+
+  app.post(
+    "/v1/admin/feedback/:id/resolve",
+    roleRequiredMiddleware("admin"),
+    async (context) => {
+      const feedbackId = uuidSchema.safeParse(context.req.param("id"));
+      if (!feedbackId.success) {
+        return context.json({ error: "INVALID_FEEDBACK_ID" }, 400);
+      }
+      const resolved = await dependencies.feedback.resolve(feedbackId.data);
+      return resolved
+        ? context.json({ data: resolved })
+        : context.json({ error: "FEEDBACK_NOT_FOUND" }, 404);
     },
   );
 

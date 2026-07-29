@@ -36,6 +36,18 @@ test("short pages keep the footer at the viewport bottom", async ({ page }) => {
   ).toBeLessThanOrEqual(1);
 });
 
+test("feedback button opens an accessible dialog", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Góp ý cho OnThiLab" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Góp ý cho OnThiLab" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Loại góp ý")).toBeVisible();
+  await expect(page.getByLabel("Nội dung")).toBeVisible();
+  await page.getByRole("button", { name: "Đóng góp ý" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
 test("desktop student can complete a practice exam", async ({
   page,
 }, testInfo) => {

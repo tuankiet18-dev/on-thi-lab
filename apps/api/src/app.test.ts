@@ -4,6 +4,7 @@ import type {
   ProfileOptions,
   StudentProfile,
   UpsertStudentProfileInput,
+  Feedback,
 } from "@onthilab/contracts";
 import type {
   ProfileIdentity,
@@ -139,6 +140,98 @@ function createOnboardedProfiles(
 }
 
 describe("attempt API", () => {
+  it("creates feedback for onboarded users and lets only admins resolve it", async () => {
+    const feedbackId = "70000000-0000-4000-8000-000000000001";
+    let item: Feedback | null = null;
+    const feedback = {
+      create: async (
+        userId: string,
+        input: { title: string; detail: string },
+      ) => {
+        item = {
+          id: feedbackId,
+          userId,
+          title: input.title,
+          detail: input.detail,
+          status: "new" as const,
+          createdAt: "2026-07-29T05:00:00.000Z",
+          updatedAt: "2026-07-29T05:00:00.000Z",
+        };
+        return item;
+      },
+      listNew: async () => (item ? [item] : []),
+      resolve: async (id: string) => {
+        if (!item || id !== feedbackId) return null;
+        item = { ...item, status: "resolved" as const };
+        return item;
+      },
+    };
+
+    const userApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      feedback,
+    });
+    const created = await userApp.request("/v1/feedback", {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Góp ý tính năng",
+        detail: "Mong muốn có thêm chế độ ôn nhanh.",
+      }),
+    });
+    expect(created.status).toBe(201);
+    await expect(created.json()).resolves.toMatchObject({
+      data: { id: feedbackId, status: "new" },
+    });
+
+    const forbidden = await userApp.request("/v1/admin/feedback", {
+      headers: authorization,
+    });
+    expect(forbidden.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      feedback,
+    });
+    const listed = await adminApp.request("/v1/admin/feedback", {
+      headers: authorization,
+    });
+    expect(listed.status).toBe(200);
+    await expect(listed.json()).resolves.toMatchObject({
+      data: [{ id: feedbackId }],
+    });
+
+    const resolved = await adminApp.request(
+      `/v1/admin/feedback/${feedbackId}/resolve`,
+      { method: "POST", headers: authorization },
+    );
+    expect(resolved.status).toBe(200);
+    await expect(resolved.json()).resolves.toMatchObject({
+      data: { status: "resolved" },
+    });
+
+    const invalidId = await adminApp.request(
+      "/v1/admin/feedback/not-a-uuid/resolve",
+      { method: "POST", headers: authorization },
+    );
+    expect(invalidId.status).toBe(400);
+  });
+
+  it("rejects short feedback content", async () => {
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+    });
+    const response = await isolatedApp.request("/v1/feedback", {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Lỗi", detail: "ngắn" }),
+    });
+    expect(response.status).toBe(400);
+  });
+
   it("rejects protected routes without a bearer token", async () => {
     const response = await app.request("/v1/catalog");
     expect(response.status).toBe(401);
