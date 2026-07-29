@@ -25,9 +25,12 @@ React SPA
               └── Cognito email/password
 ```
 
-- Google client secret chỉ tồn tại trong AWS Secrets Manager tại
-  `/onthilab/<stage>/google/oauth`; Cognito cần Secrets Manager dynamic
-  reference vì không hỗ trợ SSM SecureString trực tiếp.
+- Google client ID và client secret chỉ tồn tại trong SSM Parameter Store
+  Standard `String` tại `/onthilab/<stage>/google/client-id` và
+  `/onthilab/<stage>/google/client-secret`; Cognito nhận dynamic reference khi
+  deploy. CloudFormation Cognito không hỗ trợ `ssm-secure` dynamic reference
+  cho provider này, nên quyền đọc parameter phải được giới hạn cho deploy
+  operator.
 - Browser chỉ nhận Cognito public client ID; không có client secret.
 - OAuth transaction và token được lưu trong `sessionStorage`; mã xác minh PKCE
   và `state` được kiểm tra trước khi đổi code lấy token.

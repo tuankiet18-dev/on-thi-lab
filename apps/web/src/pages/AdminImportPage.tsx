@@ -10,7 +10,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { Link, Navigate } from "@tanstack/react-router";
+import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useState } from "react";
 import type {
   AdminCatalog,
@@ -81,8 +81,15 @@ function queueStatusLabel(status: ImportStatus): string {
 let nextQueueItemId = 0;
 
 export function AdminImportPage() {
+  const importSearch = useRouterState({
+    select: (state) => state.location.search as { course?: unknown },
+  });
+  const requestedCourse =
+    typeof importSearch.course === "string"
+      ? importSearch.course.toUpperCase()
+      : undefined;
   const { configured, session, studentProfile } = useAuth();
-  const [courseCode, setCourseCode] = useState("SWD392");
+  const [courseCode, setCourseCode] = useState(requestedCourse ?? "SWD392");
   const [semester, setSemester] = useState("SP26");
   const [campusCode, setCampusCode] = useState(
     studentProfile?.campus.code ?? "HL",
@@ -132,11 +139,14 @@ export function AdminImportPage() {
         setCatalog(nextCatalog);
         setProfileOptions(nextOptions);
         setCourseCode((currentCourseCode) =>
-          nextCatalog.courses.some(
-            (course) => course.code === currentCourseCode,
-          )
-            ? currentCourseCode
-            : (nextCatalog.courses[0]?.code ?? currentCourseCode),
+          requestedCourse &&
+          nextCatalog.courses.some((course) => course.code === requestedCourse)
+            ? requestedCourse
+            : nextCatalog.courses.some(
+                  (course) => course.code === currentCourseCode,
+                )
+              ? currentCourseCode
+              : (nextCatalog.courses[0]?.code ?? currentCourseCode),
         );
         setCampusCode((currentCampusCode) =>
           nextOptions.campuses.some(
@@ -149,7 +159,7 @@ export function AdminImportPage() {
       .catch(() => {
         // The queue can still be prepared while the catalog is temporarily unavailable.
       });
-  }, [session]);
+  }, [requestedCourse, session]);
 
   if (!canContribute) {
     return <Navigate to="/" replace />;

@@ -63,7 +63,7 @@ class MemoryProfileRepository implements UserProfileRepository {
       fullName: input.fullName,
       studentCode: input.studentCode ?? null,
       campus: this.options.campuses[0]!,
-      major: this.options.majors[0]!,
+      major: input.majorCode ? this.options.majors[0]! : null,
       curriculum: null,
       role: "user",
     };
@@ -464,7 +464,7 @@ describe("attempt API", () => {
     await expect(loadedResponse.json()).resolves.toEqual(saved);
   });
 
-  it("allows onboarding without a student code", async () => {
+  it("allows onboarding with only the required campus", async () => {
     const profiles = new MemoryProfileRepository();
     const isolatedApp = createApp({ auth, profiles });
 
@@ -477,13 +477,12 @@ describe("attempt API", () => {
       body: JSON.stringify({
         fullName: "Lương Tuấn Kiệt",
         campusCode: "HL",
-        majorCode: "SE",
       }),
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      data: { studentCode: null },
+      data: { studentCode: null, major: null, curriculum: null },
     });
   });
 

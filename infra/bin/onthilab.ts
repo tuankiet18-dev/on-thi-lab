@@ -48,7 +48,8 @@ const authStack = new OnThiLabAuthStack(app, `OnThiLabAuth-${stage}`, {
   domainPrefix,
   callbackUrls,
   logoutUrls,
-  googleSecretName: `/onthilab/${stage}/google/oauth`,
+  googleClientIdParameterName: `/onthilab/${stage}/google/client-id`,
+  googleClientSecretParameterName: `/onthilab/${stage}/google/client-secret`,
   description: `OnThiLab ${stage} authentication`,
 });
 

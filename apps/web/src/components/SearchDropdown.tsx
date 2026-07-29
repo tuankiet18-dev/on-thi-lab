@@ -131,7 +131,8 @@ export function SearchDropdown({
         <input
           id={inputId}
           ref={inputRef}
-          type="search"
+          type="text"
+          inputMode="search"
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={showDropdown}
