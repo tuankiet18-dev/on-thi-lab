@@ -22,6 +22,8 @@ import {
   adminCatalogSchema,
   reportSchema,
   resolveReportSchema,
+  createFeedbackSchema,
+  feedbackSchema,
   type Attempt,
   type AttemptLaunch,
   type AttemptSession,
@@ -45,6 +47,8 @@ import {
   type QueueAiSuggestionsResult,
   type Report,
   type ResolveReportInput,
+  type CreateFeedbackInput,
+  type Feedback,
   type ReviewReadinessResult,
   type SavedReviewQuestion,
   type StudentProfile,
@@ -422,6 +426,43 @@ export async function resolveReport(
     fetcher,
   );
   return reportSchema.parse(result);
+}
+
+export async function createFeedback(
+  idToken: string,
+  input: CreateFeedbackInput,
+  fetcher: typeof fetch = fetch,
+): Promise<Feedback> {
+  const payload = createFeedbackSchema.parse(input);
+  const result = await request(
+    "/v1/feedback",
+    idToken,
+    { method: "POST", body: JSON.stringify(payload) },
+    fetcher,
+  );
+  return feedbackSchema.parse(result);
+}
+
+export async function listFeedback(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Feedback[]> {
+  const result = await request("/v1/admin/feedback", idToken, {}, fetcher);
+  return feedbackSchema.array().parse(result);
+}
+
+export async function resolveFeedback(
+  idToken: string,
+  feedbackId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Feedback> {
+  const result = await request(
+    `/v1/admin/feedback/${encodeURIComponent(feedbackId)}/resolve`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return feedbackSchema.parse(result);
 }
 
 export async function searchUsers(

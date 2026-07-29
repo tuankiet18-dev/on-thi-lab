@@ -21,6 +21,7 @@ import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { cn } from "../lib/cn";
+import { FeedbackDialog } from "./FeedbackDialog";
 
 const navigation = [
   { label: "Tổng quan", to: "/", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ const navigation = [
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { configured, error, session, signOut, status, studentProfile } =
     useAuth();
   const pathname = useRouterState({
@@ -263,6 +265,14 @@ export function AppShell() {
                               <MessageSquareText size={17} aria-hidden="true" />
                               Quản lý báo cáo
                             </Link>
+                            <Link
+                              to="/admin/feedback"
+                              onClick={() => setAccountOpen(false)}
+                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <MessageSquareText size={17} aria-hidden="true" />
+                              Góp ý người dùng
+                            </Link>
                           </>
                         )}
                       </>
@@ -381,6 +391,14 @@ export function AppShell() {
                         <MessageSquareText size={18} aria-hidden="true" />
                         Quản lý báo cáo
                       </Link>
+                      <Link
+                        to="/admin/feedback"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                      >
+                        <MessageSquareText size={18} aria-hidden="true" />
+                        Góp ý người dùng
+                      </Link>
                     </>
                   )}
                 </>
@@ -431,6 +449,7 @@ export function AppShell() {
           <p>© 2026 OnThiLab. Điểm số chỉ mang tính tham khảo.</p>
           <button
             type="button"
+            onClick={() => setFeedbackOpen(true)}
             className="inline-flex cursor-pointer items-center gap-2 self-start rounded-lg font-semibold text-primary transition-colors hover:text-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
           >
             <MessageSquareText size={16} aria-hidden="true" />
@@ -438,6 +457,10 @@ export function AppShell() {
           </button>
         </div>
       </footer>
+      <FeedbackDialog
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </div>
   );
 }
