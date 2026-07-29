@@ -65,37 +65,28 @@ export function StatisticsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-6">
       <header>
         <h1 className="font-heading text-3xl font-bold text-slate-900">
-          Thống kê học tập
+          Thống kê
         </h1>
-        <p className="mt-2 text-slate-600">
-          Tổng quan về quá trình làm bài và điểm số của bạn.
-        </p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
-          <span className="text-sm font-medium text-slate-500">
-            Tổng số bài đã nộp
-          </span>
+          <span className="text-sm font-medium text-slate-500">Bài đã nộp</span>
           <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
             {stats.totalAttempts}
           </span>
         </div>
         <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
-          <span className="text-sm font-medium text-slate-500">
-            Điểm số trung bình
-          </span>
+          <span className="text-sm font-medium text-slate-500">Điểm TB</span>
           <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
             {stats.averageScore !== null ? stats.averageScore.toFixed(2) : "--"}
           </span>
         </div>
         <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
-          <span className="text-sm font-medium text-slate-500">
-            Điểm số cao nhất
-          </span>
+          <span className="text-sm font-medium text-slate-500">Cao nhất</span>
           <span className="mt-2 font-heading text-4xl font-semibold text-slate-900">
             {stats.highestScore !== null ? stats.highestScore.toFixed(2) : "--"}
           </span>
@@ -104,21 +95,21 @@ export function StatisticsPage() {
 
       <section>
         <h2 className="font-heading text-xl font-semibold text-slate-900 mb-4">
-          Lịch sử bài làm gần đây
+          Gần đây
         </h2>
         {stats.recentAttempts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
             <h3 className="font-heading text-lg font-medium text-slate-900">
-              Chưa có dữ liệu
+              Chưa có bài làm
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Bạn chưa hoàn thành bài thi nào. Hãy bắt đầu luyện tập ngay nhé!
+              Hoàn thành một đề để xem thống kê.
             </p>
             <Link
               to="/exams"
               className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              Chọn đề thi
+              Kho đề
             </Link>
           </div>
         ) : (
@@ -134,7 +125,6 @@ export function StatisticsPage() {
                       {attempt.examCode}
                     </p>
                     <p className="text-sm text-slate-500">
-                      Nộp lúc:{" "}
                       {attempt.submittedAt
                         ? new Date(attempt.submittedAt).toLocaleString("vi-VN")
                         : "--"}
@@ -151,7 +141,7 @@ export function StatisticsPage() {
                       params={{ attemptId: attempt.id }}
                       className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
                     >
-                      Xem chi tiết &rarr;
+                      Chi tiết
                     </Link>
                   </div>
                 </li>
@@ -164,7 +154,7 @@ export function StatisticsPage() {
       {stats.recentAttempts.length > 0 && (
         <section>
           <h2 className="font-heading text-xl font-semibold text-slate-900 mb-4">
-            Tiến độ điểm số
+            Điểm theo thời gian
           </h2>
           <div className="h-80 w-full rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/50">
             <ResponsiveContainer width="100%" height="100%">

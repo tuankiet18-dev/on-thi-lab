@@ -1,4 +1,4 @@
-import { Clock3, ExternalLink, RotateCcw, Target } from "lucide-react";
+import { Clock3, ExternalLink, Target } from "lucide-react";
 import { Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { AttemptSummary } from "@onthilab/contracts";
@@ -42,13 +42,9 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <header>
-        <p className="section-kicker">Tiến độ cá nhân</p>
         <h1 className="section-title">Lịch sử làm bài</h1>
-        <p className="mt-2 text-slate-500">
-          Xem lại các bài thi thử bạn đã thực hiện và theo dõi điểm số.
-        </p>
       </header>
 
       {error ? (
@@ -72,18 +68,17 @@ export function HistoryPage() {
             aria-hidden="true"
           />
           <p className="font-heading text-xl font-bold text-slate-700">
-            Chưa có dữ liệu
+            Chưa có bài làm
           </p>
           <p className="mt-2 max-w-md text-slate-500">
-            Bạn chưa hoàn thành bài thi thử nào. Hãy chọn một đề thi và bắt đầu
-            luyện tập ngay hôm nay.
+            Làm một đề để xem lại kết quả.
           </p>
           <Link
             to="/exams"
             className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
           >
             <Target size={17} />
-            Đến kho đề thi
+            Kho đề
           </Link>
         </Card>
       ) : (
@@ -128,7 +123,7 @@ export function HistoryPage() {
                 )}
               </div>
 
-              <div className="mt-auto pt-6 text-sm text-slate-500">
+              <div className="mt-auto pt-4 text-sm text-slate-500">
                 <span className="flex items-center gap-2">
                   <Clock3 size={16} aria-hidden="true" />
                   {new Intl.DateTimeFormat("vi-VN", {
@@ -136,18 +131,6 @@ export function HistoryPage() {
                     timeStyle: "short",
                   }).format(new Date(attempt.startedAt))}
                 </span>
-                {attempt.result && (
-                  <span className="mt-2 flex items-center gap-2 text-emerald-600">
-                    <RotateCcw size={16} aria-hidden="true" />
-                    Đã nộp bài (
-                    {Math.round(
-                      (attempt.result.correctCount /
-                        attempt.result.questionCount) *
-                        100,
-                    )}
-                    %)
-                  </span>
-                )}
               </div>
 
               <div className="absolute right-5 top-5 z-20 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
