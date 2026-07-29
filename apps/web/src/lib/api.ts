@@ -257,13 +257,14 @@ export async function publishExam(
   return publishExamResultSchema.parse(result);
 }
 
-export async function queueAiAnswerSuggestions(
+export async function queueAiAnswerSuggestion(
   idToken: string,
   examId: string,
+  questionId: string,
   fetcher: typeof fetch = fetch,
 ): Promise<QueueAiSuggestionsResult> {
   const result = await request(
-    `/v1/admin/exams/${encodeURIComponent(examId)}/ai-suggestions`,
+    `/v1/admin/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}/ai-suggestion`,
     idToken,
     { method: "POST" },
     fetcher,

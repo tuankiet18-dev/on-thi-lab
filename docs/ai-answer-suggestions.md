@@ -4,20 +4,22 @@
 
 - AI chỉ ghi đề xuất vào `questions.ai_metadata`.
 - Gợi ý không làm tăng `answeredCount` và không được dùng để chấm điểm.
-- Người duyệt phải mở ảnh, bấm **Áp dụng vào biểu mẫu**, kiểm tra và lưu.
+- Người duyệt phải mở ảnh, kiểm tra gợi ý được điền sẵn và lưu.
 - Chỉ thao tác lưu của người duyệt mới cập nhật `correct_options`.
-- Chỉ Admin được khởi tạo batch AI vì thao tác có thể phát sinh chi phí.
+- Chỉ Admin được yêu cầu AI cho câu đang duyệt vì thao tác có thể phát sinh chi
+  phí.
 - Đề vẫn phải đi qua `ready` và bước xác nhận xuất bản của Admin.
 
 ## Luồng xử lý
 
 ```text
-Admin xác nhận chi phí
-  → API tìm các câu chưa có đáp án
-  → đánh dấu queued trong PostgreSQL
+Admin yêu cầu gợi ý cho câu đang mở
+  → browser chỉ gửi examId và questionId
+  → API xác nhận câu thuộc phiên bản hiện tại và chưa có đáp án
+  → đánh dấu đúng một câu là queued trong PostgreSQL
   → local: hàng đợi nền, số ảnh đồng thời theo AI_LOCAL_CONCURRENCY
-     AWS: SQS, tối đa 10 message mỗi batch
-  → worker đọc ảnh server-side
+     AWS: một message SQS cho câu đã chọn
+  → worker đọc đúng ảnh của câu đó ở server-side
   → provider Vision trả JSON có cấu trúc
   → worker kiểm tra loại câu, số lựa chọn, chỉ số và confidence
   → lưu suggested hoặc failed vào ai_metadata
@@ -61,8 +63,8 @@ vì message sẽ chỉ nằm trong queue.
 - Bắt đầu với concurrency 1 và một đề thử. Với Groq Free/On-demand, provider
   giới hạn output ở 256 token, tắt reasoning của Qwen 3.6 và tự chờ theo header
   `retry-after`. Cửa sổ chờ dài hơn 90 giây (ví dụ chạm hạn mức token/ngày) sẽ
-  được đánh dấu `failed` để batch không treo nhiều giờ.
-- Theo dõi số câu `failed`; nút chạy lại chỉ queue câu chưa có đáp án hoặc lỗi.
+  được đánh dấu `failed` để thao tác không treo nhiều giờ.
+- Nút tạo lại chỉ queue câu đang mở nếu câu chưa có đáp án chính thức.
 - `queued`, `processing`, `suggested` và `confirmed` không bị queue trùng.
 - Không log API key, data URL ảnh hoặc raw response đầy đủ.
 - Có thể đổi provider tương thích Chat Completions qua `AI_BASE_URL` mà không
