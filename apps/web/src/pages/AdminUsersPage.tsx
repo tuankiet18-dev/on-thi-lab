@@ -131,7 +131,7 @@ export function AdminUsersPage() {
                     </div>
                     <div className="text-xs">{user.email}</div>
                     <div className="text-xs text-slate-400">
-                      {user.studentCode}
+                      {user.studentCode ?? "Chưa cập nhật MSSV"}
                     </div>
                   </td>
                   <td className="px-6 py-4">

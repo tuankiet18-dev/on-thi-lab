@@ -43,6 +43,20 @@ describe("student profile input", () => {
       majorCode: "SE",
     });
   });
+
+  it("accepts an onboarding profile without a student code", () => {
+    expect(
+      upsertStudentProfileSchema.parse({
+        fullName: "Lương Tuấn Kiệt",
+        campusCode: "HL",
+        majorCode: "SE",
+      }),
+    ).toEqual({
+      fullName: "Lương Tuấn Kiệt",
+      campusCode: "HL",
+      majorCode: "SE",
+    });
+  });
 });
 
 describe("draft import input", () => {
