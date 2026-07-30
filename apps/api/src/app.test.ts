@@ -762,6 +762,13 @@ describe("attempt API", () => {
             aiSuggestion: null,
           };
         },
+        confirmTrustedSuggestions: async (_examId, actorId) => ({
+          examId,
+          confirmedCount: actorId ? 1 : 0,
+          answeredCount: 1,
+          questionCount: 1,
+          remainingCount: 0,
+        }),
         markReady: async () => ({
           examId,
           status: "review",
@@ -812,6 +819,15 @@ describe("attempt API", () => {
     expect(saveResponse.status).toBe(200);
     expect(changedBy).toBe("10000000-0000-4000-8000-000000000001");
 
+    const confirmResponse = await isolatedApp.request(
+      `/v1/admin/exams/${examId}/community-suggestions/confirm`,
+      { method: "POST", headers: authorization },
+    );
+    expect(confirmResponse.status).toBe(200);
+    await expect(confirmResponse.json()).resolves.toMatchObject({
+      data: { confirmedCount: 1, remainingCount: 0 },
+    });
+
     const readyResponse = await isolatedApp.request(
       `/v1/admin/exams/${examId}/ready`,
       { method: "POST", headers: authorization },
@@ -829,6 +845,9 @@ describe("attempt API", () => {
       deleteExam: async () => {},
       findReview: async () => null,
       saveAnswer: async () => {
+        throw new Error("not used");
+      },
+      confirmTrustedSuggestions: async () => {
         throw new Error("not used");
       },
       markReady: async () => {

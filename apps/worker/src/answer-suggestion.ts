@@ -44,12 +44,6 @@ export async function processAnswerSuggestionJob(
       courseCode: job.courseCode,
       optionCount: job.optionCount,
     });
-    if (proposal.optionCount !== job.optionCount) {
-      throw new Error(
-        `AI nhận diện ${proposal.optionCount} lựa chọn, khác ${job.optionCount} lựa chọn đã cấu hình.`,
-      );
-    }
-
     await dependencies.repository.saveSuggestion(job.questionId, {
       proposedType: proposal.questionType,
       optionCount: proposal.optionCount,

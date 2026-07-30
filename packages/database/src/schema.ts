@@ -207,6 +207,8 @@ export const questions = pgTable(
       confidence?: number;
       proposedType?: "single" | "multiple";
       optionCount?: number;
+      optionCountConfidence?: number;
+      optionCountSource?: string;
       proposedAnswers?: number[];
       rationale?: string;
       error?: string;

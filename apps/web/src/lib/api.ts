@@ -7,6 +7,7 @@ import {
   createReportSchema,
   bookmarkCollectionSchema,
   bookmarkStateSchema,
+  confirmTrustedSuggestionsResultSchema,
   draftExamReviewSchema,
   draftImportResultSchema,
   examSchema,
@@ -30,6 +31,7 @@ import {
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
+  type ConfirmTrustedSuggestionsResult,
   type AdminExamSummary,
   type AdminCatalog,
   type CreateCourseInput,
@@ -241,6 +243,20 @@ export async function markExamReviewReady(
     fetcher,
   );
   return reviewReadinessResultSchema.parse(result);
+}
+
+export async function confirmTrustedCommunitySuggestions(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ConfirmTrustedSuggestionsResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/community-suggestions/confirm`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return confirmTrustedSuggestionsResultSchema.parse(result);
 }
 
 export async function publishExam(

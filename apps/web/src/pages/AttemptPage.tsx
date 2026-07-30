@@ -428,7 +428,7 @@ export function AttemptPage() {
                 <img
                   src={questionImageUrl(question.imageUrl)}
                   alt={question.imageAlt}
-                  className="h-auto max-h-[55vh] w-full object-contain"
+                  className="h-auto max-h-[48vh] w-full object-contain sm:max-h-[52vh]"
                   width="1200"
                   height="520"
                 />
@@ -439,62 +439,71 @@ export function AttemptPage() {
               </button>
             </div>
 
-            <div className="border-t border-border bg-slate-50/80 p-4 sm:p-6">
+            <div className="border-t border-border bg-slate-50/80 p-4 sm:p-5">
               <fieldset>
                 <legend className="mb-3 text-sm font-semibold text-slate-600">
                   Chọn đáp án của bạn:
                 </legend>
-                <div className="flex flex-wrap items-center gap-4">
-                  {question.options.map((option, optionIndex) => {
-                    const selected = selectedOptions.includes(optionIndex);
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        role={question.type === "single" ? "radio" : "checkbox"}
-                        aria-checked={selected}
-                        onClick={() => chooseOption(optionIndex)}
-                        className={cn(
-                          "group relative grid size-12 shrink-0 place-items-center border-2 text-lg font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40",
-                          question.type === "single"
-                            ? "rounded-full"
-                            : "rounded-xl",
-                          selected
-                            ? "border-primary bg-primary text-white shadow-md shadow-primary/20 scale-105"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm hover:-translate-y-0.5",
-                        )}
-                        aria-label={`Chọn đáp án ${option}`}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            </div>
+                <div className="flex flex-col items-start gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {question.options.map((option, optionIndex) => {
+                      const selected = selectedOptions.includes(optionIndex);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          role={
+                            question.type === "single" ? "radio" : "checkbox"
+                          }
+                          aria-checked={selected}
+                          onClick={() => chooseOption(optionIndex)}
+                          className={cn(
+                            "group relative grid size-12 shrink-0 cursor-pointer place-items-center border-2 text-lg font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40 motion-reduce:transform-none motion-reduce:transition-none",
+                            question.type === "single"
+                              ? "rounded-full"
+                              : "rounded-xl",
+                            selected
+                              ? "scale-105 border-primary bg-primary text-white shadow-md shadow-primary/20"
+                              : "border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm",
+                          )}
+                          aria-label={`Chọn đáp án ${option}`}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border p-4 sm:p-5">
-              <Button
-                variant="secondary"
-                disabled={currentIndex === 0}
-                onClick={() =>
-                  setCurrentIndex((index) => Math.max(0, index - 1))
-                }
-                icon={<ChevronLeft size={18} />}
-              >
-                Câu trước
-              </Button>
-              <Button
-                disabled={currentIndex === questions.length - 1}
-                onClick={() =>
-                  setCurrentIndex((index) =>
-                    Math.min(questions.length - 1, index + 1),
-                  )
-                }
-              >
-                Câu tiếp
-                <ChevronRight size={18} aria-hidden="true" />
-              </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      className="min-w-28"
+                      disabled={currentIndex === 0}
+                      onClick={() =>
+                        setCurrentIndex((index) => Math.max(0, index - 1))
+                      }
+                      icon={<ChevronLeft size={18} />}
+                    >
+                      Câu trước
+                    </Button>
+                    <Button
+                      className="min-w-28"
+                      disabled={currentIndex === questions.length - 1}
+                      onClick={() =>
+                        setCurrentIndex((index) =>
+                          Math.min(questions.length - 1, index + 1),
+                        )
+                      }
+                    >
+                      Câu sau
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Đáp án được lưu tự động sau khi chọn.
+                </p>
+              </fieldset>
             </div>
           </section>
 

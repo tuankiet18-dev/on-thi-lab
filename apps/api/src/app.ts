@@ -198,6 +198,9 @@ const unavailableReviewRepository: ExamReviewRepository = {
   saveAnswer: async () => {
     throw new Error("Review storage is not configured");
   },
+  confirmTrustedSuggestions: async () => {
+    throw new Error("Review storage is not configured");
+  },
   markReady: async () => {
     throw new Error("Review storage is not configured");
   },
@@ -835,6 +838,28 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
             error.code === "EXAM_NOT_FOUND"
               ? 404
               : 409;
+          return context.json(
+            { error: error.code, message: error.message },
+            status,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/admin/exams/:examId/community-suggestions/confirm",
+    async (context) => {
+      try {
+        const result = await dependencies.reviews.confirmTrustedSuggestions(
+          context.req.param("examId"),
+          context.get("profile").id,
+        );
+        return context.json({ data: result });
+      } catch (error) {
+        if (error instanceof DraftImportRepositoryError) {
+          const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
           return context.json(
             { error: error.code, message: error.message },
             status,

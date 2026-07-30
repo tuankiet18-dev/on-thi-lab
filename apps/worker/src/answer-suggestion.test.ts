@@ -56,6 +56,39 @@ describe("AI answer suggestion job", () => {
     expect(repository.markFailed).not.toHaveBeenCalled();
   });
 
+  it("accepts AI correction when OCR initially configured the wrong option count", async () => {
+    const repository = createRepository();
+    await processAnswerSuggestionJob(job, {
+      repository,
+      images: {
+        read: async () => ({
+          bytes: new Uint8Array([255, 216, 255]),
+          contentType: "image/jpeg",
+        }),
+      },
+      provider: {
+        providerName: "test-provider",
+        model: "vision-test",
+        proposeAnswer: async () => ({
+          questionType: "single",
+          optionCount: 2,
+          proposedAnswers: [0],
+          confidence: 0.93,
+        }),
+      },
+    });
+
+    expect(repository.saveSuggestion).toHaveBeenCalledWith(
+      job.questionId,
+      expect.objectContaining({
+        proposedType: "single",
+        optionCount: 2,
+        proposedAnswers: [0],
+      }),
+    );
+    expect(repository.markFailed).not.toHaveBeenCalled();
+  });
+
   it("records failures so an admin can retry them", async () => {
     const repository = createRepository();
     await expect(

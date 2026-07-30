@@ -234,6 +234,8 @@ export const aiAnswerSuggestionSchema = z
     status: z.enum(aiSuggestionStatuses),
     proposedType: z.enum(questionTypes).optional(),
     optionCount: z.number().int().min(2).max(6).optional(),
+    optionCountConfidence: z.number().min(0).max(1).optional(),
+    optionCountSource: z.string().max(50).optional(),
     proposedAnswers: z
       .array(z.number().int().min(0).max(5))
       .min(1)
@@ -333,6 +335,14 @@ export const reviewReadinessResultSchema = z.object({
   status: z.literal("review"),
   answeredCount: z.number().int().positive(),
   questionCount: z.number().int().positive(),
+});
+
+export const confirmTrustedSuggestionsResultSchema = z.object({
+  examId: z.string().uuid(),
+  confirmedCount: z.number().int().nonnegative(),
+  answeredCount: z.number().int().nonnegative(),
+  questionCount: z.number().int().positive(),
+  remainingCount: z.number().int().nonnegative(),
 });
 
 export const publishExamResultSchema = z.object({
@@ -587,6 +597,9 @@ export type UpdateQuestionAnswerInput = z.infer<
   typeof updateQuestionAnswerSchema
 >;
 export type ReviewReadinessResult = z.infer<typeof reviewReadinessResultSchema>;
+export type ConfirmTrustedSuggestionsResult = z.infer<
+  typeof confirmTrustedSuggestionsResultSchema
+>;
 export type PublishExamResult = z.infer<typeof publishExamResultSchema>;
 export type QueueAiSuggestionsResult = z.infer<
   typeof queueAiSuggestionsResultSchema

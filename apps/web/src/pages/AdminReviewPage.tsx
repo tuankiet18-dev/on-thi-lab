@@ -27,6 +27,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import {
   ApiError,
+  confirmTrustedCommunitySuggestions,
   getDraftExamReview,
   markExamReviewReady,
   publishExam,
@@ -42,6 +43,19 @@ type UnsavedAnswer = {
   selectedOptions: number[];
 };
 
+function hasTrustedCommunityAnswer(question: ReviewQuestion): boolean {
+  const suggestion = question.aiSuggestion;
+  return (
+    question.correctOptions.length === 0 &&
+    suggestion?.status === "suggested" &&
+    suggestion.provider === "community-comments" &&
+    suggestion.requiresReview === false &&
+    typeof suggestion.optionCountConfidence === "number" &&
+    suggestion.optionCountConfidence >= 0.82 &&
+    Boolean(suggestion.optionCountSource)
+  );
+}
+
 export function AdminReviewPage() {
   const { examId } = useParams({ from: "/admin/exams/$examId/review" });
   const navigate = useNavigate();
@@ -54,6 +68,7 @@ export function AdminReviewPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [markingReady, setMarkingReady] = useState(false);
+  const [confirmingTrusted, setConfirmingTrusted] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [queuingAi, setQueuingAi] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
@@ -62,7 +77,9 @@ export function AdminReviewPage() {
   const [aiError, setAiError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
+  const [showOnlyPending, setShowOnlyPending] = useState(true);
   const unsavedAnswers = useRef<Record<string, UnsavedAnswer>>({});
+  const autoApplyAttempted = useRef(new Set<string>());
   const canContribute =
     !configured ||
     studentProfile?.role === "admin" ||
@@ -87,6 +104,10 @@ export function AdminReviewPage() {
         if (active) {
           setReview(result);
           setPublishedAt(result.publishedAt);
+          const firstPendingIndex = result.questions.findIndex(
+            (question) => question.correctOptions.length === 0,
+          );
+          if (firstPendingIndex >= 0) setCurrentIndex(firstPendingIndex);
         }
       })
       .catch((reason) => {
@@ -193,6 +214,27 @@ export function AdminReviewPage() {
         },
         { processing: 0, suggested: 0, failed: 0, confirmed: 0 },
       ),
+    [review],
+  );
+  const trustedSuggestionCount = useMemo(
+    () => (review?.questions ?? []).filter(hasTrustedCommunityAnswer).length,
+    [review],
+  );
+  const pendingQuestionIndexes = useMemo(
+    () =>
+      (review?.questions ?? []).flatMap((question, index) =>
+        question.correctOptions.length === 0 ? [index] : [],
+      ),
+    [review],
+  );
+  const autoSavedCount = useMemo(
+    () =>
+      (review?.questions ?? []).filter(
+        (question) =>
+          question.correctOptions.length > 0 &&
+          question.aiSuggestion?.provider === "community-comments" &&
+          question.aiSuggestion.status === "confirmed",
+      ).length,
     [review],
   );
 
@@ -349,9 +391,23 @@ export function AdminReviewPage() {
         (question) => question.correctOptions.length > 0,
       ).length;
       setReview({ ...review, questions, answeredCount });
-      setFeedback(`Đã lưu đáp án câu ${saved.order}.`);
-      if (moveNext && currentIndex < questions.length - 1) {
-        setCurrentIndex((index) => index + 1);
+      setFeedback(`Đã xác nhận câu ${saved.order}.`);
+      if (moveNext) {
+        const nextPendingIndex =
+          questions.findIndex(
+            (question, index) =>
+              index > currentIndex && question.correctOptions.length === 0,
+          ) ?? -1;
+        const wrappedPendingIndex = questions.findIndex(
+          (question) => question.correctOptions.length === 0,
+        );
+        const targetIndex =
+          nextPendingIndex >= 0 ? nextPendingIndex : wrappedPendingIndex;
+        if (targetIndex >= 0) {
+          setCurrentIndex(targetIndex);
+        } else if (currentIndex < questions.length - 1) {
+          setCurrentIndex((index) => index + 1);
+        }
       }
     } catch (reason) {
       setError(
@@ -363,6 +419,64 @@ export function AdminReviewPage() {
       setSaving(false);
     }
   };
+
+  const confirmTrustedSuggestions = async () => {
+    if (
+      !session ||
+      !review ||
+      review.status !== "draft" ||
+      trustedSuggestionCount === 0
+    ) {
+      return;
+    }
+    setConfirmingTrusted(true);
+    setError("");
+    setFeedback("");
+    try {
+      const result = await confirmTrustedCommunitySuggestions(
+        session.idToken,
+        review.examId,
+      );
+      const refreshed = await getDraftExamReview(
+        session.idToken,
+        review.examId,
+      );
+      unsavedAnswers.current = {};
+      setReview(refreshed);
+      const firstPendingIndex = refreshed.questions.findIndex(
+        (question) => question.correctOptions.length === 0,
+      );
+      if (firstPendingIndex >= 0) setCurrentIndex(firstPendingIndex);
+      setFeedback(
+        result.confirmedCount > 0
+          ? `Đã tự lưu ${result.confirmedCount} đáp án tin cậy. Còn ${result.remainingCount} câu cần kiểm tra.`
+          : "Không có câu nào đủ điều kiện xác nhận tự động.",
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError && reason.code === "EXAM_NOT_EDITABLE"
+          ? "Đề đã hoàn tất duyệt và không thể sửa thêm."
+          : "Không thể xác nhận hàng loạt. Vui lòng thử lại.",
+      );
+    } finally {
+      setConfirmingTrusted(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !session ||
+      !review ||
+      review.status !== "draft" ||
+      trustedSuggestionCount === 0 ||
+      autoApplyAttempted.current.has(review.examId)
+    ) {
+      return;
+    }
+
+    autoApplyAttempted.current.add(review.examId);
+    void confirmTrustedSuggestions();
+  }, [review, session, trustedSuggestionCount]);
 
   const completeReview = async () => {
     if (!session || !review || review.answeredCount !== review.questionCount) {
@@ -512,6 +626,7 @@ export function AdminReviewPage() {
   const progress = Math.round(
     (review.answeredCount / review.questionCount) * 100,
   );
+  const pendingCount = pendingQuestionIndexes.length;
   const currentAiStatus = currentQuestion.aiSuggestion?.status;
   const currentAiBusy =
     currentAiStatus === "queued" || currentAiStatus === "processing";
@@ -553,7 +668,7 @@ export function AdminReviewPage() {
         </div>
         <div className="w-full max-w-sm">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-semibold text-slate-700">Tiến độ duyệt</span>
+            <span className="font-semibold text-slate-700">Đáp án đã lưu</span>
             <span className="font-bold tabular-nums text-primary">
               {review.answeredCount}/{review.questionCount}
             </span>
@@ -575,6 +690,50 @@ export function AdminReviewPage() {
           </div>
         </div>
       </header>
+
+      {review.status === "draft" && trustedSuggestionCount > 0 && (
+        <Card className="flex flex-col gap-3 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <ShieldCheck
+              className="mt-0.5 shrink-0 text-emerald-700"
+              size={20}
+              aria-hidden="true"
+            />
+            <div>
+              <p className="font-heading font-bold text-emerald-950">
+                {confirmingTrusted
+                  ? `Đang tự lưu ${trustedSuggestionCount} đáp án tin cậy`
+                  : `Có ${trustedSuggestionCount} đáp án đủ tin cậy`}
+              </p>
+              <p className="mt-0.5 text-sm text-emerald-800">
+                Chỉ các câu OCR mơ hồ hoặc comments chưa đồng thuận mới cần bạn
+                kiểm tra.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            className="shrink-0"
+            disabled={confirmingTrusted}
+            onClick={() => void confirmTrustedSuggestions()}
+            icon={
+              confirmingTrusted ? (
+                <LoaderCircle
+                  size={17}
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <CheckCircle2 size={17} aria-hidden="true" />
+              )
+            }
+          >
+            {confirmingTrusted
+              ? "Đang lưu..."
+              : `Lưu tự động ${trustedSuggestionCount} câu`}
+          </Button>
+        </Card>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <main className="contents">
@@ -610,60 +769,61 @@ export function AdminReviewPage() {
           </Card>
 
           <Card className="p-5 sm:p-6 xl:col-start-2 xl:row-start-1 xl:self-start">
-            {review.status === "draft" && (
-              <div className="mb-5 flex flex-col gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles
-                    className="mt-0.5 shrink-0 text-violet-700"
-                    size={18}
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">
-                      AI cho riêng câu {currentQuestion.order}
-                    </p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-600">
-                      Chỉ ảnh câu đang mở được gửi đi. Bạn vẫn cần kiểm tra và
-                      lưu đáp án.
-                    </p>
+            {review.status === "draft" &&
+              currentQuestion.correctOptions.length === 0 && (
+                <div className="mb-5 flex flex-col gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles
+                      className="mt-0.5 shrink-0 text-violet-700"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        AI kiểm tra riêng câu {currentQuestion.order}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-600">
+                        Tự nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
+                        đang mở.
+                      </p>
+                    </div>
                   </div>
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="shrink-0"
+                      disabled={!canRequestCurrentAi || queuingAi}
+                      onClick={() => void queueCurrentSuggestion()}
+                      icon={
+                        queuingAi || currentAiBusy ? (
+                          <LoaderCircle
+                            size={17}
+                            className="animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Sparkles size={17} aria-hidden="true" />
+                        )
+                      }
+                    >
+                      {currentAiBusy
+                        ? "Đang phân tích..."
+                        : currentAiStatus === "suggested"
+                          ? "Tạo lại gợi ý"
+                          : "Gợi ý câu này"}
+                    </Button>
+                  )}
+                  {aiError && (
+                    <p
+                      className="text-sm font-semibold text-red-700 sm:w-full"
+                      role="alert"
+                    >
+                      {aiError}
+                    </p>
+                  )}
                 </div>
-                {isAdmin && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="shrink-0"
-                    disabled={!canRequestCurrentAi || queuingAi}
-                    onClick={() => void queueCurrentSuggestion()}
-                    icon={
-                      queuingAi || currentAiBusy ? (
-                        <LoaderCircle
-                          size={17}
-                          className="animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <Sparkles size={17} aria-hidden="true" />
-                      )
-                    }
-                  >
-                    {currentAiBusy
-                      ? "Đang phân tích..."
-                      : currentAiStatus === "suggested"
-                        ? "Tạo lại gợi ý"
-                        : "Gợi ý câu này"}
-                  </Button>
-                )}
-                {aiError && (
-                  <p
-                    className="text-sm font-semibold text-red-700 sm:w-full"
-                    role="alert"
-                  >
-                    {aiError}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
             {currentQuestion.aiSuggestion && (
               <div
                 className={cn(
@@ -696,15 +856,20 @@ export function AdminReviewPage() {
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-sm font-bold">
                       {currentQuestion.aiSuggestion.provider ===
-                      "community-comments"
-                        ? "Gợi ý đáp án từ comments đã crawl"
-                        : currentQuestion.aiSuggestion.status === "suggested"
-                          ? "AI đã tạo đáp án tham khảo"
-                          : currentQuestion.aiSuggestion.status === "confirmed"
-                            ? "Gợi ý AI đã được người duyệt xác nhận"
-                            : currentQuestion.aiSuggestion.status === "failed"
-                              ? "AI chưa xử lý được câu này"
-                              : "AI đang phân tích ảnh"}
+                        "community-comments" &&
+                      currentQuestion.aiSuggestion.status === "confirmed"
+                        ? "Đã lưu tự động từ comments"
+                        : currentQuestion.aiSuggestion.provider ===
+                            "community-comments"
+                          ? "Đáp án đề xuất từ comments"
+                          : currentQuestion.aiSuggestion.status === "suggested"
+                            ? "AI đã tạo đáp án tham khảo"
+                            : currentQuestion.aiSuggestion.status ===
+                                "confirmed"
+                              ? "Gợi ý AI đã được người duyệt xác nhận"
+                              : currentQuestion.aiSuggestion.status === "failed"
+                                ? "AI chưa xử lý được câu này"
+                                : "AI đang phân tích ảnh"}
                     </p>
                     {currentQuestion.aiSuggestion.status === "suggested" &&
                       currentQuestion.aiSuggestion.proposedAnswers && (
@@ -735,6 +900,25 @@ export function AdminReviewPage() {
                                 comments có đáp án rõ ràng
                               </p>
                             )}
+                          {currentQuestion.aiSuggestion.optionCountSource && (
+                            <p className="mt-2 text-xs text-slate-600">
+                              {currentQuestion.aiSuggestion
+                                .optionCountSource === "ocr"
+                                ? "OCR"
+                                : "AI"}{" "}
+                              nhận diện{" "}
+                              <strong>
+                                {currentQuestion.aiSuggestion.optionCount} lựa
+                                chọn
+                              </strong>
+                              {currentQuestion.aiSuggestion
+                                .optionCountConfidence !== undefined &&
+                                ` · ${Math.round(
+                                  currentQuestion.aiSuggestion
+                                    .optionCountConfidence * 100,
+                                )}% tin cậy`}
+                            </p>
+                          )}
                           {currentQuestion.aiSuggestion.requiresReview && (
                             <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
                               <AlertTriangle
@@ -757,8 +941,8 @@ export function AdminReviewPage() {
                     {currentQuestion.aiSuggestion.status === "suggested" &&
                       !isReadOnly && (
                         <p className="mt-3 text-sm font-semibold text-violet-800">
-                          Đáp án đã được điền sẵn bên dưới. Kiểm tra ảnh rồi bấm
-                          Lưu &amp; câu tiếp để xác nhận.
+                          Đáp án và số lựa chọn đã được điền sẵn. Bạn chỉ cần
+                          sửa nếu cần rồi xác nhận.
                         </p>
                       )}
                   </div>
@@ -806,6 +990,12 @@ export function AdminReviewPage() {
                     </option>
                   ))}
                 </select>
+                {currentQuestion.aiSuggestion?.optionCount && (
+                  <small className="text-xs font-medium text-slate-500">
+                    Hệ thống nhận diện:{" "}
+                    {currentQuestion.aiSuggestion.optionCount} lựa chọn
+                  </small>
+                )}
               </label>
             </div>
 
@@ -916,8 +1106,10 @@ export function AdminReviewPage() {
                   {saving
                     ? "Đang lưu..."
                     : currentIndex === review.questions.length - 1
-                      ? "Lưu đáp án"
-                      : "Lưu & câu tiếp"}
+                      ? "Xác nhận đáp án"
+                      : pendingCount > 1
+                        ? "Xác nhận & câu cần kiểm tra tiếp"
+                        : "Xác nhận đáp án"}
                 </Button>
               )}
             </div>
@@ -926,17 +1118,51 @@ export function AdminReviewPage() {
 
         <aside className="grid gap-4 xl:col-span-2 xl:row-start-2 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
           <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-heading font-bold">Danh sách câu</h2>
-              <span className="text-xs text-slate-500">
-                Bấm để chuyển nhanh
-              </span>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-heading font-bold">Danh sách câu</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {autoSavedCount} tự lưu · {pendingCount} cần kiểm tra
+                </p>
+              </div>
+              <div
+                className="inline-flex rounded-xl border border-border bg-slate-50 p-1"
+                aria-label="Lọc danh sách câu"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyPending(true)}
+                  className={cn(
+                    "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                    showOnlyPending
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-slate-600",
+                  )}
+                  aria-pressed={showOnlyPending}
+                >
+                  Cần kiểm tra ({pendingCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyPending(false)}
+                  className={cn(
+                    "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                    !showOnlyPending
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-slate-600",
+                  )}
+                  aria-pressed={!showOnlyPending}
+                >
+                  Tất cả ({review.questionCount})
+                </button>
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10 xl:grid-cols-12">
               {review.questions.map((question, index) => {
                 const answered = question.correctOptions.length > 0;
                 const suggested = question.aiSuggestion?.status === "suggested";
                 const active = index === currentIndex;
+                if (showOnlyPending && answered && !active) return null;
                 return (
                   <button
                     key={question.id}
@@ -949,7 +1175,7 @@ export function AdminReviewPage() {
                         : answered
                           ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                           : suggested
-                            ? "border-violet-300 bg-violet-50 text-violet-800"
+                            ? "border-amber-300 bg-amber-50 text-amber-800"
                             : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
                     )}
                     aria-label={`Câu ${question.order}${answered ? ", đã có đáp án" : ", chưa có đáp án"}`}
@@ -964,7 +1190,7 @@ export function AdminReviewPage() {
                       />
                     )}
                     {suggested && !answered && !active && (
-                      <Sparkles
+                      <AlertTriangle
                         size={9}
                         className="absolute right-0.5 top-0.5"
                         aria-hidden="true"
@@ -1007,8 +1233,10 @@ export function AdminReviewPage() {
                     : review.status === "review"
                       ? "Đề đang chờ Admin kiểm tra lần cuối và xuất bản."
                       : review.answeredCount === review.questionCount
-                        ? "Tất cả câu đã có đáp án. Hãy chuyển đề sang bước xuất bản."
-                        : `Còn ${review.questionCount - review.answeredCount} câu chưa có đáp án.`}
+                        ? "Tất cả đáp án đã được lưu. Có thể chuyển sang bước xuất bản."
+                        : confirmingTrusted
+                          ? "Đang lưu tự động các đáp án đủ tin cậy."
+                          : `Chỉ còn ${pendingCount} câu cần bạn kiểm tra.`}
                 </p>
               </div>
             </div>
