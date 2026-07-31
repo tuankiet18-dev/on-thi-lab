@@ -59,6 +59,8 @@ import {
   studentStatisticsSchema,
   type StudentStatistics,
   type BookmarkCollection,
+  examOcrStatusSchema,
+  type ExamOcrStatus,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -679,6 +681,74 @@ export async function saveAdminCurriculumCourse(
     "/v1/admin/catalog-management/curriculum-courses",
     idToken,
     { method: "PUT", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function getExamOcrStatus(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ExamOcrStatus> {
+  const result = await request(
+    `/v1/admin/revisions/${revisionId}/ocr`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return examOcrStatusSchema.parse(result);
+}
+
+export async function approveOcrQuestion(
+  idToken: string,
+  questionId: string,
+  textContent: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify({ textContent }) },
+    fetcher,
+  );
+}
+
+export async function rejectOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "DELETE" },
+    fetcher,
+  );
+}
+
+export async function retryOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
+export async function setExamPresentationMode(
+  idToken: string,
+  revisionId: string,
+  mode: "image" | "text",
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/presentation`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify({ mode }) },
     fetcher,
   );
 }

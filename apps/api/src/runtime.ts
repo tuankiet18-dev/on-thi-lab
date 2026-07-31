@@ -8,6 +8,7 @@ import {
   PostgresBookmarkRepository,
   PostgresUserProfileRepository,
   PostgresFeedbackRepository,
+  PostgresOcrRepository,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/worker";
 import { resolve } from "node:path";
@@ -20,6 +21,7 @@ import { CognitoIdTokenVerifier } from "./auth";
 import { parseEnv, parseCorsOrigins } from "./env";
 import { LocalExamImportService, S3ExamImportService } from "./import-service";
 import { S3Client } from "@aws-sdk/client-s3";
+import { SqsOcrService } from "./ocr-service.js";
 import {
   LocalQuestionImageReader,
   S3QuestionImageReader,
@@ -98,6 +100,11 @@ export function createRuntimeApp(
       : undefined,
   });
 
+  const ocrRepository = new PostgresOcrRepository(database);
+  const ocrService = env.OCR_QUEUE_URL
+    ? new SqsOcrService(ocrRepository, env.OCR_QUEUE_URL)
+    : undefined;
+
   return createApp({
     ...authDependencies,
     corsOrigins,
@@ -131,5 +138,7 @@ export function createRuntimeApp(
         )
       : new LocalExamImportService(draftRepository, imageStorageRoot),
     images: imageReader,
+    ocrRepository,
+    ...(ocrService ? { ocrService } : {}),
   });
 }

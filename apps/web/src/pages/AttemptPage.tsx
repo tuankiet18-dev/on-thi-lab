@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QuestionContent } from "../components/QuestionContent";
 import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -419,24 +420,14 @@ export function AttemptPage() {
             </div>
 
             <div className="bg-white p-3 sm:p-6">
-              <button
-                type="button"
-                onClick={() => setImageExpanded(true)}
-                className="group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
-                aria-label={`Phóng to ảnh câu ${currentIndex + 1}`}
-              >
-                <img
-                  src={questionImageUrl(question.imageUrl)}
-                  alt={question.imageAlt}
-                  className="h-auto max-h-[48vh] w-full object-contain sm:max-h-[52vh]"
-                  width="1200"
-                  height="520"
-                />
-                <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white backdrop-blur-sm sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-                  <Maximize2 size={15} aria-hidden="true" />
-                  Phóng to
-                </span>
-              </button>
+              <QuestionContent
+                presentationMode={exam.presentationMode}
+                textContent={question.textContent}
+                options={question.options}
+                imageUrl={questionImageUrl(question.imageUrl)}
+                imageAlt={question.imageAlt}
+                onExpandImage={() => setImageExpanded(true)}
+              />
             </div>
 
             <div className="border-t border-border bg-slate-50/80 p-4 sm:p-5">
@@ -670,15 +661,15 @@ export function AttemptPage() {
           <section
             role="dialog"
             aria-modal="true"
-            aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
+            aria-label={`Chi tiết câu ${currentIndex + 1}`}
+            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white p-4"
           >
-            <img
-              src={questionImageUrl(question.imageUrl)}
-              alt={`Ảnh phóng to ${question.imageAlt}`}
-              width="1920"
-              height="620"
-              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
+            <QuestionContent
+              presentationMode={exam.presentationMode}
+              textContent={question.textContent}
+              options={question.options}
+              imageUrl={questionImageUrl(question.imageUrl)}
+              imageAlt={`Chi tiết ${question.imageAlt}`}
             />
           </section>
         </div>

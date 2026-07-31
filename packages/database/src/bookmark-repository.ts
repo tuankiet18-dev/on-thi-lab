@@ -71,6 +71,7 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         durationMinutes: exams.durationMinutes,
         publishedAt: exams.publishedAt,
         answerConfidence: examRevisions.answerConfidence,
+        presentationMode: examRevisions.presentationMode,
         questionCount: count(questions.id),
         bookmarkedAt: examBookmarks.createdAt,
       })
@@ -99,6 +100,7 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         courses.name,
         campuses.name,
         examRevisions.answerConfidence,
+        examRevisions.presentationMode,
         examBookmarks.createdAt,
       )
       .orderBy(desc(examBookmarks.createdAt));
@@ -116,6 +118,8 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         imageKey: questions.imageKey,
         type: questions.type,
         options: questions.options,
+        ocrMetadata: questions.ocrMetadata,
+        presentationMode: examRevisions.presentationMode,
         bookmarkedAt: bookmarks.createdAt,
       })
       .from(bookmarks)
@@ -148,6 +152,7 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         publishedAt: (row.publishedAt ?? new Date(0)).toISOString(),
         answerConfidence:
           row.answerConfidence === "verified" ? "verified" : "reviewed",
+        presentationMode: row.presentationMode as "image" | "text",
         bookmarkedAt: row.bookmarkedAt.toISOString(),
       })),
       questions: savedQuestions.map((row) => ({
@@ -161,9 +166,11 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         order: row.order,
         imageUrl: this.imageUrlForKey(row.imageKey),
         imageAlt: `Ảnh câu hỏi ${row.order} của đề ${row.examCode}`,
+        textContent: row.ocrMetadata?.textContent ?? null,
         type: row.type,
-        options: row.options,
+        options: row.ocrMetadata?.options ?? row.options,
         bookmarkedAt: row.bookmarkedAt.toISOString(),
+        presentationMode: row.presentationMode as "image" | "text",
       })),
     };
   }

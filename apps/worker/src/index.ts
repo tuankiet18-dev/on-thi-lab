@@ -3,6 +3,9 @@ import { z } from "zod";
 export * from "@onthilab/importer";
 export * from "./answer-suggestion.js";
 export * from "./openai-compatible-provider.js";
+export * from "./ocr-processor.js";
+export * from "./ocr-classification.js";
+export * from "./ocr-text-normalizer.js";
 
 export const aiAnswerProposalSchema = z
   .object({

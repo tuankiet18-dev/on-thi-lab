@@ -15,6 +15,8 @@ import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as iam from "aws-cdk-lib/aws-iam";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Construct } from "constructs";
@@ -129,6 +131,23 @@ export class OnThiLabStack extends Stack {
       },
     });
 
+    const ocrDlq = new sqs.Queue(this, "OcrDlq", {
+      fifo: true,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: Duration.days(14),
+    });
+
+    const ocrQueue = new sqs.Queue(this, "OcrQueue", {
+      queueName: `onthilab-ocr-${props.stage}.fifo`,
+      fifo: true,
+      contentBasedDeduplication: true,
+      visibilityTimeout: Duration.minutes(3),
+      deadLetterQueue: {
+        queue: ocrDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
     new cloudwatch.Alarm(this, "ImportDeadLetterQueueAlarm", {
       metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible(),
       threshold: 1,
@@ -206,12 +225,56 @@ export class OnThiLabStack extends Stack {
             ? "true"
             : "false",
           FEATURE_MONETIZATION_ENABLED: "false",
+          OCR_QUEUE_URL: ocrQueue.queueUrl,
         },
       });
       databaseParameter.grantRead(apiHandler);
       aiApiKeyParameter?.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
       importQueue.grantSendMessages(apiHandler);
+      ocrQueue.grantSendMessages(apiHandler);
+
+      const workerHandler = new lambdaNodejs.NodejsFunction(
+        this,
+        "WorkerHandler",
+        {
+          runtime: lambda.Runtime.NODEJS_22_X,
+          entry: join(projectRoot, "apps/worker/src/lambda.ts"),
+          handler: "handler",
+          memorySize: 512,
+          timeout: Duration.minutes(2),
+          architecture: lambda.Architecture.ARM_64,
+          bundling: {
+            minify: true,
+            sourceMap: true,
+            target: "node22",
+            nodeModules: ["sharp"],
+            forceDockerBundling: true,
+          },
+          environment: {
+            DATABASE_PARAMETER_NAME: props.databaseParameterName,
+            QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+            OCR_QUEUE_URL: ocrQueue.queueUrl,
+          },
+        },
+      );
+
+      databaseParameter.grantRead(workerHandler);
+      questionImageBucket.grantReadWrite(workerHandler);
+
+      workerHandler.addEventSource(
+        new SqsEventSource(ocrQueue, {
+          batchSize: 1,
+          maxConcurrency: 3,
+        }),
+      );
+
+      workerHandler.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ["textract:DetectDocumentText"],
+          resources: ["*"],
+        }),
+      );
 
       const api = new apigateway.LambdaRestApi(this, "PublicApi", {
         handler: apiHandler,
@@ -256,6 +319,7 @@ export class OnThiLabStack extends Stack {
       value: questionImageBucket.bucketName,
     });
     new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
+    new CfnOutput(this, "OcrQueueUrl", { value: ocrQueue.queueUrl });
     new CfnOutput(this, "AiSuggestionQueueUrl", {
       value: importQueue.queueUrl,
       description: "Set this value as AI_SUGGESTION_QUEUE_URL.",

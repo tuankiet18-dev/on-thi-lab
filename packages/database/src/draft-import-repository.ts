@@ -301,6 +301,7 @@ export class PostgresDraftImportRepository
           .values({
             examId: exam.id,
             revision: 1,
+            presentationMode: input.extractText ? "text" : "image",
             note: "Nhập từ ZIP ảnh câu hỏi",
             answerConfidence: "reviewed",
           })
@@ -433,6 +434,7 @@ export class PostgresDraftImportRepository
         durationMinutes: exams.durationMinutes,
         isRetake: exams.isRetake,
         status: exams.status,
+        presentationMode: examRevisions.presentationMode,
         publishedAt: exams.publishedAt,
       })
       .from(exams)
@@ -481,6 +483,7 @@ export class PostgresDraftImportRepository
       durationMinutes: exam.durationMinutes,
       isRetake: exam.isRetake,
       status: exam.status,
+      presentationMode: exam.presentationMode as "image" | "text",
       publishedAt: exam.publishedAt?.toISOString() ?? null,
       answeredCount: questionRows.filter(
         (question) => question.correctOptions.length > 0,

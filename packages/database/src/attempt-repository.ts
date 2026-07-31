@@ -330,6 +330,7 @@ export class PostgresAttemptRepository implements AttemptRepository {
         durationMinutes: exams.durationMinutes,
         publishedAt: exams.publishedAt,
         answerConfidence: examRevisions.answerConfidence,
+        presentationMode: examRevisions.presentationMode,
         shuffleQuestions: exams.shuffleQuestions,
         revisionId: attempts.revisionId,
       })
@@ -350,6 +351,7 @@ export class PostgresAttemptRepository implements AttemptRepository {
         imageKey: questions.imageKey,
         type: questions.type,
         options: questions.options,
+        ocrMetadata: questions.ocrMetadata,
       })
       .from(questions)
       .where(eq(questions.revisionId, examRow.revisionId))
@@ -366,6 +368,7 @@ export class PostgresAttemptRepository implements AttemptRepository {
       isRetake: examRow.isRetake,
       durationMinutes: examRow.durationMinutes,
       questionCount: questionRows.length,
+      presentationMode: examRow.presentationMode as "image" | "text",
       publishedAt: (examRow.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         examRow.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -380,8 +383,9 @@ export class PostgresAttemptRepository implements AttemptRepository {
         order: question.order,
         imageUrl: this.imageUrlForKey(question.imageKey),
         imageAlt: `Ảnh câu hỏi ${question.order} của đề ${examRow.code}`,
+        textContent: question.ocrMetadata?.textContent ?? null,
         type: question.type,
-        options: question.options,
+        options: question.ocrMetadata?.options ?? question.options,
       })),
     };
 

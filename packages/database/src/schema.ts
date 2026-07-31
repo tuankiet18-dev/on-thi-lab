@@ -24,6 +24,10 @@ const timestamps = {
 
 export const roleEnum = pgEnum("role", ["user", "contributor", "admin"]);
 export const examTypeEnum = pgEnum("exam_type", ["FE", "PE"]);
+export const presentationModeEnum = pgEnum("presentation_mode", [
+  "image",
+  "text",
+]);
 export const examStatusEnum = pgEnum("exam_status", [
   "draft",
   "review",
@@ -175,6 +179,9 @@ export const examRevisions = pgTable(
       .notNull(),
     revision: integer("revision").notNull(),
     note: text("note"),
+    presentationMode: presentationModeEnum("presentation_mode")
+      .default("image")
+      .notNull(),
     answerConfidence: text("answer_confidence").default("reviewed").notNull(),
     approvedBy: uuid("approved_by").references(() => users.id),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -219,6 +226,18 @@ export const questions = pgTable(
       disputeReason?: string;
       updatedAt?: string;
       raw?: unknown;
+    }>(),
+    ocrMetadata: jsonb("ocr_metadata").$type<{
+      status: "pending" | "processing" | "approved" | "needs_review" | "failed";
+      textContent?: string;
+      options?: string[];
+      confidence?: number;
+      providerVersion?: string;
+      flagReasons?: string[];
+      rawText?: string;
+      error?: string;
+      reviewedAt?: string;
+      reviewedBy?: string;
     }>(),
     ...timestamps,
   },

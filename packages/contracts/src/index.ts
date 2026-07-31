@@ -219,6 +219,7 @@ export const createDraftImportSchema = z.object({
   examType: z.literal("FE"),
   isRetake: z.boolean(),
   durationMinutes: z.number().int().min(15).max(240),
+  extractText: z.boolean().default(false),
 });
 
 export const draftImportResultSchema = z.object({
@@ -227,6 +228,38 @@ export const draftImportResultSchema = z.object({
   examCode: z.string(),
   questionCount: z.number().int().positive(),
   status: z.literal("draft"),
+});
+
+export const ocrStatuses = [
+  "pending",
+  "processing",
+  "approved",
+  "needs_review",
+  "failed",
+] as const;
+
+export const ocrQuestionStatusSchema = z.object({
+  questionId: z.string().uuid(),
+  order: z.number(),
+  ocrStatus: z.enum(ocrStatuses),
+  textContent: z.string().nullable(),
+  confidence: z.number().nullable(),
+  flagReasons: z.array(z.string()),
+  imageUrl: z.string(),
+});
+
+export const examOcrStatusSchema = z.object({
+  revisionId: z.string().uuid(),
+  presentationMode: z.enum(["image", "text"]),
+  ocrProgress: z.object({
+    total: z.number(),
+    approved: z.number(),
+    needsReview: z.number(),
+    pending: z.number(),
+    failed: z.number(),
+  }),
+  questions: z.array(ocrQuestionStatusSchema),
+  canPublish: z.boolean(),
 });
 
 export const aiAnswerSuggestionSchema = z
@@ -293,6 +326,7 @@ export const draftExamReviewSchema = z.object({
   durationMinutes: z.number().int().positive(),
   isRetake: z.boolean(),
   status: z.enum(["draft", "review", "published"]),
+  presentationMode: z.enum(["image", "text"]),
   publishedAt: z.string().datetime().nullable(),
   answeredCount: z.number().int().nonnegative(),
   questionCount: z.number().int().positive(),
@@ -363,6 +397,7 @@ export const questionSchema = z.object({
   order: z.number().int().positive(),
   imageUrl: z.string(),
   imageAlt: z.string(),
+  textContent: z.string().nullable().optional(),
   type: z.enum(questionTypes),
   options: z.array(z.string()).min(2).max(6),
 });
@@ -378,6 +413,7 @@ export const examSummarySchema = z.object({
   isRetake: z.boolean(),
   durationMinutes: z.number().int().positive(),
   questionCount: z.number().int().positive(),
+  presentationMode: z.enum(["image", "text"]).default("image"),
   publishedAt: z.string(),
   answerConfidence: z.enum(["reviewed", "verified"]),
 });
@@ -407,9 +443,11 @@ export const bookmarkedQuestionSchema = z.object({
   order: z.number().int().positive(),
   imageUrl: z.string(),
   imageAlt: z.string(),
+  textContent: z.string().nullable().optional(),
   type: z.enum(questionTypes),
   options: z.array(z.string()).min(2).max(6),
   bookmarkedAt: z.string().datetime(),
+  presentationMode: z.enum(["image", "text"]).default("image"),
 });
 
 export const bookmarkCollectionSchema = z.object({
@@ -464,6 +502,7 @@ export const reportSchema = z.object({
       examCode: z.string(),
       courseCode: z.string(),
       imageUrl: z.string(),
+      textContent: z.string().nullable().optional(),
       options: z.array(z.string()),
       correctOptions: z.array(z.number()),
       type: z.enum(questionTypes),
@@ -590,6 +629,8 @@ export type UpsertStudentProfileInput = z.infer<
 >;
 export type CreateDraftImportInput = z.infer<typeof createDraftImportSchema>;
 export type DraftImportResult = z.infer<typeof draftImportResultSchema>;
+export type ExamOcrStatus = z.infer<typeof examOcrStatusSchema>;
+export type OcrQuestionStatus = z.infer<typeof ocrQuestionStatusSchema>;
 export type ReviewQuestion = z.infer<typeof reviewQuestionSchema>;
 export type SavedReviewQuestion = z.infer<typeof savedReviewQuestionSchema>;
 export type DraftExamReview = z.infer<typeof draftExamReviewSchema>;

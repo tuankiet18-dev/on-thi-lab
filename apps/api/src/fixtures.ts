@@ -13,6 +13,7 @@ export const demoExam: Exam = {
   questionCount: 5,
   publishedAt: "2026-06-20T08:00:00.000Z",
   answerConfidence: "reviewed",
+  presentationMode: "image",
   shuffleQuestions: true,
   instructions: [
     "Đây là điểm số tham khảo, không phải kết quả chính thức của nhà trường.",

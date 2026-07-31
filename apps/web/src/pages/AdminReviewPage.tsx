@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "../lib/cn";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -34,8 +35,8 @@ import {
   queueAiAnswerSuggestion,
   saveQuestionReviewAnswer,
 } from "../lib/api";
-import { cn } from "../lib/cn";
 import { questionImageUrl } from "../lib/question-image-url";
+import { AdminReviewOcr } from "./AdminReviewOcr";
 
 type UnsavedAnswer = {
   type: QuestionType;
@@ -75,9 +76,12 @@ export function AdminReviewPage() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [aiError, setAiError] = useState("");
-  const [feedback, setFeedback] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
   const [showOnlyPending, setShowOnlyPending] = useState(true);
+  const [activeTab, setActiveTab] = useState<"answers" | "ocr">("answers");
+  const [feedback, setFeedback] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
   const unsavedAnswers = useRef<Record<string, UnsavedAnswer>>({});
   const autoApplyAttempted = useRef(new Set<string>());
   const canContribute =
@@ -647,609 +651,118 @@ export function AdminReviewPage() {
         Đề chờ duyệt
       </Link>
 
-      <header className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={review.status === "draft" ? "amber" : "green"}>
-              {review.status === "published"
-                ? "Đã xuất bản"
-                : review.status === "review"
-                  ? "Chờ xuất bản"
-                  : "Đang duyệt"}
-            </Badge>
-            <span className="text-sm text-slate-500">
-              {review.courseCode} · {review.semester} · {review.campus.name}
-            </span>
-          </div>
-          <h1 className="mt-2 font-heading text-2xl font-bold text-foreground">
-            Duyệt đáp án {review.examCode}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{review.courseName}</p>
-        </div>
-        <div className="w-full max-w-sm">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-semibold text-slate-700">Đáp án đã lưu</span>
-            <span className="font-bold tabular-nums text-primary">
-              {review.answeredCount}/{review.questionCount}
-            </span>
-          </div>
-          <div
-            className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
-            role="progressbar"
-            aria-label="Tiến độ duyệt đáp án"
-            aria-valuemin={0}
-            aria-valuemax={review.questionCount}
-            aria-valuenow={review.answeredCount}
-          >
-            <div
-              className="h-full rounded-full bg-primary transition-transform duration-200"
-              style={{
-                width: `${progress}%`,
-              }}
-            />
-          </div>
-        </div>
-      </header>
-
-      {review.status === "draft" && trustedSuggestionCount > 0 && (
-        <Card className="flex flex-col gap-3 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <ShieldCheck
-              className="mt-0.5 shrink-0 text-emerald-700"
-              size={20}
-              aria-hidden="true"
-            />
-            <div>
-              <p className="font-heading font-bold text-emerald-950">
-                {confirmingTrusted
-                  ? `Đang tự lưu ${trustedSuggestionCount} đáp án tin cậy`
-                  : `Có ${trustedSuggestionCount} đáp án đủ tin cậy`}
-              </p>
-              <p className="mt-0.5 text-sm text-emerald-800">
-                Chỉ các câu OCR mơ hồ hoặc comments chưa đồng thuận mới cần bạn
-                kiểm tra.
-              </p>
-            </div>
-          </div>
-          <Button
+      {review.presentationMode === "text" && (
+        <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+          <button
             type="button"
-            className="shrink-0"
-            disabled={confirmingTrusted}
-            onClick={() => void confirmTrustedSuggestions()}
-            icon={
-              confirmingTrusted ? (
-                <LoaderCircle
-                  size={17}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <CheckCircle2 size={17} aria-hidden="true" />
-              )
-            }
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-semibold transition-colors",
+              activeTab === "answers"
+                ? "bg-white shadow-sm text-primary"
+                : "text-slate-600 hover:text-slate-900",
+            )}
+            onClick={() => setActiveTab("answers")}
           >
-            {confirmingTrusted
-              ? "Đang lưu..."
-              : `Lưu tự động ${trustedSuggestionCount} câu`}
-          </Button>
-        </Card>
+            Duyệt đáp án
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-semibold transition-colors",
+              activeTab === "ocr"
+                ? "bg-white shadow-sm text-primary"
+                : "text-slate-600 hover:text-slate-900",
+            )}
+            onClick={() => setActiveTab("ocr")}
+          >
+            Duyệt nội dung OCR
+          </button>
+        </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="contents">
-          <Card className="overflow-hidden xl:col-start-1 xl:row-start-1 xl:self-start">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-heading text-lg font-bold">
-                Câu {currentQuestion.order}
-              </h2>
-              <span className="text-sm tabular-nums text-slate-500">
-                {currentIndex + 1}/{review.questionCount}
-              </span>
-            </div>
-            <div className="bg-slate-50 p-3 sm:p-5">
-              <button
-                type="button"
-                onClick={() => setImageExpanded(true)}
-                className="group relative block w-full cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
-                aria-label={`Mở rộng ảnh câu hỏi ${currentQuestion.order}`}
-              >
-                <img
-                  src={questionImageUrl(currentQuestion.imageUrl)}
-                  alt={`Câu hỏi ${currentQuestion.order} của đề ${review.examCode}`}
-                  width={1920}
-                  height={620}
-                  className="min-h-48 w-full rounded-xl border border-border bg-white object-contain"
-                />
-                <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white opacity-100 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-                  <Maximize2 size={15} aria-hidden="true" />
-                  Phóng to
+      {activeTab === "ocr" ? (
+        <AdminReviewOcr
+          revisionId={review.revisionId}
+          isReadOnly={review.status === "published" || !isAdmin}
+          onOcrCompleted={() => {
+            // Optional callback
+          }}
+        />
+      ) : (
+        <>
+          <header className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={review.status === "draft" ? "amber" : "green"}>
+                  {review.status === "published"
+                    ? "Đã xuất bản"
+                    : review.status === "review"
+                      ? "Chờ xuất bản"
+                      : "Đang duyệt"}
+                </Badge>
+                <span className="text-sm text-slate-500">
+                  {review.courseCode} · {review.semester} · {review.campus.name}
                 </span>
-              </button>
-            </div>
-          </Card>
-
-          <Card className="p-5 sm:p-6 xl:col-start-2 xl:row-start-1 xl:self-start">
-            {review.status === "draft" &&
-              currentQuestion.correctOptions.length === 0 && (
-                <div className="mb-5 flex flex-col gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-2.5">
-                    <Sparkles
-                      className="mt-0.5 shrink-0 text-violet-700"
-                      size={18}
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">
-                        AI kiểm tra riêng câu {currentQuestion.order}
-                      </p>
-                      <p className="mt-0.5 text-xs leading-5 text-slate-600">
-                        Tự nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
-                        đang mở.
-                      </p>
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="shrink-0"
-                      disabled={!canRequestCurrentAi || queuingAi}
-                      onClick={() => void queueCurrentSuggestion()}
-                      icon={
-                        queuingAi || currentAiBusy ? (
-                          <LoaderCircle
-                            size={17}
-                            className="animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <Sparkles size={17} aria-hidden="true" />
-                        )
-                      }
-                    >
-                      {currentAiBusy
-                        ? "Đang phân tích..."
-                        : currentAiStatus === "suggested"
-                          ? "Tạo lại gợi ý"
-                          : "Gợi ý câu này"}
-                    </Button>
-                  )}
-                  {aiError && (
-                    <p
-                      className="text-sm font-semibold text-red-700 sm:w-full"
-                      role="alert"
-                    >
-                      {aiError}
-                    </p>
-                  )}
-                </div>
-              )}
-            {currentQuestion.aiSuggestion && (
-              <div
-                className={cn(
-                  "mb-6 rounded-xl border p-4",
-                  currentQuestion.aiSuggestion.status === "suggested"
-                    ? "border-violet-200 bg-violet-50"
-                    : currentQuestion.aiSuggestion.status === "failed"
-                      ? "border-red-200 bg-red-50"
-                      : currentQuestion.aiSuggestion.status === "confirmed"
-                        ? "border-emerald-200 bg-emerald-50"
-                        : "border-blue-200 bg-blue-50",
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  {["queued", "processing"].includes(
-                    currentQuestion.aiSuggestion.status,
-                  ) ? (
-                    <LoaderCircle
-                      className="mt-0.5 animate-spin text-primary"
-                      size={19}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Sparkles
-                      className="mt-0.5 text-violet-700"
-                      size={19}
-                      aria-hidden="true"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-heading text-sm font-bold">
-                      {currentQuestion.aiSuggestion.provider ===
-                        "community-comments" &&
-                      currentQuestion.aiSuggestion.status === "confirmed"
-                        ? "Đã lưu tự động từ comments"
-                        : currentQuestion.aiSuggestion.provider ===
-                            "community-comments"
-                          ? "Đáp án đề xuất từ comments"
-                          : currentQuestion.aiSuggestion.status === "suggested"
-                            ? "AI đã tạo đáp án tham khảo"
-                            : currentQuestion.aiSuggestion.status ===
-                                "confirmed"
-                              ? "Gợi ý AI đã được người duyệt xác nhận"
-                              : currentQuestion.aiSuggestion.status === "failed"
-                                ? "AI chưa xử lý được câu này"
-                                : "AI đang phân tích ảnh"}
-                    </p>
-                    {currentQuestion.aiSuggestion.status === "suggested" &&
-                      currentQuestion.aiSuggestion.proposedAnswers && (
-                        <div className="mt-1 text-sm text-slate-700">
-                          Đề xuất:{" "}
-                          <strong>
-                            {currentQuestion.aiSuggestion.proposedAnswers
-                              .map((answer) => String.fromCharCode(65 + answer))
-                              .join(", ")}
-                          </strong>
-                          {" · "}
-                          độ tin cậy{" "}
-                          <strong>
-                            {Math.round(
-                              (currentQuestion.aiSuggestion.confidence ?? 0) *
-                                100,
-                            )}
-                            %
-                          </strong>
-                          {currentQuestion.aiSuggestion.provider ===
-                            "community-comments" &&
-                            currentQuestion.aiSuggestion.validVotes !==
-                              undefined && (
-                              <p className="mt-2 text-xs text-slate-600">
-                                {currentQuestion.aiSuggestion.validVotes}/
-                                {currentQuestion.aiSuggestion.totalComments ??
-                                  currentQuestion.aiSuggestion.validVotes}{" "}
-                                comments có đáp án rõ ràng
-                              </p>
-                            )}
-                          {currentQuestion.aiSuggestion.optionCountSource && (
-                            <p className="mt-2 text-xs text-slate-600">
-                              {currentQuestion.aiSuggestion
-                                .optionCountSource === "ocr"
-                                ? "OCR"
-                                : "AI"}{" "}
-                              nhận diện{" "}
-                              <strong>
-                                {currentQuestion.aiSuggestion.optionCount} lựa
-                                chọn
-                              </strong>
-                              {currentQuestion.aiSuggestion
-                                .optionCountConfidence !== undefined &&
-                                ` · ${Math.round(
-                                  currentQuestion.aiSuggestion
-                                    .optionCountConfidence * 100,
-                                )}% tin cậy`}
-                            </p>
-                          )}
-                          {currentQuestion.aiSuggestion.requiresReview && (
-                            <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
-                              <AlertTriangle
-                                className="mt-0.5 shrink-0"
-                                size={15}
-                                aria-hidden="true"
-                              />
-                              {currentQuestion.aiSuggestion.disputeReason ??
-                                "Gợi ý chưa đủ đồng thuận; cần kiểm tra ảnh trước khi lưu."}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    {currentQuestion.aiSuggestion.status === "failed" && (
-                      <p className="mt-1 text-sm text-red-700">
-                        {currentQuestion.aiSuggestion.error ??
-                          "Có lỗi trong quá trình phân tích."}
-                      </p>
-                    )}
-                    {currentQuestion.aiSuggestion.status === "suggested" &&
-                      !isReadOnly && (
-                        <p className="mt-3 text-sm font-semibold text-violet-800">
-                          Đáp án và số lựa chọn đã được điền sẵn. Bạn chỉ cần
-                          sửa nếu cần rồi xác nhận.
-                        </p>
-                      )}
-                  </div>
-                </div>
               </div>
-            )}
-            <div className="grid gap-5 sm:grid-cols-2">
-              <fieldset disabled={isReadOnly}>
-                <legend className="text-sm font-bold text-slate-700">
-                  Loại câu hỏi
-                </legend>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {(["single", "multiple"] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => chooseType(type)}
-                      className={cn(
-                        "min-h-11 cursor-pointer rounded-xl border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                        questionType === type
-                          ? "border-primary bg-primary-soft text-primary"
-                          : "border-border bg-white text-slate-600 hover:bg-slate-50",
-                      )}
-                      aria-pressed={questionType === type}
-                    >
-                      {type === "single" ? "Chọn một" : "Chọn nhiều"}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-
-              <label className="form-field">
-                <span>Số lựa chọn</span>
-                <select
-                  className="input-base"
-                  value={optionCount}
-                  disabled={isReadOnly}
-                  onChange={(event) =>
-                    chooseOptionCount(Number(event.target.value))
-                  }
-                >
-                  {[2, 3, 4, 5, 6].map((count) => (
-                    <option key={count} value={count}>
-                      {count} đáp án
-                    </option>
-                  ))}
-                </select>
-                {currentQuestion.aiSuggestion?.optionCount && (
-                  <small className="text-xs font-medium text-slate-500">
-                    Hệ thống nhận diện:{" "}
-                    {currentQuestion.aiSuggestion.optionCount} lựa chọn
-                  </small>
-                )}
-              </label>
+              <h1 className="mt-2 font-heading text-2xl font-bold text-foreground">
+                Duyệt đáp án {review.examCode}
+              </h1>
+              <p className="mt-1 text-sm text-slate-600">{review.courseName}</p>
             </div>
-
-            <fieldset className="mt-6" disabled={isReadOnly}>
-              <legend className="text-sm font-bold text-slate-700">
-                Đáp án đúng
-              </legend>
-              <p className="mt-1 text-sm text-slate-500">
-                {questionType === "single"
-                  ? "Chọn chính xác một đáp án."
-                  : "Chọn toàn bộ đáp án đúng của câu."}
-              </p>
-              <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-6">
-                {Array.from({ length: optionCount }, (_, option) => {
-                  const selected = selectedOptions.includes(option);
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => toggleAnswer(option)}
-                      className={cn(
-                        "relative min-h-14 cursor-pointer rounded-xl border text-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                        selected
-                          ? "border-primary bg-primary text-white"
-                          : "border-border-strong bg-white text-slate-700 hover:border-primary/50 hover:bg-primary-soft",
-                      )}
-                      aria-pressed={selected}
-                      aria-label={`Đáp án ${String.fromCharCode(65 + option)}${selected ? ", đã chọn" : ""}`}
-                    >
-                      {selected && (
-                        <Check
-                          size={14}
-                          className="absolute right-1.5 top-1.5"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {String.fromCharCode(65 + option)}
-                    </button>
-                  );
-                })}
-              </div>
-              {!isReadOnly && (
-                <p className="mt-2 hidden text-xs text-slate-500 sm:block">
-                  Phím A–F để chọn · Alt + ←/→ để chuyển câu
-                </p>
-              )}
-            </fieldset>
-
-            <div className="mt-6 min-h-6" aria-live="polite">
-              {error && (
-                <p className="text-sm font-semibold text-red-700" role="alert">
-                  {error}
-                </p>
-              )}
-              {!error && feedback && (
-                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                  <CheckCircle2 size={16} aria-hidden="true" />
-                  {feedback}
-                </p>
-              )}
-              {!error && !feedback && isDirty && !isReadOnly && (
-                <p className="text-sm text-amber-700">Có thay đổi chưa lưu.</p>
-              )}
-            </div>
-
-            <div className="mt-4 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={currentIndex === 0 || saving}
-                  onClick={() => goToQuestion(currentIndex - 1)}
-                  icon={<ChevronLeft size={17} />}
-                >
-                  Câu trước
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={
-                    currentIndex === review.questions.length - 1 || saving
-                  }
-                  onClick={() => goToQuestion(currentIndex + 1)}
-                >
-                  Câu sau
-                  <ChevronRight size={17} aria-hidden="true" />
-                </Button>
-              </div>
-              {!isReadOnly && (
-                <Button
-                  type="button"
-                  disabled={saving || selectedOptions.length === 0}
-                  onClick={() => void saveCurrent(true)}
-                  icon={
-                    saving ? (
-                      <LoaderCircle
-                        size={17}
-                        className="animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : currentIndex === review.questions.length - 1 ? (
-                      <Save size={17} aria-hidden="true" />
-                    ) : (
-                      <ArrowRight size={17} aria-hidden="true" />
-                    )
-                  }
-                >
-                  {saving
-                    ? "Đang lưu..."
-                    : currentIndex === review.questions.length - 1
-                      ? "Xác nhận đáp án"
-                      : pendingCount > 1
-                        ? "Xác nhận & câu cần kiểm tra tiếp"
-                        : "Xác nhận đáp án"}
-                </Button>
-              )}
-            </div>
-          </Card>
-        </main>
-
-        <aside className="grid gap-4 xl:col-span-2 xl:row-start-2 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
-          <Card className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-heading font-bold">Danh sách câu</h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {autoSavedCount} tự lưu · {pendingCount} cần kiểm tra
-                </p>
+            <div className="w-full max-w-sm">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-700">
+                  Đáp án đã lưu
+                </span>
+                <span className="font-bold tabular-nums text-primary">
+                  {review.answeredCount}/{review.questionCount}
+                </span>
               </div>
               <div
-                className="inline-flex rounded-xl border border-border bg-slate-50 p-1"
-                aria-label="Lọc danh sách câu"
+                className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
+                role="progressbar"
+                aria-label="Tiến độ duyệt đáp án"
+                aria-valuemin={0}
+                aria-valuemax={review.questionCount}
+                aria-valuenow={review.answeredCount}
               >
-                <button
-                  type="button"
-                  onClick={() => setShowOnlyPending(true)}
-                  className={cn(
-                    "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                    showOnlyPending
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-600",
-                  )}
-                  aria-pressed={showOnlyPending}
-                >
-                  Cần kiểm tra ({pendingCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowOnlyPending(false)}
-                  className={cn(
-                    "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                    !showOnlyPending
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-600",
-                  )}
-                  aria-pressed={!showOnlyPending}
-                >
-                  Tất cả ({review.questionCount})
-                </button>
+                <div
+                  className="h-full rounded-full bg-primary transition-transform duration-200"
+                  style={{
+                    width: `${progress}%`,
+                  }}
+                />
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10 xl:grid-cols-12">
-              {review.questions.map((question, index) => {
-                const answered = question.correctOptions.length > 0;
-                const suggested = question.aiSuggestion?.status === "suggested";
-                const active = index === currentIndex;
-                if (showOnlyPending && answered && !active) return null;
-                return (
-                  <button
-                    key={question.id}
-                    type="button"
-                    onClick={() => goToQuestion(index)}
-                    className={cn(
-                      "relative grid size-11 cursor-pointer place-items-center rounded-lg border text-sm font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                      active
-                        ? "border-primary bg-primary text-white"
-                        : answered
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                          : suggested
-                            ? "border-amber-300 bg-amber-50 text-amber-800"
-                            : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
-                    )}
-                    aria-label={`Câu ${question.order}${answered ? ", đã có đáp án" : ", chưa có đáp án"}`}
-                    aria-current={active ? "step" : undefined}
-                  >
-                    {question.order}
-                    {answered && !active && (
-                      <Check
-                        size={10}
-                        className="absolute right-0.5 top-0.5"
-                        aria-hidden="true"
-                      />
-                    )}
-                    {suggested && !answered && !active && (
-                      <AlertTriangle
-                        size={9}
-                        className="absolute right-0.5 top-0.5"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+          </header>
 
-          <Card
-            className={cn(
-              "p-5",
-              review.status === "review"
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-blue-200 bg-blue-50",
-            )}
-          >
-            <div className="flex items-start gap-3">
-              <ShieldCheck
-                className={
-                  review.status === "review"
-                    ? "text-emerald-700"
-                    : "text-primary"
-                }
-                aria-hidden="true"
-              />
-              <div>
-                <h2 className="font-heading font-bold">
-                  {review.status === "published"
-                    ? "Đề đã xuất bản"
-                    : review.status === "review"
-                      ? "Đã hoàn tất duyệt"
-                      : "Hoàn tất bước duyệt"}
-                </h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  {review.status === "published"
-                    ? "Sinh viên có thể tìm và làm đề này trong kho thi."
-                    : review.status === "review"
-                      ? "Đề đang chờ Admin kiểm tra lần cuối và xuất bản."
-                      : review.answeredCount === review.questionCount
-                        ? "Tất cả đáp án đã được lưu. Có thể chuyển sang bước xuất bản."
-                        : confirmingTrusted
-                          ? "Đang lưu tự động các đáp án đủ tin cậy."
-                          : `Chỉ còn ${pendingCount} câu cần bạn kiểm tra.`}
-                </p>
+          {review.status === "draft" && trustedSuggestionCount > 0 && (
+            <Card className="flex flex-col gap-3 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <ShieldCheck
+                  className="mt-0.5 shrink-0 text-emerald-700"
+                  size={20}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="font-heading font-bold text-emerald-950">
+                    {confirmingTrusted
+                      ? `Đang tự lưu ${trustedSuggestionCount} đáp án tin cậy`
+                      : `Có ${trustedSuggestionCount} đáp án đủ tin cậy`}
+                  </p>
+                  <p className="mt-0.5 text-sm text-emerald-800">
+                    Chỉ các câu OCR mơ hồ hoặc comments chưa đồng thuận mới cần
+                    bạn kiểm tra.
+                  </p>
+                </div>
               </div>
-            </div>
-            {review.status === "draft" && (
               <Button
                 type="button"
-                className="mt-4 w-full"
-                disabled={
-                  review.answeredCount !== review.questionCount || markingReady
-                }
-                onClick={() => void completeReview()}
+                className="shrink-0"
+                disabled={confirmingTrusted}
+                onClick={() => void confirmTrustedSuggestions()}
                 icon={
-                  markingReady ? (
+                  confirmingTrusted ? (
                     <LoaderCircle
                       size={17}
                       className="animate-spin"
@@ -1260,160 +773,715 @@ export function AdminReviewPage() {
                   )
                 }
               >
-                {markingReady ? "Đang hoàn tất..." : "Hoàn tất duyệt đáp án"}
+                {confirmingTrusted
+                  ? "Đang lưu..."
+                  : `Lưu tự động ${trustedSuggestionCount} câu`}
               </Button>
-            )}
-            {review.status === "review" && !publishedAt && isAdmin && (
-              <Button
-                type="button"
-                className="mt-4 w-full"
-                onClick={() => setShowPublishConfirmation(true)}
-                icon={<Rocket size={17} aria-hidden="true" />}
-              >
-                Kiểm tra cuối & xuất bản
-              </Button>
-            )}
-            {review.status === "review" && !publishedAt && !isAdmin && (
-              <p className="mt-4 rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-600">
-                Chỉ Admin có thể thực hiện bước xuất bản cuối cùng.
-              </p>
-            )}
-            {publishedAt && (
-              <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
-                <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
-                  <CheckCircle2 size={17} aria-hidden="true" />
-                  Đã xuất bản thành công
-                </p>
-                <Link
-                  to="/admin/drafts"
-                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
-                >
-                  Duyệt đề tiếp theo
-                  <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-              </div>
-            )}
-          </Card>
-        </aside>
-      </div>
+            </Card>
+          )}
 
-      {imageExpanded && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setImageExpanded(false);
-          }}
-        >
-          <div className="mb-3 flex items-center justify-between text-white">
-            <p className="font-heading font-bold">
-              Câu {currentQuestion.order} · kéo ngang để xem toàn bộ
-            </p>
-            <button
-              type="button"
-              onClick={() => setImageExpanded(false)}
-              className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              aria-label="Đóng ảnh phóng to"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </div>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Ảnh phóng to câu ${currentQuestion.order}`}
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
-          >
-            <img
-              src={questionImageUrl(currentQuestion.imageUrl)}
-              alt={`Ảnh phóng to câu hỏi ${currentQuestion.order}`}
-              width={1920}
-              height={620}
-              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
-            />
-          </section>
-        </div>
-      )}
-
-      {showPublishConfirmation && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target && !publishing) {
-              setShowPublishConfirmation(false);
-            }
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="publish-title"
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-modal sm:p-7"
-          >
-            <span className="grid size-12 place-items-center rounded-xl bg-blue-50 text-primary">
-              <Rocket size={23} aria-hidden="true" />
-            </span>
-            <h2
-              id="publish-title"
-              className="mt-5 font-heading text-2xl font-bold"
-            >
-              Xuất bản đề {review.examCode}?
-            </h2>
-            <p className="mt-2 leading-7 text-slate-600">
-              Sau khi xác nhận, đề sẽ xuất hiện trong kho thi và sinh viên có
-              thể bắt đầu làm bài ngay.
-            </p>
-            <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
-              <div>
-                <dt className="text-slate-500">Số câu</dt>
-                <dd className="mt-1 font-bold">{review.questionCount} câu</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Thời gian</dt>
-                <dd className="mt-1 font-bold">
-                  {review.durationMinutes} phút
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Campus</dt>
-                <dd className="mt-1 font-bold">{review.campus.name}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Đáp án</dt>
-                <dd className="mt-1 font-bold text-emerald-700">Đã duyệt đủ</dd>
-              </div>
-            </dl>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={publishing}
-                onClick={() => setShowPublishConfirmation(false)}
-              >
-                Chưa xuất bản
-              </Button>
-              <Button
-                type="button"
-                disabled={publishing}
-                onClick={() => void publishReviewedExam()}
-                icon={
-                  publishing ? (
-                    <LoaderCircle
-                      size={17}
-                      className="animate-spin"
-                      aria-hidden="true"
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <main className="contents">
+              <Card className="overflow-hidden xl:col-start-1 xl:row-start-1 xl:self-start">
+                <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                  <h2 className="font-heading text-lg font-bold">
+                    Câu {currentQuestion.order}
+                  </h2>
+                  <span className="text-sm tabular-nums text-slate-500">
+                    {currentIndex + 1}/{review.questionCount}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-3 sm:p-5">
+                  <button
+                    type="button"
+                    onClick={() => setImageExpanded(true)}
+                    className="group relative block w-full cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                    aria-label={`Mở rộng ảnh câu hỏi ${currentQuestion.order}`}
+                  >
+                    <img
+                      src={questionImageUrl(currentQuestion.imageUrl)}
+                      alt={`Câu hỏi ${currentQuestion.order} của đề ${review.examCode}`}
+                      width={1920}
+                      height={620}
+                      className="min-h-48 w-full rounded-xl border border-border bg-white object-contain"
                     />
-                  ) : (
-                    <Rocket size={17} aria-hidden="true" />
-                  )
-                }
+                    <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white opacity-100 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+                      <Maximize2 size={15} aria-hidden="true" />
+                      Phóng to
+                    </span>
+                  </button>
+                </div>
+              </Card>
+
+              <Card className="p-5 sm:p-6 xl:col-start-2 xl:row-start-1 xl:self-start">
+                {review.status === "draft" &&
+                  currentQuestion.correctOptions.length === 0 && (
+                    <div className="mb-5 flex flex-col gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-2.5">
+                        <Sparkles
+                          className="mt-0.5 shrink-0 text-violet-700"
+                          size={18}
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            AI kiểm tra riêng câu {currentQuestion.order}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-5 text-slate-600">
+                            Tự nhận diện lại loại câu, số lựa chọn và đáp án từ
+                            ảnh đang mở.
+                          </p>
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="shrink-0"
+                          disabled={!canRequestCurrentAi || queuingAi}
+                          onClick={() => void queueCurrentSuggestion()}
+                          icon={
+                            queuingAi || currentAiBusy ? (
+                              <LoaderCircle
+                                size={17}
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Sparkles size={17} aria-hidden="true" />
+                            )
+                          }
+                        >
+                          {currentAiBusy
+                            ? "Đang phân tích..."
+                            : currentAiStatus === "suggested"
+                              ? "Tạo lại gợi ý"
+                              : "Gợi ý câu này"}
+                        </Button>
+                      )}
+                      {aiError && (
+                        <p
+                          className="text-sm font-semibold text-red-700 sm:w-full"
+                          role="alert"
+                        >
+                          {aiError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                {currentQuestion.aiSuggestion && (
+                  <div
+                    className={cn(
+                      "mb-6 rounded-xl border p-4",
+                      currentQuestion.aiSuggestion.status === "suggested"
+                        ? "border-violet-200 bg-violet-50"
+                        : currentQuestion.aiSuggestion.status === "failed"
+                          ? "border-red-200 bg-red-50"
+                          : currentQuestion.aiSuggestion.status === "confirmed"
+                            ? "border-emerald-200 bg-emerald-50"
+                            : "border-blue-200 bg-blue-50",
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      {["queued", "processing"].includes(
+                        currentQuestion.aiSuggestion.status,
+                      ) ? (
+                        <LoaderCircle
+                          className="mt-0.5 animate-spin text-primary"
+                          size={19}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Sparkles
+                          className="mt-0.5 text-violet-700"
+                          size={19}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-sm font-bold">
+                          {currentQuestion.aiSuggestion.provider ===
+                            "community-comments" &&
+                          currentQuestion.aiSuggestion.status === "confirmed"
+                            ? "Đã lưu tự động từ comments"
+                            : currentQuestion.aiSuggestion.provider ===
+                                "community-comments"
+                              ? "Đáp án đề xuất từ comments"
+                              : currentQuestion.aiSuggestion.status ===
+                                  "suggested"
+                                ? "AI đã tạo đáp án tham khảo"
+                                : currentQuestion.aiSuggestion.status ===
+                                    "confirmed"
+                                  ? "Gợi ý AI đã được người duyệt xác nhận"
+                                  : currentQuestion.aiSuggestion.status ===
+                                      "failed"
+                                    ? "AI chưa xử lý được câu này"
+                                    : "AI đang phân tích ảnh"}
+                        </p>
+                        {currentQuestion.aiSuggestion.status === "suggested" &&
+                          currentQuestion.aiSuggestion.proposedAnswers && (
+                            <div className="mt-1 text-sm text-slate-700">
+                              Đề xuất:{" "}
+                              <strong>
+                                {currentQuestion.aiSuggestion.proposedAnswers
+                                  .map((answer) =>
+                                    String.fromCharCode(65 + answer),
+                                  )
+                                  .join(", ")}
+                              </strong>
+                              {" · "}
+                              độ tin cậy{" "}
+                              <strong>
+                                {Math.round(
+                                  (currentQuestion.aiSuggestion.confidence ??
+                                    0) * 100,
+                                )}
+                                %
+                              </strong>
+                              {currentQuestion.aiSuggestion.provider ===
+                                "community-comments" &&
+                                currentQuestion.aiSuggestion.validVotes !==
+                                  undefined && (
+                                  <p className="mt-2 text-xs text-slate-600">
+                                    {currentQuestion.aiSuggestion.validVotes}/
+                                    {currentQuestion.aiSuggestion
+                                      .totalComments ??
+                                      currentQuestion.aiSuggestion
+                                        .validVotes}{" "}
+                                    comments có đáp án rõ ràng
+                                  </p>
+                                )}
+                              {currentQuestion.aiSuggestion
+                                .optionCountSource && (
+                                <p className="mt-2 text-xs text-slate-600">
+                                  {currentQuestion.aiSuggestion
+                                    .optionCountSource === "ocr"
+                                    ? "OCR"
+                                    : "AI"}{" "}
+                                  nhận diện{" "}
+                                  <strong>
+                                    {currentQuestion.aiSuggestion.optionCount}{" "}
+                                    lựa chọn
+                                  </strong>
+                                  {currentQuestion.aiSuggestion
+                                    .optionCountConfidence !== undefined &&
+                                    ` · ${Math.round(
+                                      currentQuestion.aiSuggestion
+                                        .optionCountConfidence * 100,
+                                    )}% tin cậy`}
+                                </p>
+                              )}
+                              {currentQuestion.aiSuggestion.requiresReview && (
+                                <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
+                                  <AlertTriangle
+                                    className="mt-0.5 shrink-0"
+                                    size={15}
+                                    aria-hidden="true"
+                                  />
+                                  {currentQuestion.aiSuggestion.disputeReason ??
+                                    "Gợi ý chưa đủ đồng thuận; cần kiểm tra ảnh trước khi lưu."}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        {currentQuestion.aiSuggestion.status === "failed" && (
+                          <p className="mt-1 text-sm text-red-700">
+                            {currentQuestion.aiSuggestion.error ??
+                              "Có lỗi trong quá trình phân tích."}
+                          </p>
+                        )}
+                        {currentQuestion.aiSuggestion.status === "suggested" &&
+                          !isReadOnly && (
+                            <p className="mt-3 text-sm font-semibold text-violet-800">
+                              Đáp án và số lựa chọn đã được điền sẵn. Bạn chỉ
+                              cần sửa nếu cần rồi xác nhận.
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <fieldset disabled={isReadOnly}>
+                    <legend className="text-sm font-bold text-slate-700">
+                      Loại câu hỏi
+                    </legend>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {(["single", "multiple"] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => chooseType(type)}
+                          className={cn(
+                            "min-h-11 cursor-pointer rounded-xl border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                            questionType === type
+                              ? "border-primary bg-primary-soft text-primary"
+                              : "border-border bg-white text-slate-600 hover:bg-slate-50",
+                          )}
+                          aria-pressed={questionType === type}
+                        >
+                          {type === "single" ? "Chọn một" : "Chọn nhiều"}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <label className="form-field">
+                    <span>Số lựa chọn</span>
+                    <select
+                      className="input-base"
+                      value={optionCount}
+                      disabled={isReadOnly}
+                      onChange={(event) =>
+                        chooseOptionCount(Number(event.target.value))
+                      }
+                    >
+                      {[2, 3, 4, 5, 6].map((count) => (
+                        <option key={count} value={count}>
+                          {count} đáp án
+                        </option>
+                      ))}
+                    </select>
+                    {currentQuestion.aiSuggestion?.optionCount && (
+                      <small className="text-xs font-medium text-slate-500">
+                        Hệ thống nhận diện:{" "}
+                        {currentQuestion.aiSuggestion.optionCount} lựa chọn
+                      </small>
+                    )}
+                  </label>
+                </div>
+
+                <fieldset className="mt-6" disabled={isReadOnly}>
+                  <legend className="text-sm font-bold text-slate-700">
+                    Đáp án đúng
+                  </legend>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {questionType === "single"
+                      ? "Chọn chính xác một đáp án."
+                      : "Chọn toàn bộ đáp án đúng của câu."}
+                  </p>
+                  <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-6">
+                    {Array.from({ length: optionCount }, (_, option) => {
+                      const selected = selectedOptions.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => toggleAnswer(option)}
+                          className={cn(
+                            "relative min-h-14 cursor-pointer rounded-xl border text-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                            selected
+                              ? "border-primary bg-primary text-white"
+                              : "border-border-strong bg-white text-slate-700 hover:border-primary/50 hover:bg-primary-soft",
+                          )}
+                          aria-pressed={selected}
+                          aria-label={`Đáp án ${String.fromCharCode(65 + option)}${selected ? ", đã chọn" : ""}`}
+                        >
+                          {selected && (
+                            <Check
+                              size={14}
+                              className="absolute right-1.5 top-1.5"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {String.fromCharCode(65 + option)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {!isReadOnly && (
+                    <p className="mt-2 hidden text-xs text-slate-500 sm:block">
+                      Phím A–F để chọn · Alt + ←/→ để chuyển câu
+                    </p>
+                  )}
+                </fieldset>
+
+                <div className="mt-6 min-h-6" aria-live="polite">
+                  {error && (
+                    <p
+                      className="text-sm font-semibold text-red-700"
+                      role="alert"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  {!error && feedback && (
+                    <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                      <CheckCircle2 size={16} aria-hidden="true" />
+                      {feedback}
+                    </p>
+                  )}
+                  {!error && !feedback && isDirty && !isReadOnly && (
+                    <p className="text-sm text-amber-700">
+                      Có thay đổi chưa lưu.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={currentIndex === 0 || saving}
+                      onClick={() => goToQuestion(currentIndex - 1)}
+                      icon={<ChevronLeft size={17} />}
+                    >
+                      Câu trước
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={
+                        currentIndex === review.questions.length - 1 || saving
+                      }
+                      onClick={() => goToQuestion(currentIndex + 1)}
+                    >
+                      Câu sau
+                      <ChevronRight size={17} aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {!isReadOnly && (
+                    <Button
+                      type="button"
+                      disabled={saving || selectedOptions.length === 0}
+                      onClick={() => void saveCurrent(true)}
+                      icon={
+                        saving ? (
+                          <LoaderCircle
+                            size={17}
+                            className="animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : currentIndex === review.questions.length - 1 ? (
+                          <Save size={17} aria-hidden="true" />
+                        ) : (
+                          <ArrowRight size={17} aria-hidden="true" />
+                        )
+                      }
+                    >
+                      {saving
+                        ? "Đang lưu..."
+                        : currentIndex === review.questions.length - 1
+                          ? "Xác nhận đáp án"
+                          : pendingCount > 1
+                            ? "Xác nhận & câu cần kiểm tra tiếp"
+                            : "Xác nhận đáp án"}
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            </main>
+
+            <aside className="grid gap-4 xl:col-span-2 xl:row-start-2 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
+              <Card className="p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="font-heading font-bold">Danh sách câu</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {autoSavedCount} tự lưu · {pendingCount} cần kiểm tra
+                    </p>
+                  </div>
+                  <div
+                    className="inline-flex rounded-xl border border-border bg-slate-50 p-1"
+                    aria-label="Lọc danh sách câu"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowOnlyPending(true)}
+                      className={cn(
+                        "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                        showOnlyPending
+                          ? "bg-white text-primary shadow-sm"
+                          : "text-slate-600",
+                      )}
+                      aria-pressed={showOnlyPending}
+                    >
+                      Cần kiểm tra ({pendingCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowOnlyPending(false)}
+                      className={cn(
+                        "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                        !showOnlyPending
+                          ? "bg-white text-primary shadow-sm"
+                          : "text-slate-600",
+                      )}
+                      aria-pressed={!showOnlyPending}
+                    >
+                      Tất cả ({review.questionCount})
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10 xl:grid-cols-12">
+                  {review.questions.map((question, index) => {
+                    const answered = question.correctOptions.length > 0;
+                    const suggested =
+                      question.aiSuggestion?.status === "suggested";
+                    const active = index === currentIndex;
+                    if (showOnlyPending && answered && !active) return null;
+                    return (
+                      <button
+                        key={question.id}
+                        type="button"
+                        onClick={() => goToQuestion(index)}
+                        className={cn(
+                          "relative grid size-11 cursor-pointer place-items-center rounded-lg border text-sm font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
+                          active
+                            ? "border-primary bg-primary text-white"
+                            : answered
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                              : suggested
+                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
+                        )}
+                        aria-label={`Câu ${question.order}${answered ? ", đã có đáp án" : ", chưa có đáp án"}`}
+                        aria-current={active ? "step" : undefined}
+                      >
+                        {question.order}
+                        {answered && !active && (
+                          <Check
+                            size={10}
+                            className="absolute right-0.5 top-0.5"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {suggested && !answered && !active && (
+                          <AlertTriangle
+                            size={9}
+                            className="absolute right-0.5 top-0.5"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card
+                className={cn(
+                  "p-5",
+                  review.status === "review"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-blue-200 bg-blue-50",
+                )}
               >
-                {publishing ? "Đang xuất bản..." : "Xác nhận xuất bản"}
-              </Button>
+                <div className="flex items-start gap-3">
+                  <ShieldCheck
+                    className={
+                      review.status === "review"
+                        ? "text-emerald-700"
+                        : "text-primary"
+                    }
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <h2 className="font-heading font-bold">
+                      {review.status === "published"
+                        ? "Đề đã xuất bản"
+                        : review.status === "review"
+                          ? "Đã hoàn tất duyệt"
+                          : "Hoàn tất bước duyệt"}
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      {review.status === "published"
+                        ? "Sinh viên có thể tìm và làm đề này trong kho thi."
+                        : review.status === "review"
+                          ? "Đề đang chờ Admin kiểm tra lần cuối và xuất bản."
+                          : review.answeredCount === review.questionCount
+                            ? "Tất cả đáp án đã được lưu. Có thể chuyển sang bước xuất bản."
+                            : confirmingTrusted
+                              ? "Đang lưu tự động các đáp án đủ tin cậy."
+                              : `Chỉ còn ${pendingCount} câu cần bạn kiểm tra.`}
+                    </p>
+                  </div>
+                </div>
+                {review.status === "draft" && (
+                  <Button
+                    type="button"
+                    className="mt-4 w-full"
+                    disabled={
+                      review.answeredCount !== review.questionCount ||
+                      markingReady
+                    }
+                    onClick={() => void completeReview()}
+                    icon={
+                      markingReady ? (
+                        <LoaderCircle
+                          size={17}
+                          className="animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CheckCircle2 size={17} aria-hidden="true" />
+                      )
+                    }
+                  >
+                    {markingReady
+                      ? "Đang hoàn tất..."
+                      : "Hoàn tất duyệt đáp án"}
+                  </Button>
+                )}
+                {review.status === "review" && !publishedAt && isAdmin && (
+                  <Button
+                    type="button"
+                    className="mt-4 w-full"
+                    onClick={() => setShowPublishConfirmation(true)}
+                    icon={<Rocket size={17} aria-hidden="true" />}
+                  >
+                    Kiểm tra cuối & xuất bản
+                  </Button>
+                )}
+                {review.status === "review" && !publishedAt && !isAdmin && (
+                  <p className="mt-4 rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-600">
+                    Chỉ Admin có thể thực hiện bước xuất bản cuối cùng.
+                  </p>
+                )}
+                {publishedAt && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+                    <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                      <CheckCircle2 size={17} aria-hidden="true" />
+                      Đã xuất bản thành công
+                    </p>
+                    <Link
+                      to="/admin/drafts"
+                      className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                    >
+                      Duyệt đề tiếp theo
+                      <ArrowRight size={17} aria-hidden="true" />
+                    </Link>
+                  </div>
+                )}
+              </Card>
+            </aside>
+          </div>
+
+          {imageExpanded && (
+            <div
+              className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.currentTarget === event.target)
+                  setImageExpanded(false);
+              }}
+            >
+              <div className="mb-3 flex items-center justify-between text-white">
+                <p className="font-heading font-bold">
+                  Câu {currentQuestion.order} · kéo ngang để xem toàn bộ
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setImageExpanded(false)}
+                  className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+                  aria-label="Đóng ảnh phóng to"
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </div>
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Ảnh phóng to câu ${currentQuestion.order}`}
+                className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
+              >
+                <img
+                  src={questionImageUrl(currentQuestion.imageUrl)}
+                  alt={`Ảnh phóng to câu hỏi ${currentQuestion.order}`}
+                  width={1920}
+                  height={620}
+                  className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
+                />
+              </section>
             </div>
-          </section>
-        </div>
+          )}
+
+          {showPublishConfirmation && (
+            <div
+              className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.currentTarget === event.target && !publishing) {
+                  setShowPublishConfirmation(false);
+                }
+              }}
+            >
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="publish-title"
+                className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-modal sm:p-7"
+              >
+                <span className="grid size-12 place-items-center rounded-xl bg-blue-50 text-primary">
+                  <Rocket size={23} aria-hidden="true" />
+                </span>
+                <h2
+                  id="publish-title"
+                  className="mt-5 font-heading text-2xl font-bold"
+                >
+                  Xuất bản đề {review.examCode}?
+                </h2>
+                <p className="mt-2 leading-7 text-slate-600">
+                  Sau khi xác nhận, đề sẽ xuất hiện trong kho thi và sinh viên
+                  có thể bắt đầu làm bài ngay.
+                </p>
+                <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
+                  <div>
+                    <dt className="text-slate-500">Số câu</dt>
+                    <dd className="mt-1 font-bold">
+                      {review.questionCount} câu
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Thời gian</dt>
+                    <dd className="mt-1 font-bold">
+                      {review.durationMinutes} phút
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Campus</dt>
+                    <dd className="mt-1 font-bold">{review.campus.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Đáp án</dt>
+                    <dd className="mt-1 font-bold text-emerald-700">
+                      Đã duyệt đủ
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={publishing}
+                    onClick={() => setShowPublishConfirmation(false)}
+                  >
+                    Chưa xuất bản
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={publishing}
+                    onClick={() => void publishReviewedExam()}
+                    icon={
+                      publishing ? (
+                        <LoaderCircle
+                          size={17}
+                          className="animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Rocket size={17} aria-hidden="true" />
+                      )
+                    }
+                  >
+                    {publishing ? "Đang xuất bản..." : "Xác nhận xuất bản"}
+                  </Button>
+                </div>
+              </section>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

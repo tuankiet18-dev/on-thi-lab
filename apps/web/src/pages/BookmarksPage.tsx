@@ -13,6 +13,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { QuestionContent } from "../components/QuestionContent";
 import { getBookmarks, setExamBookmark, setQuestionBookmark } from "../lib/api";
 import { questionImageUrl } from "../lib/question-image-url";
 
@@ -211,12 +212,14 @@ export function BookmarksPage() {
                     key={question.questionId}
                     className="overflow-hidden p-0"
                   >
-                    <div className="grid sm:grid-cols-[180px_1fr]">
-                      <img
-                        src={questionImageUrl(question.imageUrl)}
-                        alt={question.imageAlt}
-                        loading="lazy"
-                        className="h-44 w-full border-b border-border object-contain bg-slate-50 p-2 sm:h-full sm:border-b-0 sm:border-r"
+                    <div className="grid sm:grid-cols-[200px_1fr]">
+                      <QuestionContent
+                        presentationMode={question.presentationMode}
+                        imageUrl={questionImageUrl(question.imageUrl)}
+                        imageAlt={question.imageAlt}
+                        textContent={question.textContent}
+                        options={question.options}
+                        className="h-44 w-full border-b border-border bg-slate-50 p-2 sm:h-full sm:border-b-0 sm:border-r"
                       />
                       <div className="p-5">
                         <div className="flex items-start justify-between gap-3">

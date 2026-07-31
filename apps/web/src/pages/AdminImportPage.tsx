@@ -53,6 +53,7 @@ const emptyMetadata = (): CreateDraftImportInput => ({
   examType: "FE",
   isRetake: false,
   durationMinutes: 0,
+  extractText: false,
 });
 
 function formatFileSize(bytes: number): string {
@@ -357,6 +358,39 @@ export function AdminImportPage() {
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 border-b border-border">
+                <span className="text-sm font-semibold text-slate-700">
+                  Bulk action:
+                </span>
+                <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    disabled={submitting || importQueue.length === 0}
+                    checked={
+                      importQueue.length > 0 &&
+                      importQueue.every((item) => item.metadata.extractText)
+                    }
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setImportQueue((items) =>
+                        items.map((item) =>
+                          item.status !== "success"
+                            ? {
+                                ...item,
+                                metadata: {
+                                  ...item.metadata,
+                                  extractText: checked,
+                                },
+                              }
+                            : item,
+                        ),
+                      );
+                    }}
+                  />
+                  Dùng Textract (OCR) cho tất cả đề
+                </label>
+              </div>
 
               {importQueue.length === 0 ? (
                 <div className="grid min-h-44 place-items-center p-6 text-center text-sm text-slate-500">
@@ -524,6 +558,20 @@ export function AdminImportPage() {
                               disabled={isLocked}
                             />
                             Thi lại
+                          </label>
+                          <label className="flex min-h-11 cursor-pointer items-center gap-3 self-end rounded-xl border border-border bg-white p-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-primary"
+                              checked={item.metadata.extractText}
+                              onChange={(event) =>
+                                updateQueueItem(item.id, {
+                                  extractText: event.target.checked,
+                                })
+                              }
+                              disabled={isLocked}
+                            />
+                            Dùng OCR
                           </label>
                         </div>
 

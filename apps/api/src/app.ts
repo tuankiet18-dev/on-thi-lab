@@ -32,6 +32,7 @@ import {
   type BookmarkRepository,
   BookmarkRepositoryError,
   type FeedbackRepository,
+  type PostgresOcrRepository,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -59,6 +60,8 @@ import {
 } from "./answer-suggestion-service";
 import { MemoryAttemptRepository } from "./memory-attempt-repository";
 import { openApiDocument } from "./openapi";
+import type { OcrService } from "./ocr-service.js";
+import { UnconfiguredOcrService } from "./ocr-service.js";
 import {
   type QuestionImageReader,
   UnconfiguredQuestionImageReader,
@@ -77,6 +80,8 @@ interface AppDependencies {
   reports: ReportRepository;
   bookmarks: BookmarkRepository;
   feedback: FeedbackRepository;
+  ocrRepository?: PostgresOcrRepository;
+  ocrService: OcrService;
   /**
    * Public base URL for question images, including `/question-images` when
    * configured. This is useful for an external image CDN.
@@ -299,6 +304,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     reports: new UnconfiguredReportRepository(),
     bookmarks: new UnconfiguredBookmarkRepository(),
     feedback: new UnconfiguredFeedbackRepository(),
+    ocrService: new UnconfiguredOcrService(),
     corsOrigins: ["http://localhost:5173"],
     ...overrides,
   };
@@ -756,6 +762,11 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         archiveKey,
         creator: context.get("profile"),
       });
+
+      if (parsed.data.extractText) {
+        await dependencies.ocrService.enqueueRevisionOcrJobs(result.revisionId);
+      }
+
       return context.json({ data: result }, 201);
     } catch (error) {
       if (error instanceof DraftImportRepositoryError) {
@@ -803,6 +814,86 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         })),
       },
     });
+  });
+
+  app.get("/v1/admin/revisions/:revisionId/ocr", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    const status = await dependencies.ocrRepository.getExamOcrStatus(
+      context.req.param("revisionId"),
+    );
+    return context.json({ data: status });
+  });
+
+  app.patch("/v1/admin/questions/:questionId/ocr", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    let body: any;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    if (typeof body.textContent !== "string") {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    await dependencies.ocrRepository.approveOcrQuestion(
+      context.req.param("questionId"),
+      body.textContent,
+      context.get("profile").id,
+    );
+    return context.json({ success: true });
+  });
+
+  app.delete("/v1/admin/questions/:questionId/ocr", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    await dependencies.ocrRepository.rejectOcrQuestion(
+      context.req.param("questionId"),
+      context.get("profile").id,
+    );
+    return context.json({ success: true });
+  });
+
+  app.post("/v1/admin/questions/:questionId/ocr/retry", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    await dependencies.ocrService.enqueueQuestionOcrJob(
+      context.req.param("questionId"),
+    );
+    return context.json({ success: true });
+  });
+
+  app.patch("/v1/admin/revisions/:revisionId/presentation", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    let body: any;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+    if (body.mode !== "image" && body.mode !== "text") {
+      return context.json({ error: "INVALID_INPUT" }, 400);
+    }
+
+    // If switching to text mode, make sure to queue the jobs if not already done.
+    if (body.mode === "text") {
+      await dependencies.ocrService.enqueueRevisionOcrJobs(
+        context.req.param("revisionId"),
+      );
+    }
+
+    await dependencies.ocrRepository.setExamPresentationMode(
+      context.req.param("revisionId"),
+      body.mode,
+    );
+    return context.json({ success: true });
   });
 
   app.put(
@@ -891,6 +982,27 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
 
   app.post("/v1/admin/exams/:examId/publish", requireAdmin, async (context) => {
     try {
+      if (dependencies.ocrRepository) {
+        const review = await dependencies.reviews.findReview(
+          context.req.param("examId"),
+        );
+        if (review) {
+          const status = await dependencies.ocrRepository.getExamOcrStatus(
+            review.revisionId,
+          );
+          if (!status.canPublish) {
+            return context.json(
+              {
+                error: "OCR_NOT_COMPLETED",
+                message:
+                  "Vui lòng duyệt hết các kết quả OCR trước khi xuất bản.",
+              },
+              409,
+            );
+          }
+        }
+      }
+
       const result = await dependencies.reviews.publish(
         context.req.param("examId"),
         context.get("profile").id,

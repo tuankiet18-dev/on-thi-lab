@@ -13,6 +13,7 @@ export const demoExam: Exam = {
   questionCount: 5,
   publishedAt: "2026-06-20T08:00:00.000Z",
   answerConfidence: "reviewed",
+  presentationMode: "image",
   shuffleQuestions: true,
   instructions: [
     "Bài thi không thể tạm dừng và sẽ tự động nộp khi hết giờ.",

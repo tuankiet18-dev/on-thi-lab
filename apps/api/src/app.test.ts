@@ -735,6 +735,7 @@ describe("attempt API", () => {
           durationMinutes: 60,
           isRetake: false,
           status: "draft",
+          presentationMode: "image",
           publishedAt: null,
           answeredCount: 0,
           questionCount: 1,
