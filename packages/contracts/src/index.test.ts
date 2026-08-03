@@ -6,6 +6,7 @@ import {
   isExactAnswer,
   publishExamResultSchema,
   updateCourseSchema,
+  updateOcrQuestionSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
 } from "./index";
@@ -185,5 +186,32 @@ describe("answer review input", () => {
         publishedAt: "2026-07-24T06:00:00.000Z",
       }),
     ).toMatchObject({ status: "published" });
+  });
+});
+
+describe("OCR review input", () => {
+  it("requires a stem and between two and six non-empty options", () => {
+    expect(
+      updateOcrQuestionSchema.parse({
+        textContent: "  What is the answer?  ",
+        options: [" First ", "Second"],
+      }),
+    ).toEqual({
+      textContent: "What is the answer?",
+      options: ["First", "Second"],
+    });
+
+    expect(() =>
+      updateOcrQuestionSchema.parse({
+        textContent: "Question",
+        options: ["Only one"],
+      }),
+    ).toThrow();
+    expect(() =>
+      updateOcrQuestionSchema.parse({
+        textContent: "Question",
+        options: ["A", ""],
+      }),
+    ).toThrow();
   });
 });

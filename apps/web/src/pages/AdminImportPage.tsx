@@ -70,6 +70,7 @@ function getImportErrorMessage(reason: unknown): string {
       EXAM_ALREADY_EXISTS: "Đề thi này đã tồn tại.",
       INVALID_ARCHIVE:
         "ZIP không hợp lệ. Kiểm tra lại ảnh, tên file và answers.json.",
+      DUPLICATE_IMAGES: "ZIP chứa các ảnh giống hệt nhau (nội dung trùng lặp).",
     };
     return messages[reason.code] ?? "Không thể nhập đề. Vui lòng thử lại.";
   }
@@ -388,7 +389,7 @@ export function AdminImportPage() {
                       );
                     }}
                   />
-                  Dùng Textract (OCR) cho tất cả đề
+                  OCR + ảnh dự phòng cho tất cả đề
                 </label>
               </div>
 
@@ -571,7 +572,7 @@ export function AdminImportPage() {
                               }
                               disabled={isLocked}
                             />
-                            Dùng OCR
+                            OCR + ảnh dự phòng
                           </label>
                         </div>
 
@@ -584,19 +585,26 @@ export function AdminImportPage() {
                           </p>
                         )}
                         {item.result && (
-                          <div className="mt-3 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:flex-row sm:items-center sm:justify-between">
-                            <p>
-                              <strong>{item.result.examCode}</strong>
-                              {` · ${item.result.questionCount} câu`}
-                            </p>
-                            <Link
-                              to="/admin/exams/$examId/review"
-                              params={{ examId: item.result.examId }}
-                              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-emerald-600/25"
-                            >
-                              Duyệt ngay
-                              <ArrowRight size={17} aria-hidden="true" />
-                            </Link>
+                          <div className="mt-3 space-y-2">
+                            <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:flex-row sm:items-center sm:justify-between">
+                              <p>
+                                <strong>{item.result.examCode}</strong>
+                                {` · ${item.result.questionCount} câu`}
+                              </p>
+                              <Link
+                                to="/admin/exams/$examId/review"
+                                params={{ examId: item.result.examId }}
+                                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-bold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-emerald-600/25"
+                              >
+                                Duyệt ngay
+                                <ArrowRight size={17} aria-hidden="true" />
+                              </Link>
+                            </div>
+                            {item.result.ocrQueueWarning && (
+                              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                                {item.result.ocrQueueWarning}
+                              </p>
+                            )}
                           </div>
                         )}
                       </article>

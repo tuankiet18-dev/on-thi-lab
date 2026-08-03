@@ -2,7 +2,7 @@ import {
   validateAiProposal,
   type AiAnswerProposal,
   type AiVisionProvider,
-} from "./index.js";
+} from "./answer-suggestion.js";
 
 interface ChatCompletionResponse {
   choices?: Array<{

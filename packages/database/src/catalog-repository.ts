@@ -18,6 +18,10 @@ import {
   majors,
   questions,
 } from "./schema";
+import {
+  resolveQuestionContentMode,
+  type ExamPresentationMode,
+} from "./question-presentation";
 
 export interface CatalogFilters {
   campus?: string;
@@ -142,7 +146,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
       isRetake: row.isRetake,
       durationMinutes: row.durationMinutes,
       questionCount: row.questionCount,
-      presentationMode: row.presentationMode as "image" | "text",
+      presentationMode: row.presentationMode as ExamPresentationMode,
       publishedAt: (row.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         row.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -211,7 +215,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
       isRetake: examRow.isRetake,
       durationMinutes: examRow.durationMinutes,
       questionCount: questionRows.length,
-      presentationMode: examRow.presentationMode as "image" | "text",
+      presentationMode: examRow.presentationMode as ExamPresentationMode,
       publishedAt: (examRow.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         examRow.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -227,6 +231,10 @@ export class PostgresCatalogRepository implements CatalogRepository {
         imageUrl: this.imageUrlForKey(question.imageKey),
         imageAlt: `Ảnh câu hỏi ${question.order} của đề ${examRow.code}`,
         textContent: question.ocrMetadata?.textContent ?? null,
+        contentMode: resolveQuestionContentMode(
+          examRow.presentationMode as ExamPresentationMode,
+          question.ocrMetadata,
+        ),
         type: question.type,
         options: question.ocrMetadata?.options ?? question.options,
       })),

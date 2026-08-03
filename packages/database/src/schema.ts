@@ -27,6 +27,7 @@ export const examTypeEnum = pgEnum("exam_type", ["FE", "PE"]);
 export const presentationModeEnum = pgEnum("presentation_mode", [
   "image",
   "text",
+  "hybrid",
 ]);
 export const examStatusEnum = pgEnum("exam_status", [
   "draft",
@@ -231,11 +232,17 @@ export const questions = pgTable(
       status: "pending" | "processing" | "approved" | "needs_review" | "failed";
       textContent?: string;
       options?: string[];
+      /** Explicit per-question override, mainly for hybrid revisions. */
+      contentMode?: "image" | "text";
       confidence?: number;
       providerVersion?: string;
       flagReasons?: string[];
       rawText?: string;
       error?: string;
+      attemptCount?: number;
+      queuedAt?: string;
+      startedAt?: string;
+      completedAt?: string;
       reviewedAt?: string;
       reviewedBy?: string;
     }>(),

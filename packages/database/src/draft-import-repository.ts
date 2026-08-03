@@ -44,7 +44,8 @@ export type DraftImportRepositoryErrorCode =
   | "EXAM_NOT_EDITABLE"
   | "EXAM_NOT_FOUND"
   | "EXAM_NOT_READY"
-  | "QUESTION_NOT_FOUND";
+  | "QUESTION_NOT_FOUND"
+  | "DUPLICATE_IMAGES";
 
 export class DraftImportRepositoryError extends Error {
   constructor(
@@ -231,12 +232,20 @@ export function buildExamCode(
   ].join("-");
 }
 
-export function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(
+  error: unknown,
+  constraintName?: string,
+): boolean {
   let current: unknown = error;
 
   for (let depth = 0; depth < 6; depth += 1) {
     if (typeof current !== "object" || current === null) return false;
-    if ("code" in current && current.code === "23505") return true;
+    if ("code" in current && current.code === "23505") {
+      if (constraintName && "constraint_name" in current) {
+        return current.constraint_name === constraintName;
+      }
+      return true;
+    }
     current = "cause" in current ? current.cause : undefined;
   }
 
@@ -301,7 +310,10 @@ export class PostgresDraftImportRepository
           .values({
             examId: exam.id,
             revision: 1,
-            presentationMode: input.extractText ? "text" : "image",
+            // OCR imports default to hybrid: clean questions render as text,
+            // while formulas, charts, and low-confidence OCR safely retain
+            // their original image without blocking the entire revision.
+            presentationMode: input.extractText ? "hybrid" : "image",
             note: "Nhập từ ZIP ảnh câu hỏi",
             answerConfidence: "reviewed",
           })
@@ -332,10 +344,16 @@ export class PostgresDraftImportRepository
         };
       });
     } catch (error) {
-      if (isUniqueViolation(error)) {
+      if (isUniqueViolation(error, "exams_code_unique")) {
         throw new DraftImportRepositoryError(
           "EXAM_ALREADY_EXISTS",
           `Đề ${examCode} đã tồn tại.`,
+        );
+      }
+      if (isUniqueViolation(error, "questions_revision_hash_idx")) {
+        throw new DraftImportRepositoryError(
+          "DUPLICATE_IMAGES",
+          "ZIP chứa các ảnh giống hệt nhau (nội dung trùng lặp).",
         );
       }
       throw error;
@@ -483,7 +501,7 @@ export class PostgresDraftImportRepository
       durationMinutes: exam.durationMinutes,
       isRetake: exam.isRetake,
       status: exam.status,
-      presentationMode: exam.presentationMode as "image" | "text",
+      presentationMode: exam.presentationMode as "image" | "text" | "hybrid",
       publishedAt: exam.publishedAt?.toISOString() ?? null,
       answeredCount: questionRows.filter(
         (question) => question.correctOptions.length > 0,

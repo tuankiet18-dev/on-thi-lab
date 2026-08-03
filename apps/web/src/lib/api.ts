@@ -702,13 +702,13 @@ export async function getExamOcrStatus(
 export async function approveOcrQuestion(
   idToken: string,
   questionId: string,
-  textContent: string,
+  input: { textContent: string; options: string[] },
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
   await request(
     `/v1/admin/questions/${questionId}/ocr`,
     idToken,
-    { method: "PATCH", body: JSON.stringify({ textContent }) },
+    { method: "PATCH", body: JSON.stringify(input) },
     fetcher,
   );
 }
@@ -739,10 +739,23 @@ export async function retryOcrQuestion(
   );
 }
 
+export async function retryRevisionOcr(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
 export async function setExamPresentationMode(
   idToken: string,
   revisionId: string,
-  mode: "image" | "text",
+  mode: "image" | "text" | "hybrid",
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
   await request(

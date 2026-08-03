@@ -2,10 +2,10 @@ import type {
   AiSuggestionJob,
   AiSuggestionRepository,
 } from "@onthilab/database";
-import type {
-  AiVisionProvider,
-  AnswerSuggestionImageReader,
-} from "@onthilab/worker";
+import {
+  type AiVisionProvider,
+  type AnswerSuggestionImageReader,
+} from "@onthilab/importer";
 import { describe, expect, it, vi } from "vitest";
 import { LocalAsyncAnswerSuggestionService } from "./answer-suggestion-service";
 

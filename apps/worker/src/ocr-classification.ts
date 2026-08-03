@@ -4,6 +4,9 @@ export interface OcrClassificationContext {
   imageWidth: number;
   imageHeight: number;
   parsedOptionCount: number;
+  textCoverage?: number;
+  lineCount?: number;
+  hasComplexLayout?: boolean;
 }
 
 export function classifyQuestion(context: OcrClassificationContext): string[] {
@@ -14,12 +17,19 @@ export function classifyQuestion(context: OcrClassificationContext): string[] {
     flags.push("low_confidence");
   }
 
-  if (/[∑∫√≤≥±×÷∞∂]/.test(text)) {
+  if (
+    /[∑∫√≤≥±×÷∞∂α-ωΑ-Ω]/.test(text) ||
+    /(?:\b\w+\s*[\^=]\s*\d|\b(?:sin|cos|tan|log|ln|sqrt)\s*\(|\b\d+\s*\/\s*\d+)/i.test(
+      text,
+    )
+  ) {
     flags.push("has_formula");
   }
 
-  const tableRows = text.split("\n").filter((l) => l.includes("|")).length;
-  if (tableRows > 2) {
+  const tableRows = text
+    .split("\n")
+    .filter((line) => line.includes("|") || /\S\s{3,}\S/.test(line)).length;
+  if (tableRows > 2 || context.hasComplexLayout) {
     flags.push("has_table");
   }
 
@@ -27,11 +37,11 @@ export function classifyQuestion(context: OcrClassificationContext): string[] {
     flags.push("has_code_block");
   }
 
-  if (context.imageWidth < 400 || context.imageHeight < 100) {
-    flags.push("image_blurry");
+  if (context.imageWidth < 700 || context.imageHeight < 180) {
+    flags.push("low_resolution");
   }
 
-  if (context.parsedOptionCount === 0) {
+  if (context.parsedOptionCount < 2 || context.parsedOptionCount > 6) {
     flags.push("missing_option_labels");
   }
 
@@ -39,5 +49,16 @@ export function classifyQuestion(context: OcrClassificationContext): string[] {
     flags.push("too_short");
   }
 
-  return flags;
+  // Very little detected text is commonly a graph, formula, diagram, or an
+  // OCR failure. Keep it for a human instead of publishing a misleading text
+  // rendition.
+  if (
+    context.textCoverage !== undefined &&
+    context.textCoverage < 0.012 &&
+    (context.lineCount ?? 0) < 8
+  ) {
+    flags.push("possible_graph_or_diagram");
+  }
+
+  return [...new Set(flags)];
 }

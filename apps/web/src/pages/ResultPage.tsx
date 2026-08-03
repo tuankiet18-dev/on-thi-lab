@@ -53,6 +53,7 @@ export function ResultPage() {
     imageAlt: string;
     textContent?: string | null;
     options?: string[] | null;
+    contentMode: "image" | "text";
   }>(null);
   const [bookmarkedExam, setBookmarkedExam] = useState(false);
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(
@@ -546,7 +547,7 @@ export function ResultPage() {
                   {isExpanded && (
                     <div className="mt-4 overflow-hidden rounded-xl border border-border bg-slate-50">
                       <QuestionContent
-                        presentationMode={exam?.presentationMode ?? "image"}
+                        presentationMode={question.contentMode}
                         imageUrl={questionImageUrl(question.imageUrl)}
                         imageAlt={question.imageAlt}
                         textContent={question.textContent}
@@ -557,6 +558,7 @@ export function ResultPage() {
                             imageAlt: question.imageAlt,
                             textContent: question.textContent,
                             options: question.options,
+                            contentMode: question.contentMode,
                           })
                         }
                       />
@@ -620,7 +622,7 @@ export function ResultPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <QuestionContent
-              presentationMode={exam?.presentationMode ?? "image"}
+              presentationMode={zoomedImage.contentMode}
               imageUrl={zoomedImage.imageUrl}
               imageAlt={zoomedImage.imageAlt}
               textContent={zoomedImage.textContent}

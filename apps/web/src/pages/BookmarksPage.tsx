@@ -214,7 +214,7 @@ export function BookmarksPage() {
                   >
                     <div className="grid sm:grid-cols-[200px_1fr]">
                       <QuestionContent
-                        presentationMode={question.presentationMode}
+                        presentationMode={question.contentMode}
                         imageUrl={questionImageUrl(question.imageUrl)}
                         imageAlt={question.imageAlt}
                         textContent={question.textContent}

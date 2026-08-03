@@ -228,6 +228,8 @@ export const draftImportResultSchema = z.object({
   examCode: z.string(),
   questionCount: z.number().int().positive(),
   status: z.literal("draft"),
+  /** The draft is usable even if its optional OCR jobs could not be queued. */
+  ocrQueueWarning: z.string().optional(),
 });
 
 export const ocrStatuses = [
@@ -238,19 +240,26 @@ export const ocrStatuses = [
   "failed",
 ] as const;
 
+export const examPresentationModes = ["image", "text", "hybrid"] as const;
+export const questionContentModes = ["image", "text"] as const;
+
 export const ocrQuestionStatusSchema = z.object({
   questionId: z.string().uuid(),
   order: z.number(),
   ocrStatus: z.enum(ocrStatuses),
   textContent: z.string().nullable(),
+  options: z.array(z.string()).min(2).max(6).nullable(),
+  optionCount: z.number().int().min(0).max(6),
   confidence: z.number().nullable(),
   flagReasons: z.array(z.string()),
+  validationIssues: z.array(z.string()),
   imageUrl: z.string(),
+  contentMode: z.enum(questionContentModes),
 });
 
 export const examOcrStatusSchema = z.object({
   revisionId: z.string().uuid(),
-  presentationMode: z.enum(["image", "text"]),
+  presentationMode: z.enum(examPresentationModes),
   ocrProgress: z.object({
     total: z.number(),
     approved: z.number(),
@@ -260,6 +269,15 @@ export const examOcrStatusSchema = z.object({
   }),
   questions: z.array(ocrQuestionStatusSchema),
   canPublish: z.boolean(),
+});
+
+export const updateOcrQuestionSchema = z.object({
+  textContent: z.string().trim().min(1).max(12_000),
+  options: z.array(z.string().trim().min(1).max(2_000)).min(2).max(6),
+});
+
+export const updateExamPresentationModeSchema = z.object({
+  mode: z.enum(examPresentationModes),
 });
 
 export const aiAnswerSuggestionSchema = z
@@ -326,7 +344,7 @@ export const draftExamReviewSchema = z.object({
   durationMinutes: z.number().int().positive(),
   isRetake: z.boolean(),
   status: z.enum(["draft", "review", "published"]),
-  presentationMode: z.enum(["image", "text"]),
+  presentationMode: z.enum(examPresentationModes),
   publishedAt: z.string().datetime().nullable(),
   answeredCount: z.number().int().nonnegative(),
   questionCount: z.number().int().positive(),
@@ -398,6 +416,7 @@ export const questionSchema = z.object({
   imageUrl: z.string(),
   imageAlt: z.string(),
   textContent: z.string().nullable().optional(),
+  contentMode: z.enum(questionContentModes).default("image"),
   type: z.enum(questionTypes),
   options: z.array(z.string()).min(2).max(6),
 });
@@ -413,7 +432,7 @@ export const examSummarySchema = z.object({
   isRetake: z.boolean(),
   durationMinutes: z.number().int().positive(),
   questionCount: z.number().int().positive(),
-  presentationMode: z.enum(["image", "text"]).default("image"),
+  presentationMode: z.enum(examPresentationModes).default("image"),
   publishedAt: z.string(),
   answerConfidence: z.enum(["reviewed", "verified"]),
 });
@@ -444,10 +463,11 @@ export const bookmarkedQuestionSchema = z.object({
   imageUrl: z.string(),
   imageAlt: z.string(),
   textContent: z.string().nullable().optional(),
+  contentMode: z.enum(questionContentModes).default("image"),
   type: z.enum(questionTypes),
   options: z.array(z.string()).min(2).max(6),
   bookmarkedAt: z.string().datetime(),
-  presentationMode: z.enum(["image", "text"]).default("image"),
+  presentationMode: z.enum(examPresentationModes).default("image"),
 });
 
 export const bookmarkCollectionSchema = z.object({

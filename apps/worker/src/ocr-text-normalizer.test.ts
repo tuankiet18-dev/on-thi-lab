@@ -48,4 +48,89 @@ B) Option B`;
     const result = normalizeQuestionText(rawText);
     expect(result.options).toEqual(["Option A", "Option B"]);
   });
+
+  it("accepts common Textract labels in a six-option question", () => {
+    const rawText = `Choose all correct answers
+(A) First
+[B] Second
+C: Third
+D - Fourth
+E) Fifth
+F. Sixth`;
+    const result = normalizeQuestionText(rawText);
+
+    expect(result.stem).toBe("Choose all correct answers");
+    expect(result.options).toEqual([
+      "First",
+      "Second",
+      "Third",
+      "Fourth",
+      "Fifth",
+      "Sixth",
+    ]);
+    expect(result.optionCount).toBe(6);
+  });
+
+  it("joins a label-only line with the option text emitted on the next line", () => {
+    const result = normalizeQuestionText(
+      "Choose one\nA\nFirst option\nB\nSecond option",
+    );
+
+    expect(result.stem).toBe("Choose one");
+    expect(result.options).toEqual(["First option", "Second option"]);
+  });
+
+  it("splits multiple labelled options emitted in one Textract line", () => {
+    const result = normalizeQuestionText(
+      "Choose one A. First answer B. Second answer C. Third answer",
+    );
+
+    expect(result.stem).toBe("Choose one");
+    expect(result.options).toEqual([
+      "First answer",
+      "Second answer",
+      "Third answer",
+    ]);
+  });
+
+  it("does not treat a question beginning with A as option A", () => {
+    const result = normalizeQuestionText(`Question: 6
+A project is plagued by requested changes to the project charter. Who has the primary responsibility to decide
+if these changes are necessary?
+(Choose 1 answer)
+A. The project manager
+B. The project team
+C. The sponsor
+D. The stakeholders`);
+
+    expect(result.stem).toBe(
+      "A project is plagued by requested changes to the project charter. Who has the primary responsibility to decide\nif these changes are necessary?",
+    );
+    expect(result.options).toEqual([
+      "The project manager",
+      "The project team",
+      "The sponsor",
+      "The stakeholders",
+    ]);
+  });
+
+  it("removes page labels and choice instructions emitted between options", () => {
+    const result = normalizeQuestionText(`Question: 4
+Which one is not project manager's role?
+A. A builder of teams
+Choose 1 answer)
+B. A motivator of people
+C. A conflict resolution expert
+D. A skilled communicator
+E. A great solution architect`);
+
+    expect(result.stem).toBe("Which one is not project manager's role?");
+    expect(result.options).toEqual([
+      "A builder of teams",
+      "A motivator of people",
+      "A conflict resolution expert",
+      "A skilled communicator",
+      "A great solution architect",
+    ]);
+  });
 });

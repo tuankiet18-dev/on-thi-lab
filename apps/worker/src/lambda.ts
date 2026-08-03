@@ -18,6 +18,7 @@ if (!databaseParameterName || !questionImageBucket) {
 const ssmClient = new SSMClient({});
 const s3Client = new S3Client({});
 const textractClient = new TextractClient({});
+const maxOcrDeliveryAttempts = 3;
 
 class S3ImageReader implements OcrImageReader {
   constructor(private readonly bucketName: string) {}
@@ -78,6 +79,30 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       });
     } catch (error) {
       console.error("Error processing message", record.messageId, error);
+      const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+      if (
+        Number.isFinite(receiveCount) &&
+        receiveCount < maxOcrDeliveryAttempts
+      ) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "OCR worker processing failed";
+        try {
+          const payload = JSON.parse(record.body) as { questionId?: string };
+          if (payload.questionId) {
+            await ocrRepository.scheduleOcrRetry(payload.questionId, message);
+          }
+        } catch (retryError) {
+          // Keep the original failure visible to SQS. A failed state is safer
+          // than accidentally acknowledging an OCR message we could not reset.
+          console.error(
+            "Could not schedule OCR retry",
+            record.messageId,
+            retryError,
+          );
+        }
+      }
       throw error; // Let SQS retry
     }
   }

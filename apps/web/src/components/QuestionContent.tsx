@@ -6,6 +6,7 @@ export interface QuestionContentProps {
   imageAlt: string;
   textContent?: string | null;
   options?: string[] | null;
+  showOptions?: boolean;
   onExpandImage?: () => void;
   className?: string;
   order?: number;
@@ -17,6 +18,7 @@ export function QuestionContent({
   imageAlt,
   textContent,
   options,
+  showOptions = true,
   onExpandImage,
   className = "",
   order,
@@ -26,14 +28,20 @@ export function QuestionContent({
       <div className={`prose prose-slate max-w-none text-base ${className}`}>
         {/* Simple rendering for now, could be markdown or html depending on OCR output format */}
         <p className="whitespace-pre-wrap">{textContent}</p>
-        {options && options.length > 0 && (
-          <ul className="mt-4 list-[upper-alpha] pl-5 space-y-2">
-            {options.map((opt, i) => (
-              <li key={i} className="pl-1 marker:font-bold">
-                {opt}
+        {showOptions && options && options.length > 0 && (
+          <ol className="mt-5 space-y-2 not-prose">
+            {options.map((option, index) => (
+              <li
+                key={`${index}-${option}`}
+                className="flex gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-700"
+              >
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-sm font-bold text-primary">
+                  {String.fromCharCode(65 + index)}
+                </span>
+                <span className="whitespace-pre-wrap pt-0.5">{option}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
       </div>
     );

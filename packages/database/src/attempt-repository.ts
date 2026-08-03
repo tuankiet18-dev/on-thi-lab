@@ -17,6 +17,10 @@ import {
   exams,
   questions,
 } from "./schema";
+import {
+  resolveQuestionContentMode,
+  type ExamPresentationMode,
+} from "./question-presentation";
 import type {
   AttemptSummary,
   AttemptSession,
@@ -368,7 +372,7 @@ export class PostgresAttemptRepository implements AttemptRepository {
       isRetake: examRow.isRetake,
       durationMinutes: examRow.durationMinutes,
       questionCount: questionRows.length,
-      presentationMode: examRow.presentationMode as "image" | "text",
+      presentationMode: examRow.presentationMode as ExamPresentationMode,
       publishedAt: (examRow.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         examRow.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -384,6 +388,10 @@ export class PostgresAttemptRepository implements AttemptRepository {
         imageUrl: this.imageUrlForKey(question.imageKey),
         imageAlt: `Ảnh câu hỏi ${question.order} của đề ${examRow.code}`,
         textContent: question.ocrMetadata?.textContent ?? null,
+        contentMode: resolveQuestionContentMode(
+          examRow.presentationMode as ExamPresentationMode,
+          question.ocrMetadata,
+        ),
         type: question.type,
         options: question.ocrMetadata?.options ?? question.options,
       })),

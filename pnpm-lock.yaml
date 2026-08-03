@@ -46,9 +46,6 @@ importers:
       "@onthilab/importer":
         specifier: workspace:*
         version: link:../../packages/importer
-      "@onthilab/worker":
-        specifier: workspace:*
-        version: link:../worker
       aws-jwt-verify:
         specifier: ^5.1.0
         version: 5.2.1
@@ -224,9 +221,15 @@ importers:
 
   packages/importer:
     dependencies:
+      "@onthilab/database":
+        specifier: workspace:*
+        version: link:../database
       yauzl:
         specifier: ^3.2.0
         version: 3.4.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       "@types/node":
         specifier: ^24.0.10

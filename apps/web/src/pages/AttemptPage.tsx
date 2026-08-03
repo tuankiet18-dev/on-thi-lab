@@ -421,9 +421,10 @@ export function AttemptPage() {
 
             <div className="bg-white p-3 sm:p-6">
               <QuestionContent
-                presentationMode={exam.presentationMode}
+                presentationMode={question.contentMode}
                 textContent={question.textContent}
                 options={question.options}
+                showOptions={false}
                 imageUrl={questionImageUrl(question.imageUrl)}
                 imageAlt={question.imageAlt}
                 onExpandImage={() => setImageExpanded(true)}
@@ -436,7 +437,7 @@ export function AttemptPage() {
                   Chọn đáp án của bạn:
                 </legend>
                 <div className="flex flex-col items-start gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="grid w-full gap-2 sm:grid-cols-2">
                     {question.options.map((option, optionIndex) => {
                       const selected = selectedOptions.includes(optionIndex);
                       return (
@@ -449,17 +450,26 @@ export function AttemptPage() {
                           aria-checked={selected}
                           onClick={() => chooseOption(optionIndex)}
                           className={cn(
-                            "group relative grid size-12 shrink-0 cursor-pointer place-items-center border-2 text-lg font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40 motion-reduce:transform-none motion-reduce:transition-none",
-                            question.type === "single"
-                              ? "rounded-full"
-                              : "rounded-xl",
+                            "group relative flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl border-2 px-3 text-left transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40 motion-reduce:transform-none motion-reduce:transition-none",
                             selected
-                              ? "scale-105 border-primary bg-primary text-white shadow-md shadow-primary/20"
-                              : "border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm",
+                              ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
+                              : "border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm",
                           )}
-                          aria-label={`Chọn đáp án ${option}`}
+                          aria-label={`Chọn đáp án ${String.fromCharCode(65 + optionIndex)}: ${option}`}
                         >
-                          {option}
+                          <span
+                            className={cn(
+                              "grid size-8 shrink-0 place-items-center rounded-lg text-sm font-bold",
+                              selected
+                                ? "bg-white/20 text-white"
+                                : "bg-slate-100 text-slate-700",
+                            )}
+                          >
+                            {String.fromCharCode(65 + optionIndex)}
+                          </span>
+                          <span className="whitespace-pre-wrap text-sm font-medium sm:text-base">
+                            {option}
+                          </span>
                         </button>
                       );
                     })}
@@ -665,7 +675,7 @@ export function AttemptPage() {
             className="min-h-0 flex-1 overflow-auto rounded-xl bg-white p-4"
           >
             <QuestionContent
-              presentationMode={exam.presentationMode}
+              presentationMode={question.contentMode}
               textContent={question.textContent}
               options={question.options}
               imageUrl={questionImageUrl(question.imageUrl)}

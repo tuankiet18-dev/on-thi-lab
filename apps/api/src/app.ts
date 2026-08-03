@@ -9,6 +9,8 @@ import {
   saveAnswerSchema,
   submitAttemptSchema,
   updateQuestionAnswerSchema,
+  updateOcrQuestionSchema,
+  updateExamPresentationModeSchema,
   upsertStudentProfileSchema,
   createReportSchema,
   createFeedbackSchema,
@@ -89,6 +91,21 @@ interface AppDependencies {
   questionImageBaseUrl?: string;
   /** Allowed CORS origins. Defaults to localhost:5173 when not set. */
   corsOrigins: string[];
+}
+
+function publicQuestionImageUrl(
+  imageKey: string,
+  configuredBaseUrl?: string,
+): string {
+  if (/^(?:https?:|data:|blob:)/i.test(imageKey)) return imageKey;
+
+  const encodedKey = imageKey
+    .replace(/^\/+/, "")
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  const baseUrl = configuredBaseUrl ?? "/question-images";
+  return `${baseUrl.replace(/\/$/, "")}/${encodedKey}`;
 }
 
 class UnconfiguredReportRepository implements ReportRepository {
@@ -763,11 +780,31 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
         creator: context.get("profile"),
       });
 
+      let ocrQueueWarning: string | undefined;
       if (parsed.data.extractText) {
-        await dependencies.ocrService.enqueueRevisionOcrJobs(result.revisionId);
+        try {
+          await dependencies.ocrService.enqueueRevisionOcrJobs(
+            result.revisionId,
+          );
+        } catch (error) {
+          // The draft was committed atomically before jobs are queued. Return
+          // it to the admin instead of turning a retry into a duplicate exam;
+          // they can retry from the OCR tab or switch the revision to images.
+          console.error("Unable to queue OCR jobs", error);
+          ocrQueueWarning =
+            "Đề đã được tạo nhưng chưa thể đưa vào hàng đợi OCR. Hãy thử OCR lại từ trang duyệt.";
+        }
       }
 
-      return context.json({ data: result }, 201);
+      return context.json(
+        {
+          data: {
+            ...result,
+            ...(ocrQueueWarning ? { ocrQueueWarning } : {}),
+          },
+        },
+        201,
+      );
     } catch (error) {
       if (error instanceof DraftImportRepositoryError) {
         const status = error.code === "EXAM_ALREADY_EXISTS" ? 409 : 400;
@@ -807,10 +844,10 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
           ...question,
           // Use a relative path by default. The web client resolves it against
           // VITE_API_URL, preserving API Gateway's `/staging` prefix.
-          imageUrl: `${dependencies.questionImageBaseUrl ?? "/question-images"}/${imageKey
-            .split("/")
-            .map(encodeURIComponent)
-            .join("/")}`,
+          imageUrl: publicQuestionImageUrl(
+            imageKey,
+            dependencies.questionImageBaseUrl,
+          ),
         })),
       },
     });
@@ -823,25 +860,40 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     const status = await dependencies.ocrRepository.getExamOcrStatus(
       context.req.param("revisionId"),
     );
-    return context.json({ data: status });
+    return context.json({
+      data: {
+        ...status,
+        questions: status.questions.map((question) => ({
+          ...question,
+          imageUrl: publicQuestionImageUrl(
+            question.imageUrl,
+            dependencies.questionImageBaseUrl,
+          ),
+        })),
+      },
+    });
   });
 
   app.patch("/v1/admin/questions/:questionId/ocr", async (context) => {
     if (!dependencies.ocrRepository) {
       return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
     }
-    let body: any;
+    let body: unknown;
     try {
       body = await context.req.json();
     } catch {
       return context.json({ error: "INVALID_INPUT" }, 400);
     }
-    if (typeof body.textContent !== "string") {
-      return context.json({ error: "INVALID_INPUT" }, 400);
+    const parsed = updateOcrQuestionSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
+      );
     }
     await dependencies.ocrRepository.approveOcrQuestion(
       context.req.param("questionId"),
-      body.textContent,
+      parsed.data,
       context.get("profile").id,
     );
     return context.json({ success: true });
@@ -854,6 +906,16 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     await dependencies.ocrRepository.rejectOcrQuestion(
       context.req.param("questionId"),
       context.get("profile").id,
+    );
+    return context.json({ success: true });
+  });
+
+  app.post("/v1/admin/revisions/:revisionId/ocr/retry", async (context) => {
+    if (!dependencies.ocrRepository) {
+      return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
+    }
+    await dependencies.ocrService.retryRevisionOcrJobs(
+      context.req.param("revisionId"),
     );
     return context.json({ success: true });
   });
@@ -872,27 +934,31 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     if (!dependencies.ocrRepository) {
       return context.json({ error: "OCR_NOT_CONFIGURED" }, 503);
     }
-    let body: any;
+    let body: unknown;
     try {
       body = await context.req.json();
     } catch {
       return context.json({ error: "INVALID_INPUT" }, 400);
     }
-    if (body.mode !== "image" && body.mode !== "text") {
-      return context.json({ error: "INVALID_INPUT" }, 400);
-    }
-
-    // If switching to text mode, make sure to queue the jobs if not already done.
-    if (body.mode === "text") {
-      await dependencies.ocrService.enqueueRevisionOcrJobs(
-        context.req.param("revisionId"),
+    const parsed = updateExamPresentationModeSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "INVALID_INPUT", details: parsed.error.flatten() },
+        400,
       );
     }
 
     await dependencies.ocrRepository.setExamPresentationMode(
       context.req.param("revisionId"),
-      body.mode,
+      parsed.data.mode,
     );
+    // Queue only after a text-capable mode is persisted. Stale messages are
+    // ignored by the worker whenever this revision is switched back to image.
+    if (parsed.data.mode === "text" || parsed.data.mode === "hybrid") {
+      await dependencies.ocrService.enqueueRevisionOcrJobs(
+        context.req.param("revisionId"),
+      );
+    }
     return context.json({ success: true });
   });
 
@@ -963,6 +1029,26 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
 
   app.post("/v1/admin/exams/:examId/ready", async (context) => {
     try {
+      if (dependencies.ocrRepository) {
+        const review = await dependencies.reviews.findReview(
+          context.req.param("examId"),
+        );
+        if (review) {
+          const ocrStatus = await dependencies.ocrRepository.getExamOcrStatus(
+            review.revisionId,
+          );
+          if (!ocrStatus.canPublish) {
+            return context.json(
+              {
+                error: "OCR_NOT_COMPLETED",
+                message:
+                  "Vui lòng duyệt hết các nội dung OCR trước khi hoàn tất đề.",
+              },
+              409,
+            );
+          }
+        }
+      }
       const result = await dependencies.reviews.markReady(
         context.req.param("examId"),
         context.get("profile").id,
@@ -1352,6 +1438,10 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     console.error("Unhandled API error", {
       requestId: context.get("requestId"),
       error: error instanceof Error ? error.message : "Unknown error",
+      cause:
+        error instanceof Error && (error as any).cause
+          ? (error as any).cause
+          : undefined,
     });
 
     return context.json(

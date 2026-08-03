@@ -10,7 +10,7 @@ import {
   PostgresFeedbackRepository,
   PostgresOcrRepository,
 } from "@onthilab/database";
-import { OpenAiCompatibleVisionProvider } from "@onthilab/worker";
+import { OpenAiCompatibleVisionProvider } from "@onthilab/importer";
 import { resolve } from "node:path";
 import { createApp } from "./app";
 import {

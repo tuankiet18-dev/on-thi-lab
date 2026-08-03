@@ -4,11 +4,15 @@ import { randomUUID } from "node:crypto";
 
 export interface OcrService {
   enqueueRevisionOcrJobs(revisionId: string): Promise<void>;
+  retryRevisionOcrJobs(revisionId: string): Promise<void>;
   enqueueQuestionOcrJob(questionId: string): Promise<void>;
 }
 
 export class UnconfiguredOcrService implements OcrService {
   async enqueueRevisionOcrJobs(): Promise<void> {
+    throw new Error("OCR service not configured");
+  }
+  async retryRevisionOcrJobs(): Promise<void> {
     throw new Error("OCR service not configured");
   }
   async enqueueQuestionOcrJob(): Promise<void> {
@@ -25,8 +29,20 @@ export class SqsOcrService implements OcrService {
 
   async enqueueRevisionOcrJobs(revisionId: string): Promise<void> {
     const questionsList = await this.repository.enqueueOcrJobs(revisionId);
+    await this.sendJobs(revisionId, questionsList, false);
+  }
 
-    // We need imageKey and imageHash for the OCR job.
+  async retryRevisionOcrJobs(revisionId: string): Promise<void> {
+    const questionsList =
+      await this.repository.resetRevisionOcrJobs(revisionId);
+    await this.sendJobs(revisionId, questionsList, true);
+  }
+
+  private async sendJobs(
+    revisionId: string,
+    questionsList: { id: string; imageKey: string; imageHash: string }[],
+    force: boolean,
+  ): Promise<void> {
     if (questionsList.length === 0) return;
 
     // Send in batches of 10
@@ -36,47 +52,51 @@ export class SqsOcrService implements OcrService {
     }
 
     for (const batch of batches) {
-      await this.client.send(
+      const response = await this.client.send(
         new SendMessageBatchCommand({
           QueueUrl: this.queueUrl,
           Entries: batch.map((q: any) => ({
             Id: randomUUID(), // ID for the batch entry
-            MessageDeduplicationId: randomUUID(),
-            MessageGroupId: revisionId,
             MessageBody: JSON.stringify({
               questionId: q.id,
               revisionId: revisionId,
               imageKey: q.imageKey,
               imageHash: q.imageHash,
-              providerVersion: "textract@2024-01",
+              providerVersion: "textract@2024-02",
+              force,
             }),
           })),
         }),
       );
+      if ((response.Failed?.length ?? 0) > 0) {
+        throw new Error("Không thể đưa một số câu hỏi vào hàng đợi OCR.");
+      }
     }
   }
 
   async enqueueQuestionOcrJob(questionId: string): Promise<void> {
     const question = await this.repository.triggerReOcr(questionId);
 
-    await this.client.send(
+    const response = await this.client.send(
       new SendMessageBatchCommand({
         QueueUrl: this.queueUrl,
         Entries: [
           {
             Id: randomUUID(),
-            MessageDeduplicationId: randomUUID(),
-            MessageGroupId: question.revisionId,
             MessageBody: JSON.stringify({
               questionId: question.id,
               revisionId: question.revisionId,
               imageKey: question.imageKey,
               imageHash: question.imageHash,
-              providerVersion: "textract@2024-01",
+              providerVersion: "textract@2024-02",
+              force: true,
             }),
           },
         ],
       }),
     );
+    if ((response.Failed?.length ?? 0) > 0) {
+      throw new Error("Không thể đưa câu hỏi vào hàng đợi OCR.");
+    }
   }
 }

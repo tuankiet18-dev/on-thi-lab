@@ -399,6 +399,59 @@ describe("attempt API", () => {
     });
   });
 
+  it("maps OCR review image keys through the question image endpoint", async () => {
+    const revisionId = "20000000-0000-4000-8000-000000000002";
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      ocrRepository: {
+        getExamOcrStatus: async () => ({
+          revisionId,
+          presentationMode: "hybrid",
+          ocrProgress: {
+            total: 1,
+            approved: 1,
+            needsReview: 0,
+            pending: 0,
+            failed: 0,
+          },
+          questions: [
+            {
+              questionId: "30000000-0000-4000-8000-000000000003",
+              order: 1,
+              ocrStatus: "approved",
+              textContent: "Question",
+              options: ["First", "Second"],
+              optionCount: 2,
+              confidence: 0.99,
+              flagReasons: [],
+              validationIssues: [],
+              imageUrl: "drafts/example/Q1.webp",
+              contentMode: "text",
+            },
+          ],
+          canPublish: true,
+        }),
+      } as any,
+    });
+
+    const response = await isolatedApp.request(
+      `/v1/admin/revisions/${revisionId}/ocr`,
+      { headers: authorization },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        questions: [
+          {
+            imageUrl: "/question-images/drafts/example/Q1.webp",
+          },
+        ],
+      },
+    });
+  });
+
   it("publishes an OpenAPI document", async () => {
     const response = await app.request("/openapi.json");
     const document = (await response.json()) as {
@@ -415,6 +468,9 @@ describe("attempt API", () => {
       document.paths[
         "/v1/admin/exams/{examId}/questions/{questionId}/ai-suggestion"
       ],
+    ).toBeDefined();
+    expect(
+      document.paths["/v1/admin/revisions/{revisionId}/ocr"],
     ).toBeDefined();
   });
 

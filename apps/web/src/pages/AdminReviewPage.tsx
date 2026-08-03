@@ -96,6 +96,13 @@ export function AdminReviewPage() {
     studentProfile?.role === "admin" ||
     session?.user.groups.includes("admin") === true;
 
+  const refreshReview = async () => {
+    if (!session) return;
+    const result = await getDraftExamReview(session.idToken, examId);
+    setReview(result);
+    setPublishedAt(result.publishedAt);
+  };
+
   useEffect(() => {
     if (!session) {
       setLoading(false);
@@ -500,7 +507,9 @@ export function AdminReviewPage() {
       setError(
         reason instanceof ApiError && reason.code === "ANSWERS_INCOMPLETE"
           ? "Vẫn còn câu chưa có đáp án."
-          : "Không thể hoàn tất duyệt. Vui lòng thử lại.",
+          : reason instanceof ApiError && reason.code === "OCR_NOT_COMPLETED"
+            ? "Hãy duyệt xong nội dung OCR hoặc chuyển đề về ảnh gốc trước khi hoàn tất."
+            : "Không thể hoàn tất duyệt. Vui lòng thử lại.",
       );
     } finally {
       setMarkingReady(false);
@@ -651,7 +660,7 @@ export function AdminReviewPage() {
         Đề chờ duyệt
       </Link>
 
-      {review.presentationMode === "text" && (
+      {review.presentationMode !== "image" && (
         <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
           <button
             type="button"
@@ -661,7 +670,10 @@ export function AdminReviewPage() {
                 ? "bg-white shadow-sm text-primary"
                 : "text-slate-600 hover:text-slate-900",
             )}
-            onClick={() => setActiveTab("answers")}
+            onClick={() => {
+              setActiveTab("answers");
+              void refreshReview().catch(() => undefined);
+            }}
           >
             Duyệt đáp án
           </button>
@@ -687,6 +699,7 @@ export function AdminReviewPage() {
           onOcrCompleted={() => {
             // Optional callback
           }}
+          onOcrUpdated={() => void refreshReview().catch(() => undefined)}
         />
       ) : (
         <>

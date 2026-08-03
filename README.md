@@ -161,7 +161,7 @@ VITE_COGNITO_DOMAIN='https://<cognito-domain>' \
 VITE_COGNITO_CLIENT_ID='<client-id>' \
 VITE_COGNITO_REDIRECT_URI='https://staging.onthilab.id.vn/auth/callback' \
 VITE_COGNITO_LOGOUT_URI='https://staging.onthilab.id.vn/' \
-pnpm --filter @onthilab/web build
+pnpm --filter @onthilab/web exec vite build --mode staging
 
 aws s3 sync apps/web/dist s3://<web-bucket> --delete --only-show-errors
 aws cloudfront create-invalidation --distribution-id <distribution-id> --paths '/*'

@@ -10,6 +10,10 @@ import {
   exams,
   questions,
 } from "./schema";
+import {
+  resolveQuestionContentMode,
+  type ExamPresentationMode,
+} from "./question-presentation";
 
 export type BookmarkRepositoryErrorCode =
   "EXAM_NOT_FOUND" | "QUESTION_NOT_FOUND";
@@ -152,7 +156,7 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         publishedAt: (row.publishedAt ?? new Date(0)).toISOString(),
         answerConfidence:
           row.answerConfidence === "verified" ? "verified" : "reviewed",
-        presentationMode: row.presentationMode as "image" | "text",
+        presentationMode: row.presentationMode as ExamPresentationMode,
         bookmarkedAt: row.bookmarkedAt.toISOString(),
       })),
       questions: savedQuestions.map((row) => ({
@@ -167,10 +171,14 @@ export class PostgresBookmarkRepository implements BookmarkRepository {
         imageUrl: this.imageUrlForKey(row.imageKey),
         imageAlt: `Ảnh câu hỏi ${row.order} của đề ${row.examCode}`,
         textContent: row.ocrMetadata?.textContent ?? null,
+        contentMode: resolveQuestionContentMode(
+          row.presentationMode as ExamPresentationMode,
+          row.ocrMetadata,
+        ),
         type: row.type,
         options: row.ocrMetadata?.options ?? row.options,
         bookmarkedAt: row.bookmarkedAt.toISOString(),
-        presentationMode: row.presentationMode as "image" | "text",
+        presentationMode: row.presentationMode as ExamPresentationMode,
       })),
     };
   }
