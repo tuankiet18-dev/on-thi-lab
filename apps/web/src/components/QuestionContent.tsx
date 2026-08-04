@@ -72,7 +72,7 @@ export function QuestionContent({
         type="button"
         onClick={onExpandImage}
         className={`group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 ${className}`}
-        aria-label={`Phóng to ảnh câu hỏi ${order ?? ""}`}
+        aria-label={order ? `Phóng to ảnh câu ${order}` : "Phóng to ảnh"}
       >
         {imgContent}
       </button>

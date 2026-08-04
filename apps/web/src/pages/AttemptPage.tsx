@@ -427,6 +427,7 @@ export function AttemptPage() {
                 showOptions={false}
                 imageUrl={questionImageUrl(question.imageUrl)}
                 imageAlt={question.imageAlt}
+                order={currentIndex + 1}
                 onExpandImage={() => setImageExpanded(true)}
               />
             </div>
@@ -671,7 +672,7 @@ export function AttemptPage() {
           <section
             role="dialog"
             aria-modal="true"
-            aria-label={`Chi tiết câu ${currentIndex + 1}`}
+            aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
             className="min-h-0 flex-1 overflow-auto rounded-xl bg-white p-4"
           >
             <QuestionContent
