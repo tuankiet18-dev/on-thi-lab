@@ -248,7 +248,9 @@ export const ocrQuestionStatusSchema = z.object({
   order: z.number(),
   ocrStatus: z.enum(ocrStatuses),
   textContent: z.string().nullable(),
-  options: z.array(z.string()).min(2).max(6).nullable(),
+  // OCR review must represent incomplete extraction so an admin can repair
+  // it. The 2–6 option rule is enforced only when text is approved/published.
+  options: z.array(z.string()).max(6).nullable(),
   optionCount: z.number().int().min(0).max(6),
   confidence: z.number().nullable(),
   flagReasons: z.array(z.string()),

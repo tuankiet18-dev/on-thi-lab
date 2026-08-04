@@ -49,6 +49,8 @@ const flagLabel: Record<string, string> = {
   admin_marked_unsupported: "Đã chọn dùng ảnh gốc",
 };
 
+type ReviewFilter = "attention" | "all" | "text" | "image";
+
 function statusTone(status: OcrQuestionStatus["ocrStatus"]) {
   if (status === "approved") return "green" as const;
   if (status === "needs_review") return "amber" as const;
@@ -81,6 +83,8 @@ export function AdminReviewOcr({
     null,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("attention");
 
   const loadStatus = async (isRefresh = false) => {
     if (!session) return;
@@ -88,9 +92,11 @@ export function AdminReviewOcr({
     try {
       const data = await getExamOcrStatus(session.idToken, revisionId);
       setStatus(data);
+      setLoadError(null);
       if (data.canPublish) onOcrCompleted?.();
     } catch (error) {
       console.error(error);
+      setLoadError("Không tải được dữ liệu OCR. Hãy thử lại.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -258,11 +264,64 @@ export function AdminReviewOcr({
     }
   };
 
-  if (loading || !status || !activeQuestion) {
+  const handleUseImagesForAttention = async () => {
+    if (!session || !status || isReadOnly) return;
+    const candidates = status.questions.filter(
+      (question) =>
+        question.ocrStatus !== "approved" &&
+        !question.flagReasons.includes("admin_marked_unsupported"),
+    );
+    if (candidates.length === 0) return;
+    if (
+      !window.confirm(
+        `Dùng ảnh gốc cho ${candidates.length} câu cần kiểm tra? Bạn vẫn có thể OCR lại từng câu sau.`,
+      )
+    ) {
+      return;
+    }
+    setWorkingQuestionId("all");
+    try {
+      await Promise.all(
+        candidates.map((question) =>
+          rejectOcrQuestion(session.idToken, question.questionId),
+        ),
+      );
+      await loadStatus();
+    } catch (error) {
+      console.error(error);
+      setLoadError("Không thể chuyển một số câu sang ảnh gốc.");
+    } finally {
+      setWorkingQuestionId(null);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex h-48 items-center justify-center">
         <LoaderCircle className="animate-spin text-primary" size={24} />
       </div>
+    );
+  }
+
+  if (loadError || !status || !activeQuestion) {
+    return (
+      <Card className="mx-auto max-w-lg p-6 text-center">
+        <CircleAlert className="mx-auto text-amber-600" size={24} />
+        <h2 className="mt-3 font-heading text-lg font-bold">
+          Không thể mở nội dung OCR
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          {loadError ?? "Đề chưa có dữ liệu OCR để hiển thị."}
+        </p>
+        <Button
+          type="button"
+          className="mt-4"
+          onClick={() => void loadStatus(true)}
+          icon={<RefreshCw size={16} />}
+        >
+          Thử lại
+        </Button>
+      </Card>
     );
   }
 
@@ -277,9 +336,28 @@ export function AdminReviewOcr({
   const imageFallbackCount = questions.filter(
     (question) => question.contentMode === "image",
   ).length;
+  const attentionQuestions = questions.filter(
+    (question) => question.ocrStatus !== "approved",
+  );
+  const visibleQuestions = questions.filter((question) => {
+    if (reviewFilter === "all") return true;
+    if (reviewFilter === "attention") {
+      return question.ocrStatus !== "approved";
+    }
+    return question.contentMode === reviewFilter;
+  });
+  const selectFilter = (filter: ReviewFilter) => {
+    setReviewFilter(filter);
+    const next = questions.find((question) => {
+      if (filter === "all") return true;
+      if (filter === "attention") return question.ocrStatus !== "approved";
+      return question.contentMode === filter;
+    });
+    setSelectedQuestionId(next?.questionId ?? null);
+  };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-heading text-lg font-bold">Duyệt nội dung OCR</h2>
@@ -314,7 +392,7 @@ export function AdminReviewOcr({
         )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden xl:self-start">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
             <div className="flex items-center gap-2">
@@ -346,7 +424,7 @@ export function AdminReviewOcr({
             <img
               src={questionImageUrl(activeQuestion.imageUrl)}
               alt={`Ảnh gốc câu ${activeQuestion.order}`}
-              className="min-h-48 w-full rounded-xl border border-border bg-white object-contain"
+              className="max-h-[430px] min-h-40 w-full rounded-xl border border-border bg-white object-contain"
             />
 
             {isProcessing ? (
@@ -529,6 +607,17 @@ export function AdminReviewOcr({
                   OCR lại toàn bộ đề
                 </Button>
               )}
+              {!isReadOnly && attentionQuestions.length > 0 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={workingQuestionId === "all"}
+                  onClick={() => void handleUseImagesForAttention()}
+                  icon={<ImageOff size={16} />}
+                >
+                  Dùng ảnh cho câu cần xem
+                </Button>
+              )}
             </div>
           </Card>
 
@@ -585,12 +674,35 @@ export function AdminReviewOcr({
       </div>
 
       <Card className="p-4 sm:p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-heading font-bold">Danh sách câu</h3>
-          <span className="text-sm text-slate-500">Bấm để mở nhanh</span>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-heading font-bold">Câu hỏi</h3>
+          <div className="flex flex-wrap gap-1.5 text-sm">
+            {(
+              [
+                ["attention", `Cần xem (${attentionQuestions.length})`],
+                ["text", `Text (${questions.length - imageFallbackCount})`],
+                ["image", `Ảnh (${imageFallbackCount})`],
+                ["all", `Tất cả (${questions.length})`],
+              ] as const
+            ).map(([filter, label]) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => selectFilter(filter)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 font-semibold transition-colors",
+                  reviewFilter === filter
+                    ? "bg-primary text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-6 gap-2 sm:grid-cols-10 lg:grid-cols-[repeat(15,minmax(0,1fr))]">
-          {questions.map((question) => (
+          {visibleQuestions.map((question) => (
             <button
               key={question.questionId}
               type="button"

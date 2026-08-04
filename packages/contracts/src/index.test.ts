@@ -3,6 +3,7 @@ import {
   calculateScore,
   aiAnswerSuggestionSchema,
   createDraftImportSchema,
+  examOcrStatusSchema,
   isExactAnswer,
   publishExamResultSchema,
   updateCourseSchema,
@@ -190,6 +191,40 @@ describe("answer review input", () => {
 });
 
 describe("OCR review input", () => {
+  it("allows incomplete OCR options in review status only", () => {
+    expect(
+      examOcrStatusSchema.parse({
+        revisionId: "20000000-0000-4000-8000-000000000002",
+        presentationMode: "hybrid",
+        ocrProgress: {
+          total: 1,
+          approved: 0,
+          needsReview: 1,
+          pending: 0,
+          failed: 0,
+        },
+        questions: [
+          {
+            questionId: "10000000-0000-4000-8000-000000000001",
+            order: 1,
+            ocrStatus: "needs_review",
+            textContent: "OCR text without labels",
+            options: [],
+            optionCount: 0,
+            confidence: 0.87,
+            flagReasons: ["missing_option_labels"],
+            validationIssues: [],
+            imageUrl: "/question-images/example.webp",
+            contentMode: "image",
+          },
+        ],
+        canPublish: true,
+      }),
+    ).toMatchObject({
+      questions: [{ options: [], ocrStatus: "needs_review" }],
+    });
+  });
+
   it("requires a stem and between two and six non-empty options", () => {
     expect(
       updateOcrQuestionSchema.parse({

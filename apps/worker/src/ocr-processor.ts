@@ -4,6 +4,11 @@ import { normalizeQuestionText } from "./ocr-text-normalizer.js";
 import sharp, { type Sharp } from "sharp";
 import { classifyQuestion } from "./ocr-classification.js";
 import {
+  parseQuestionLayout,
+  type OcrBoundingBox,
+  type OcrLayoutLine,
+} from "./ocr-layout-parser.js";
+import {
   TextractClient,
   DetectDocumentTextCommand,
 } from "@aws-sdk/client-textract";
@@ -13,7 +18,7 @@ export const ocrJobSchema = z.object({
   revisionId: z.string().uuid(),
   imageKey: z.string().min(1),
   imageHash: z.string().min(1),
-  providerVersion: z.literal("textract@2024-02"),
+  providerVersion: z.enum(["textract@2024-02", "textract@2024-03-layout"]),
   force: z.boolean().optional().default(false),
 });
 
@@ -72,50 +77,115 @@ async function prepareImageForTextract(
   return { bytes: output, width, height };
 }
 
-function computeAverageConfidence(blocks: any[]): number {
-  if (blocks.length === 0) return 0;
-  const lineBlocks = blocks.filter((b) => b.BlockType === "LINE");
-  if (lineBlocks.length === 0) return 0;
-
-  const sum = lineBlocks.reduce((acc, b) => acc + (b.Confidence || 0), 0);
-  return sum / lineBlocks.length / 100; // Textract confidence is 0-100
+function textractLines(blocks: unknown[]): OcrLayoutLine[] {
+  return blocks
+    .filter(
+      (
+        block,
+      ): block is {
+        BlockType: string;
+        Text?: string;
+        Confidence?: number;
+        Geometry?: { BoundingBox?: Record<string, unknown> };
+      } => typeof block === "object" && block !== null,
+    )
+    .filter((block) => block.BlockType === "LINE" && Boolean(block.Text))
+    .flatMap((block) => {
+      const box = block.Geometry?.BoundingBox;
+      if (
+        typeof box?.Left !== "number" ||
+        typeof box.Top !== "number" ||
+        typeof box.Width !== "number" ||
+        typeof box.Height !== "number"
+      ) {
+        return [];
+      }
+      return [
+        {
+          text: block.Text!.trim(),
+          confidence: (block.Confidence ?? 0) / 100,
+          box: {
+            left: box.Left,
+            top: box.Top,
+            width: box.Width,
+            height: box.Height,
+          },
+        },
+      ];
+    });
 }
 
-function extractTextFromBlocks(blocks: any[]): string {
-  const lineBlocks = blocks.filter((b) => b.BlockType === "LINE");
-  return lineBlocks.map((b) => b.Text).join("\n");
+function computeAverageConfidence(lines: OcrLayoutLine[]): number {
+  if (lines.length === 0) return 0;
+  return lines.reduce((sum, line) => sum + line.confidence, 0) / lines.length;
 }
 
-function getTextLayoutMetrics(blocks: any[]): {
+function getTextLayoutMetrics(lines: OcrLayoutLine[]): {
   textCoverage: number;
   lineCount: number;
   hasComplexLayout: boolean;
 } {
-  const lines = blocks.filter((block) => block.BlockType === "LINE");
-  const textCoverage = lines.reduce((total, block) => {
-    const box = block.Geometry?.BoundingBox;
-    return total + (box?.Width ?? 0) * (box?.Height ?? 0);
+  const textCoverage = lines.reduce((total, line) => {
+    return total + line.box.width * line.box.height;
   }, 0);
 
-  const boxes = lines
-    .map((line) => line.Geometry?.BoundingBox)
-    .filter(
-      (box): box is { Left: number; Top: number; Width: number } =>
-        typeof box?.Left === "number" &&
-        typeof box.Top === "number" &&
-        typeof box.Width === "number",
-    );
-  const hasComplexLayout = boxes.some((box, index) =>
-    boxes
+  const hasComplexLayout = lines.some((line, index) =>
+    lines
       .slice(index + 1)
       .some(
         (other) =>
-          Math.abs(box.Top - other.Top) < 0.015 &&
-          Math.abs(box.Left - other.Left) > 0.25,
+          Math.abs(line.box.top - other.box.top) < 0.015 &&
+          Math.abs(line.box.left - other.box.left) > 0.25,
       ),
   );
 
   return { textCoverage, lineCount: lines.length, hasComplexLayout };
+}
+
+function canRetryWithCrop(crop: OcrBoundingBox | null): crop is OcrBoundingBox {
+  return (
+    crop !== null &&
+    crop.width >= 0.16 &&
+    crop.height >= 0.06 &&
+    (crop.width < 0.92 || crop.height < 0.92)
+  );
+}
+
+async function cropForRetry(
+  bytes: Buffer,
+  crop: OcrBoundingBox,
+): Promise<Buffer> {
+  const metadata = await sharp(bytes).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (!width || !height) throw new Error("Không thể đọc kích thước ảnh OCR.");
+
+  const left = Math.max(0, Math.floor(crop.left * width));
+  const top = Math.max(0, Math.floor(crop.top * height));
+  const cropWidth = Math.min(
+    width - left,
+    Math.max(1, Math.ceil(crop.width * width)),
+  );
+  const cropHeight = Math.min(
+    height - top,
+    Math.max(1, Math.ceil(crop.height * height)),
+  );
+  return sharp(bytes)
+    .extract({ left, top, width: cropWidth, height: cropHeight })
+    .resize({ width: Math.min(Math.max(cropWidth * 2, 1_400), 2_800) })
+    .sharpen({ sigma: 1 })
+    .jpeg({ quality: 90, chromaSubsampling: "4:4:4" })
+    .toBuffer();
+}
+
+async function detectLines(
+  textract: TextractClient,
+  bytes: Buffer,
+): Promise<OcrLayoutLine[]> {
+  const response = await textract.send(
+    new DetectDocumentTextCommand({ Document: { Bytes: bytes } }),
+  );
+  return textractLines(response.Blocks ?? []);
 }
 
 export async function processOcrJob(
@@ -154,16 +224,44 @@ export async function processOcrJob(
       return;
     }
 
-    const command = new DetectDocumentTextCommand({
-      Document: { Bytes: preparedImage.bytes },
-    });
+    const firstPassLines = await detectLines(
+      deps.textract,
+      preparedImage.bytes,
+    );
+    let layout = parseQuestionLayout(firstPassLines);
+    let retryUsed = false;
 
-    const textractResult = await deps.textract.send(command);
+    // Full-screen captures can include the answer sidebar and navigation.
+    // Only retry when geometry found a smaller, likely question panel and the
+    // first pass could not identify a complete A–F option sequence.
+    if (layout.optionCount < 2 && canRetryWithCrop(layout.crop)) {
+      const croppedBytes = await cropForRetry(preparedImage.bytes, layout.crop);
+      const retryLines = await detectLines(deps.textract, croppedBytes);
+      const retryLayout = parseQuestionLayout(retryLines);
+      if (retryLayout.optionCount >= layout.optionCount) {
+        layout = retryLayout;
+        retryUsed = true;
+      }
+    }
 
-    const rawText = extractTextFromBlocks(textractResult.Blocks ?? []);
-    const confidence = computeAverageConfidence(textractResult.Blocks ?? []);
-    const normalized = normalizeQuestionText(rawText);
-    const layoutMetrics = getTextLayoutMetrics(textractResult.Blocks ?? []);
+    const normalized =
+      layout.optionCount >= 2
+        ? layout
+        : normalizeQuestionText(
+            layout.rawText ||
+              firstPassLines.map((line) => line.text).join("\n"),
+          );
+    const contentLines = firstPassLines.filter((line) =>
+      layout.rawText.includes(line.text),
+    );
+    const confidence = computeAverageConfidence(
+      contentLines.length > 0 ? contentLines : firstPassLines,
+    );
+    const layoutMetrics = getTextLayoutMetrics(
+      contentLines.length > 0 ? contentLines : firstPassLines,
+    );
+    const rawText =
+      layout.rawText || firstPassLines.map((line) => line.text).join("\n");
 
     const flagReasons = classifyQuestion({
       rawText,
@@ -179,6 +277,12 @@ export async function processOcrJob(
       textContent: normalized.stem,
       options: normalized.options,
       confidence,
+      layout: {
+        parserVersion: "geometry-v1",
+        sourceLineCount: layout.sourceLineCount,
+        selectedLineCount: layout.selectedLineCount,
+        retryUsed,
+      },
       flagReasons,
       providerVersion: job.providerVersion,
       status: flagReasons.length > 0 ? "needs_review" : "approved",
