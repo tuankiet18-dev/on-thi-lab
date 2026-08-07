@@ -16,6 +16,7 @@ const exams: ExamSummary[] = [
     questionCount: 60,
     publishedAt: "2026-04-10T00:00:00.000Z",
     answerConfidence: "reviewed",
+    presentationMode: "image",
   },
   {
     id: "swd-hl-old",
@@ -30,6 +31,7 @@ const exams: ExamSummary[] = [
     questionCount: 60,
     publishedAt: "2025-08-10T00:00:00.000Z",
     answerConfidence: "reviewed",
+    presentationMode: "image",
   },
   {
     id: "swd-hl-retake",
@@ -44,6 +46,7 @@ const exams: ExamSummary[] = [
     questionCount: 60,
     publishedAt: "2025-08-10T00:00:00.000Z",
     answerConfidence: "reviewed",
+    presentationMode: "image",
   },
   {
     id: "prf",
@@ -58,6 +61,7 @@ const exams: ExamSummary[] = [
     questionCount: 60,
     publishedAt: "2026-02-10T00:00:00.000Z",
     answerConfidence: "reviewed",
+    presentationMode: "image",
   },
 ];
 

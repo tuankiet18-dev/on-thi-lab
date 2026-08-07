@@ -11,7 +11,7 @@ import {
   processAnswerSuggestionJob,
   type AiVisionProvider,
   type AnswerSuggestionImageReader,
-} from "@onthilab/worker";
+} from "@onthilab/importer";
 import type { QueueAiSuggestionsResult } from "@onthilab/contracts";
 
 export type AnswerSuggestionServiceErrorCode =

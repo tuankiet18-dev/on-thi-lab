@@ -7,5 +7,11 @@ export function questionImageUrl(imageUrl: string): string {
   // from the SPA origin, so keep their relative paths unchanged.
   if (!hasConfiguredApiUrl) return imageUrl;
 
-  return `${webConfig.apiUrl.replace(/\/$/, "")}/${imageUrl.replace(/^\/+/, "")}`;
+  const relativePath = imageUrl.replace(/^\/+/, "");
+  // Older OCR API responses exposed the S3 key directly. Keep the client
+  // defensive while the corrected API response propagates through staging.
+  const apiPath = relativePath.startsWith("drafts/")
+    ? `question-images/${relativePath}`
+    : relativePath;
+  return `${webConfig.apiUrl.replace(/\/$/, "")}/${apiPath}`;
 }

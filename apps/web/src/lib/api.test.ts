@@ -139,6 +139,7 @@ describe("profile API client", () => {
           examType: "FE",
           isRetake: false,
           durationMinutes: 60,
+          extractText: true,
         },
         new File(["PK"], "questions.zip", { type: "application/zip" }),
         fetcher,
@@ -156,6 +157,7 @@ describe("profile API client", () => {
     const examId = "20000000-0000-4000-8000-000000000001";
     const questionId = "40000000-0000-4000-8000-000000000001";
     const review = {
+      presentationMode: "image",
       examId,
       revisionId: "30000000-0000-4000-8000-000000000001",
       examCode: "SWD392-SP26-FE",
@@ -241,22 +243,25 @@ describe("profile API client", () => {
   it("publishes a reviewed exam and loads it from the live catalog", async () => {
     const examId = "20000000-0000-4000-8000-000000000001";
     const publishedAt = "2026-07-24T06:00:00.000Z";
-    const summary = {
-      id: examId,
-      code: "SWD392-SP26-FE",
-      courseCode: "SWD392",
-      courseName: "Software Architecture and Design",
-      semester: "SP26",
-      campus: "Hòa Lạc",
-      examType: "FE",
-      isRetake: false,
-      durationMinutes: 60,
-      questionCount: 1,
-      publishedAt,
-      answerConfidence: "verified",
-    } as const;
+    const summary = [
+      {
+        id: examId,
+        code: "SWD392-SP26-FE",
+        courseCode: "SWD392",
+        courseName: "Software Architecture and Design",
+        semester: "SP26",
+        campus: "Hòa Lạc",
+        examType: "FE",
+        isRetake: false,
+        durationMinutes: 60,
+        questionCount: 1,
+        publishedAt: "2026-07-24T06:00:00.000Z",
+        answerConfidence: "verified",
+        presentationMode: "image",
+      },
+    ];
     const exam = {
-      ...summary,
+      ...summary[0],
       instructions: ["Không thể tạm dừng."],
       shuffleQuestions: true,
       questions: [
@@ -265,6 +270,7 @@ describe("profile API client", () => {
           order: 1,
           imageUrl: "http://localhost:8787/question-images/Q1.jpg",
           imageAlt: "Câu hỏi 1",
+          contentMode: "image",
           type: "single",
           options: ["A", "B", "C", "D"],
         },
@@ -286,7 +292,7 @@ describe("profile API client", () => {
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: [summary] }), { status: 200 }),
+        new Response(JSON.stringify({ data: summary }), { status: 200 }),
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ data: exam }), { status: 200 }),
@@ -295,9 +301,9 @@ describe("profile API client", () => {
     await expect(
       publishExam("signed-id-token", examId, fetcher),
     ).resolves.toMatchObject({ status: "published" });
-    await expect(getCatalog("signed-id-token", fetcher)).resolves.toEqual([
+    await expect(getCatalog("signed-id-token", fetcher)).resolves.toEqual(
       summary,
-    ]);
+    );
     await expect(
       getPublishedExam("signed-id-token", examId, fetcher),
     ).resolves.toEqual(exam);
@@ -448,6 +454,7 @@ describe("profile API client", () => {
               questionCount: 1,
               publishedAt: "2026-07-24T06:00:00.000Z",
               answerConfidence: "reviewed",
+              presentationMode: "image",
               shuffleQuestions: true,
               instructions: [],
               questions: [
@@ -456,6 +463,7 @@ describe("profile API client", () => {
                   order: 1,
                   imageUrl: "https://example.test/Q1.jpg",
                   imageAlt: "Câu hỏi 1",
+                  contentMode: "image",
                   type: "single",
                   options: ["A", "B", "C", "D"],
                 },

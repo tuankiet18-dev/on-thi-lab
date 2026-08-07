@@ -2,7 +2,7 @@ import {
   validateAiProposal,
   type AiAnswerProposal,
   type AiVisionProvider,
-} from "./index.js";
+} from "./answer-suggestion.js";
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -91,7 +91,7 @@ export class OpenAiCompatibleVisionProvider implements AiVisionProvider {
                   type: "text",
                   text: [
                     `Môn học: ${input.courseCode}.`,
-                    `Hệ thống đang cấu hình ${input.optionCount} lựa chọn, đánh số từ 0.`,
+                    `Hệ thống đang tạm cấu hình ${input.optionCount} lựa chọn; hãy tự nhận diện lại số lựa chọn thật từ ảnh, không mặc định theo giá trị này.`,
                     "Trả JSON gồm questionType (single|multiple), optionCount, proposedAnswers (mảng chỉ số), confidence (0..1).",
                     "Không đưa nội dung giải thích dài. Có thể thêm rationale ngắn để audit nội bộ.",
                   ].join(" "),

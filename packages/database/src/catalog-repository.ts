@@ -18,6 +18,10 @@ import {
   majors,
   questions,
 } from "./schema";
+import {
+  resolveQuestionContentMode,
+  type ExamPresentationMode,
+} from "./question-presentation";
 
 export interface CatalogFilters {
   campus?: string;
@@ -96,6 +100,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
         durationMinutes: exams.durationMinutes,
         publishedAt: exams.publishedAt,
         answerConfidence: examRevisions.answerConfidence,
+        presentationMode: examRevisions.presentationMode,
         questionCount: count(questions.id),
       })
       .from(exams)
@@ -120,6 +125,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
         courses.name,
         campuses.name,
         examRevisions.answerConfidence,
+        examRevisions.presentationMode,
       )
       .orderBy(desc(exams.publishedAt), desc(exams.id));
 
@@ -140,6 +146,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
       isRetake: row.isRetake,
       durationMinutes: row.durationMinutes,
       questionCount: row.questionCount,
+      presentationMode: row.presentationMode as ExamPresentationMode,
       publishedAt: (row.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         row.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -166,6 +173,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
         publishedAt: exams.publishedAt,
         revisionId: examRevisions.id,
         answerConfidence: examRevisions.answerConfidence,
+        presentationMode: examRevisions.presentationMode,
       })
       .from(exams)
       .innerJoin(courses, eq(exams.courseId, courses.id))
@@ -190,6 +198,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
         imageKey: questions.imageKey,
         type: questions.type,
         options: questions.options,
+        ocrMetadata: questions.ocrMetadata,
       })
       .from(questions)
       .where(eq(questions.revisionId, examRow.revisionId))
@@ -206,6 +215,7 @@ export class PostgresCatalogRepository implements CatalogRepository {
       isRetake: examRow.isRetake,
       durationMinutes: examRow.durationMinutes,
       questionCount: questionRows.length,
+      presentationMode: examRow.presentationMode as ExamPresentationMode,
       publishedAt: (examRow.publishedAt ?? new Date(0)).toISOString(),
       answerConfidence:
         examRow.answerConfidence === "verified" ? "verified" : "reviewed",
@@ -220,8 +230,13 @@ export class PostgresCatalogRepository implements CatalogRepository {
         order: question.order,
         imageUrl: this.imageUrlForKey(question.imageKey),
         imageAlt: `Ảnh câu hỏi ${question.order} của đề ${examRow.code}`,
+        textContent: question.ocrMetadata?.textContent ?? null,
+        contentMode: resolveQuestionContentMode(
+          examRow.presentationMode as ExamPresentationMode,
+          question.ocrMetadata,
+        ),
         type: question.type,
-        options: question.options,
+        options: question.ocrMetadata?.options ?? question.options,
       })),
     };
   }

@@ -7,6 +7,7 @@ import {
   createReportSchema,
   bookmarkCollectionSchema,
   bookmarkStateSchema,
+  confirmTrustedSuggestionsResultSchema,
   draftExamReviewSchema,
   draftImportResultSchema,
   examSchema,
@@ -30,6 +31,7 @@ import {
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
+  type ConfirmTrustedSuggestionsResult,
   type AdminExamSummary,
   type AdminCatalog,
   type CreateCourseInput,
@@ -57,6 +59,8 @@ import {
   studentStatisticsSchema,
   type StudentStatistics,
   type BookmarkCollection,
+  examOcrStatusSchema,
+  type ExamOcrStatus,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -241,6 +245,20 @@ export async function markExamReviewReady(
     fetcher,
   );
   return reviewReadinessResultSchema.parse(result);
+}
+
+export async function confirmTrustedCommunitySuggestions(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ConfirmTrustedSuggestionsResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/community-suggestions/confirm`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return confirmTrustedSuggestionsResultSchema.parse(result);
 }
 
 export async function publishExam(
@@ -663,6 +681,87 @@ export async function saveAdminCurriculumCourse(
     "/v1/admin/catalog-management/curriculum-courses",
     idToken,
     { method: "PUT", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function getExamOcrStatus(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ExamOcrStatus> {
+  const result = await request(
+    `/v1/admin/revisions/${revisionId}/ocr`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return examOcrStatusSchema.parse(result);
+}
+
+export async function approveOcrQuestion(
+  idToken: string,
+  questionId: string,
+  input: { textContent: string; options: string[] },
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function rejectOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "DELETE" },
+    fetcher,
+  );
+}
+
+export async function retryOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
+export async function retryRevisionOcr(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
+export async function setExamPresentationMode(
+  idToken: string,
+  revisionId: string,
+  mode: "image" | "text" | "hybrid",
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/presentation`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify({ mode }) },
     fetcher,
   );
 }

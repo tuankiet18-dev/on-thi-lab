@@ -1,5 +1,6 @@
 import type {
   AiAnswerSuggestion,
+  ConfirmTrustedSuggestionsResult,
   CreateDraftImportInput,
   DraftExamReview,
   DraftImportResult,
@@ -24,6 +25,7 @@ export interface DraftQuestionInput {
   order: number;
   imageKey: string;
   imageHash: string;
+  type?: "single" | "multiple";
   optionCount: number;
   correctOptions?: number[];
   aiMetadata?: any;
@@ -42,7 +44,8 @@ export type DraftImportRepositoryErrorCode =
   | "EXAM_NOT_EDITABLE"
   | "EXAM_NOT_FOUND"
   | "EXAM_NOT_READY"
-  | "QUESTION_NOT_FOUND";
+  | "QUESTION_NOT_FOUND"
+  | "DUPLICATE_IMAGES";
 
 export class DraftImportRepositoryError extends Error {
   constructor(
@@ -87,6 +90,10 @@ export interface ExamReviewRepository {
     changedBy: string;
     answer: UpdateQuestionAnswerInput;
   }): Promise<StoredReviewQuestion>;
+  confirmTrustedSuggestions(
+    examId: string,
+    changedBy: string,
+  ): Promise<ConfirmTrustedSuggestionsResult>;
   markReady(examId: string, changedBy: string): Promise<ReviewReadinessResult>;
   publish(examId: string, approvedBy: string): Promise<PublishExamResult>;
 }
@@ -130,6 +137,63 @@ export interface AiSuggestionRepository {
   markFailed(questionId: string, message: string): Promise<void>;
 }
 
+type QuestionAiMetadata = typeof questions.$inferSelect.aiMetadata;
+
+export interface TrustedSuggestionAnswer {
+  type: "single" | "multiple";
+  optionCount: number;
+  correctOptions: number[];
+}
+
+/**
+ * Only community answers with an unambiguous consensus and a trusted option
+ * count may be confirmed in bulk. AI suggestions always remain manual.
+ */
+export function trustedCommunitySuggestion(
+  metadata: QuestionAiMetadata,
+): TrustedSuggestionAnswer | null {
+  const optionCount = metadata?.optionCount;
+  if (
+    metadata?.status !== "suggested" ||
+    metadata.provider !== "community-comments" ||
+    metadata.requiresReview !== false ||
+    typeof metadata.optionCountConfidence !== "number" ||
+    metadata.optionCountConfidence < 0.82 ||
+    !metadata.optionCountSource ||
+    (metadata.proposedType !== "single" &&
+      metadata.proposedType !== "multiple") ||
+    typeof optionCount !== "number" ||
+    !Number.isInteger(optionCount) ||
+    optionCount < 2 ||
+    optionCount > 6 ||
+    !Array.isArray(metadata.proposedAnswers) ||
+    metadata.proposedAnswers.length === 0
+  ) {
+    return null;
+  }
+
+  const correctOptions = [...new Set(metadata.proposedAnswers)].sort(
+    (left, right) => left - right,
+  );
+  if (
+    correctOptions.length !== metadata.proposedAnswers.length ||
+    correctOptions.some(
+      (option) =>
+        !Number.isInteger(option) || option < 0 || option >= optionCount,
+    ) ||
+    (metadata.proposedType === "single" && correctOptions.length !== 1) ||
+    (metadata.proposedType === "multiple" && correctOptions.length < 2)
+  ) {
+    return null;
+  }
+
+  return {
+    type: metadata.proposedType,
+    optionCount,
+    correctOptions,
+  };
+}
+
 function toAiSuggestion(
   metadata: typeof questions.$inferSelect.aiMetadata,
 ): AiAnswerSuggestion | null {
@@ -138,6 +202,8 @@ function toAiSuggestion(
     status: metadata.status,
     proposedType: metadata.proposedType,
     optionCount: metadata.optionCount,
+    optionCountConfidence: metadata.optionCountConfidence,
+    optionCountSource: metadata.optionCountSource,
     proposedAnswers: metadata.proposedAnswers,
     confidence: metadata.confidence,
     provider: metadata.provider,
@@ -166,12 +232,20 @@ export function buildExamCode(
   ].join("-");
 }
 
-export function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(
+  error: unknown,
+  constraintName?: string,
+): boolean {
   let current: unknown = error;
 
   for (let depth = 0; depth < 6; depth += 1) {
     if (typeof current !== "object" || current === null) return false;
-    if ("code" in current && current.code === "23505") return true;
+    if ("code" in current && current.code === "23505") {
+      if (constraintName && "constraint_name" in current) {
+        return current.constraint_name === constraintName;
+      }
+      return true;
+    }
     current = "cause" in current ? current.cause : undefined;
   }
 
@@ -236,6 +310,10 @@ export class PostgresDraftImportRepository
           .values({
             examId: exam.id,
             revision: 1,
+            // OCR imports default to hybrid: clean questions render as text,
+            // while formulas, charts, and low-confidence OCR safely retain
+            // their original image without blocking the entire revision.
+            presentationMode: input.extractText ? "hybrid" : "image",
             note: "Nhập từ ZIP ảnh câu hỏi",
             answerConfidence: "reviewed",
           })
@@ -248,7 +326,7 @@ export class PostgresDraftImportRepository
             order: q.order,
             imageKey: q.imageKey,
             imageHash: q.imageHash,
-            type: "single" as const,
+            type: q.type ?? ("single" as const),
             options: Array.from({ length: q.optionCount }, (_, index) =>
               String.fromCharCode(65 + index),
             ),
@@ -266,10 +344,16 @@ export class PostgresDraftImportRepository
         };
       });
     } catch (error) {
-      if (isUniqueViolation(error)) {
+      if (isUniqueViolation(error, "exams_code_unique")) {
         throw new DraftImportRepositoryError(
           "EXAM_ALREADY_EXISTS",
           `Đề ${examCode} đã tồn tại.`,
+        );
+      }
+      if (isUniqueViolation(error, "questions_revision_hash_idx")) {
+        throw new DraftImportRepositoryError(
+          "DUPLICATE_IMAGES",
+          "ZIP chứa các ảnh giống hệt nhau (nội dung trùng lặp).",
         );
       }
       throw error;
@@ -368,6 +452,7 @@ export class PostgresDraftImportRepository
         durationMinutes: exams.durationMinutes,
         isRetake: exams.isRetake,
         status: exams.status,
+        presentationMode: examRevisions.presentationMode,
         publishedAt: exams.publishedAt,
       })
       .from(exams)
@@ -416,6 +501,7 @@ export class PostgresDraftImportRepository
       durationMinutes: exam.durationMinutes,
       isRetake: exam.isRetake,
       status: exam.status,
+      presentationMode: exam.presentationMode as "image" | "text" | "hybrid",
       publishedAt: exam.publishedAt?.toISOString() ?? null,
       answeredCount: questionRows.filter(
         (question) => question.correctOptions.length > 0,
@@ -480,6 +566,8 @@ export class PostgresDraftImportRepository
         JSON.stringify(current.correctOptions) ===
           JSON.stringify(nextCorrectOptions);
 
+      const confirmsSuggestion = current.aiMetadata?.status === "suggested";
+
       if (!unchanged) {
         await transaction.insert(questionAnswerAudits).values({
           questionId: current.id,
@@ -491,22 +579,24 @@ export class PostgresDraftImportRepository
           previousCorrectOptions: current.correctOptions,
           nextCorrectOptions,
         });
+      }
+
+      if (!unchanged || confirmsSuggestion) {
         await transaction
           .update(questions)
           .set({
             type: input.answer.type,
             options: nextOptions,
             correctOptions: nextCorrectOptions,
-            aiMetadata:
-              current.aiMetadata?.status === "suggested"
-                ? {
-                    ...current.aiMetadata,
-                    status: "confirmed",
-                    updatedAt: new Date().toISOString(),
-                  }
-                : current.aiMetadata?.status === "confirmed"
-                  ? current.aiMetadata
-                  : null,
+            aiMetadata: confirmsSuggestion
+              ? {
+                  ...current.aiMetadata,
+                  status: "confirmed",
+                  updatedAt: new Date().toISOString(),
+                }
+              : current.aiMetadata?.status === "confirmed"
+                ? current.aiMetadata
+                : null,
             updatedAt: new Date(),
           })
           .where(eq(questions.id, current.id));
@@ -529,6 +619,107 @@ export class PostgresDraftImportRepository
             : current.aiMetadata?.status === "confirmed"
               ? toAiSuggestion(current.aiMetadata)
               : null,
+      };
+    });
+  }
+
+  async confirmTrustedSuggestions(
+    examId: string,
+    changedBy: string,
+  ): Promise<ConfirmTrustedSuggestionsResult> {
+    return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({ id: exams.id, status: exams.status })
+        .from(exams)
+        .where(eq(exams.id, examId))
+        .limit(1);
+      if (!exam) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy đề thi.",
+        );
+      }
+      if (exam.status !== "draft") {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_EDITABLE",
+          "Đề không còn ở trạng thái có thể chỉnh sửa.",
+        );
+      }
+
+      const [revision] = await transaction
+        .select({ id: examRevisions.id })
+        .from(examRevisions)
+        .where(eq(examRevisions.examId, examId))
+        .orderBy(desc(examRevisions.revision))
+        .limit(1);
+      if (!revision) {
+        throw new DraftImportRepositoryError(
+          "EXAM_NOT_FOUND",
+          "Không tìm thấy phiên bản đề thi.",
+        );
+      }
+
+      const questionRows = await transaction
+        .select({
+          id: questions.id,
+          type: questions.type,
+          options: questions.options,
+          correctOptions: questions.correctOptions,
+          aiMetadata: questions.aiMetadata,
+        })
+        .from(questions)
+        .where(eq(questions.revisionId, revision.id));
+      const updatedAt = new Date();
+      const updatedAtIso = updatedAt.toISOString();
+      let confirmedCount = 0;
+
+      for (const question of questionRows) {
+        if (question.correctOptions.length > 0) continue;
+        const answer = trustedCommunitySuggestion(question.aiMetadata);
+        if (!answer) continue;
+
+        const nextOptions = Array.from(
+          { length: answer.optionCount },
+          (_, index) => String.fromCharCode(65 + index),
+        );
+        await transaction.insert(questionAnswerAudits).values({
+          questionId: question.id,
+          changedBy,
+          previousType: question.type,
+          nextType: answer.type,
+          previousOptions: question.options,
+          nextOptions,
+          previousCorrectOptions: question.correctOptions,
+          nextCorrectOptions: answer.correctOptions,
+        });
+        await transaction
+          .update(questions)
+          .set({
+            type: answer.type,
+            options: nextOptions,
+            correctOptions: answer.correctOptions,
+            aiMetadata: {
+              ...question.aiMetadata,
+              status: "confirmed",
+              updatedAt: updatedAtIso,
+            },
+            updatedAt,
+          })
+          .where(eq(questions.id, question.id));
+        confirmedCount += 1;
+      }
+
+      const previouslyAnswered = questionRows.filter(
+        (question) => question.correctOptions.length > 0,
+      ).length;
+      const answeredCount = previouslyAnswered + confirmedCount;
+      const questionCount = questionRows.length;
+      return {
+        examId,
+        confirmedCount,
+        answeredCount,
+        questionCount,
+        remainingCount: questionCount - answeredCount,
       };
     });
   }
@@ -739,10 +930,16 @@ export class PostgresDraftImportRepository
     await this.db
       .update(questions)
       .set({
+        type: proposal.proposedType,
+        options: Array.from({ length: proposal.optionCount }, (_, index) =>
+          String.fromCharCode(65 + index),
+        ),
         aiMetadata: {
           status: "suggested",
           proposedType: proposal.proposedType,
           optionCount: proposal.optionCount,
+          optionCountConfidence: proposal.confidence,
+          optionCountSource: "ai-vision",
           proposedAnswers: proposal.proposedAnswers,
           confidence: proposal.confidence,
           provider: proposal.provider,

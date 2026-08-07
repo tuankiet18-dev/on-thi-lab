@@ -1,4 +1,4 @@
-import { handle } from "hono/aws-lambda";
+import { defaultIsContentTypeBinary, handle } from "hono/aws-lambda";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { createRuntimeApp } from "./runtime";
 
@@ -8,6 +8,19 @@ import { createRuntimeApp } from "./runtime";
  */
 const ssmClient = new SSMClient({});
 type LambdaHandler = ReturnType<typeof handle>;
+
+/**
+ * API Gateway must receive binary image bodies as base64 with
+ * `isBase64Encoded: true`. Hono's default covers most image MIME types, but
+ * keeping the explicit image check makes this contract stable when the
+ * adapter's MIME allow-list changes (WebP is used by imported question data).
+ */
+export function isBinaryResponseContentType(contentType: string): boolean {
+  return (
+    contentType.toLowerCase().startsWith("image/") ||
+    defaultIsContentTypeBinary(contentType)
+  );
+}
 
 let handlerPromise: Promise<LambdaHandler> | undefined;
 
@@ -48,7 +61,9 @@ async function getHandler(): Promise<LambdaHandler> {
         environment.AI_API_KEY = aiApiKey;
       }
 
-      return handle(createRuntimeApp(environment));
+      return handle(createRuntimeApp(environment), {
+        isContentTypeBinary: isBinaryResponseContentType,
+      });
     })();
   }
 

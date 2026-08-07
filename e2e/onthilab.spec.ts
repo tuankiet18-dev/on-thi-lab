@@ -99,7 +99,7 @@ test("desktop student can complete a practice exam", async ({
   ).toHaveCount(0);
 
   await page.getByRole("radio", { name: "Chọn đáp án B" }).click();
-  await page.getByRole("button", { name: "Câu tiếp" }).click();
+  await page.getByRole("button", { name: "Câu sau" }).click();
   await page.getByRole("radio", { name: "Chọn đáp án C" }).click();
   await page.getByRole("button", { name: "Nộp bài", exact: true }).click();
   await page

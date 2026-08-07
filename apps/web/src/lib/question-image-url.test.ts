@@ -19,4 +19,10 @@ describe("questionImageUrl", () => {
       "https://cdn.example.test/Q1.jpg",
     );
   });
+
+  it("repairs legacy OCR responses that expose a raw draft image key", () => {
+    expect(questionImageUrl("drafts/example/Q1.webp")).toBe(
+      "https://api.example.test/staging/question-images/drafts/example/Q1.webp",
+    );
+  });
 });

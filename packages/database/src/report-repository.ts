@@ -136,6 +136,7 @@ export class PostgresReportRepository implements ReportRepository {
         examCode: exam.code,
         courseCode: course.code,
         imageUrl: this.imageUrlForKey(question.imageKey),
+        textContent: question.ocrMetadata?.textContent ?? null,
         options: question.options,
         correctOptions: question.correctOptions,
         type: question.type,
