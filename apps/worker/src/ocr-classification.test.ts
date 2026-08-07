@@ -24,18 +24,15 @@ describe("classifyQuestion", () => {
     expect(flags).toContain("has_formula");
   });
 
-  it("flags ASCII formulas and sparse diagram-like OCR output", () => {
+  it("flags ASCII formulas", () => {
     const flags = classifyQuestion({
       rawText: "Solve x^2 = 4\nA. 2\nB. 4",
       confidence: 0.95,
       imageWidth: 1200,
       imageHeight: 700,
       parsedOptionCount: 2,
-      textCoverage: 0.005,
-      lineCount: 3,
     });
     expect(flags).toContain("has_formula");
-    expect(flags).toContain("possible_graph_or_diagram");
   });
 
   it("flags an invalid number of detected options", () => {

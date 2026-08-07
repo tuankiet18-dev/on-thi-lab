@@ -14,6 +14,25 @@ D. Madrid`;
     expect(result.optionCount).toBe(4);
   });
 
+  it("removes the standard exam header from the text stem", () => {
+    const result = normalizeQuestionText(`MULTIPLE CHOICE
+What is the response for GET /cats in this NestJS controller?
+A. ['cat1', 'cat2']
+B. Array of resources if route matched
+C. Standard response from controller method
+D. Empty`);
+
+    expect(result.stem).toBe(
+      "What is the response for GET /cats in this NestJS controller?",
+    );
+    expect(result.options).toEqual([
+      "['cat1', 'cat2']",
+      "Array of resources if route matched",
+      "Standard response from controller method",
+      "Empty",
+    ]);
+  });
+
   it("handles multi-line options", () => {
     const rawText = `Solve for x:
 A. x = 1

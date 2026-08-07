@@ -16,12 +16,6 @@ export interface OcrResult {
   textContent?: string;
   options?: string[];
   confidence?: number;
-  layout?: {
-    parserVersion: string;
-    sourceLineCount: number;
-    selectedLineCount: number;
-    retryUsed?: boolean;
-  };
   flagReasons?: string[];
   rawText?: string;
   providerVersion: string;
@@ -242,7 +236,6 @@ export class PostgresOcrRepository {
       textContent: result.textContent?.trim(),
       options,
       confidence: result.confidence,
-      layout: result.layout,
       flagReasons: [...new Set(flagReasons)],
       rawText: result.rawText,
       providerVersion: result.providerVersion,
@@ -519,7 +512,6 @@ export class PostgresOcrRepository {
       textContent: cached.ocrMetadata.textContent,
       options: cached.ocrMetadata.options,
       confidence: cached.ocrMetadata.confidence,
-      layout: cached.ocrMetadata.layout,
       flagReasons: cached.ocrMetadata.flagReasons,
       rawText: cached.ocrMetadata.rawText,
       providerVersion: cached.ocrMetadata.providerVersion ?? providerVersion,

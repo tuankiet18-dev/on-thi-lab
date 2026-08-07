@@ -71,6 +71,7 @@ export function normalizeQuestionText(rawText: string): {
 
   const isStructuralNoise = (line: string) =>
     /^question\s*:?\s*\d+\s*$/i.test(line) ||
+    /^(?:multiple|single)\s+choice\s*$/i.test(line) ||
     /^\(?\s*choose\s+(?:one|\d+|all|multiple)\s+answers?\s*\)?$/i.test(line);
   const cleanLines = (lines: string[]) =>
     lines.filter((line) => !isStructuralNoise(line.trim()));

@@ -236,12 +236,6 @@ export const questions = pgTable(
       contentMode?: "image" | "text";
       confidence?: number;
       providerVersion?: string;
-      layout?: {
-        parserVersion: string;
-        sourceLineCount: number;
-        selectedLineCount: number;
-        retryUsed?: boolean;
-      };
       flagReasons?: string[];
       rawText?: string;
       error?: string;
