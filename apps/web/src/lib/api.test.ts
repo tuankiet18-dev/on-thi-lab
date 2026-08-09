@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  ApiResponseValidationError,
   createAttempt,
   getAttempt,
   getAttemptSession,
   getCatalog,
   getDraftExamReview,
+  getExamOcrStatus,
   getPublishedExam,
   markExamReviewReady,
   getMyProfile,
@@ -489,5 +491,69 @@ describe("profile API client", () => {
         }),
       }),
     );
+  });
+});
+
+describe("OCR API client", () => {
+  const revisionId = "30000000-0000-4000-8000-000000000001";
+  const questionId = "40000000-0000-4000-8000-000000000001";
+
+  const ocrStatus = {
+    revisionId,
+    presentationMode: "hybrid",
+    ocrProgress: {
+      total: 1,
+      approved: 0,
+      needsReview: 1,
+      pending: 0,
+      failed: 0,
+    },
+    questions: [
+      {
+        questionId,
+        order: 1,
+        ocrStatus: "needs_review",
+        textContent: "Question text",
+        options: [],
+        optionCount: 0,
+        confidence: 0.72,
+        flagReasons: ["missing_option_labels"],
+        validationIssues: [],
+        imageUrl: "/question-images/drafts/example/Q1.webp",
+        contentMode: "image",
+      },
+    ],
+    canPublish: true,
+  } as const;
+
+  it("accepts incomplete OCR options so one question cannot block the review", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: ocrStatus }), { status: 200 }),
+      );
+
+    await expect(
+      getExamOcrStatus("signed-id-token", revisionId, fetcher),
+    ).resolves.toEqual(ocrStatus);
+  });
+
+  it("throws a typed error when the OCR response itself violates the contract", async () => {
+    const invalidStatus = {
+      ...ocrStatus,
+      questions: [{ ...ocrStatus.questions[0], options: "not-an-array" }],
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: invalidStatus }), { status: 200 }),
+      );
+
+    await expect(
+      getExamOcrStatus("signed-id-token", revisionId, fetcher),
+    ).rejects.toMatchObject({
+      name: "ApiResponseValidationError",
+      endpoint: `/v1/admin/revisions/${revisionId}/ocr`,
+    } satisfies Partial<ApiResponseValidationError>);
   });
 });

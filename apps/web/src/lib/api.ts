@@ -75,6 +75,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * An API endpoint returned HTTP 2xx but its response did not match the
+ * contract expected by the web client. Keeping this distinct from ApiError
+ * lets a screen stop polling instead of appearing to load forever.
+ */
+export class ApiResponseValidationError extends Error {
+  constructor(
+    readonly endpoint: string,
+    readonly issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>,
+  ) {
+    super(`Dữ liệu phản hồi không hợp lệ từ ${endpoint}`);
+    this.name = "ApiResponseValidationError";
+  }
+}
+
 interface ApiResponse {
   data?: unknown;
   error?: unknown;
@@ -696,7 +711,17 @@ export async function getExamOcrStatus(
     {},
     fetcher,
   );
-  return examOcrStatusSchema.parse(result);
+  const parsed = examOcrStatusSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new ApiResponseValidationError(
+      `/v1/admin/revisions/${revisionId}/ocr`,
+      parsed.error.issues.map((issue) => ({
+        path: issue.path,
+        message: issue.message,
+      })),
+    );
+  }
+  return parsed.data;
 }
 
 export async function approveOcrQuestion(

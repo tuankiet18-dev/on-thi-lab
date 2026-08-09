@@ -11,12 +11,14 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import {
+  ApiError,
+  ApiResponseValidationError,
   approveOcrQuestion,
   getExamOcrStatus,
   rejectOcrQuestion,
@@ -50,6 +52,24 @@ const flagLabel: Record<string, string> = {
 };
 
 type ReviewFilter = "attention" | "all" | "text" | "image";
+
+function ocrLoadErrorMessage(error: unknown): string {
+  if (error instanceof ApiResponseValidationError) {
+    return "Dữ liệu OCR của một hoặc nhiều câu chưa hợp lệ. Hệ thống đã dừng tự làm mới để tránh treo trang.";
+  }
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403) {
+      return "Phiên đăng nhập đã hết hạn hoặc bạn không có quyền duyệt OCR.";
+    }
+    if (error.status === 404) {
+      return "Không tìm thấy dữ liệu OCR của đề này.";
+    }
+    if (error.status >= 500) {
+      return "Máy chủ OCR đang gặp sự cố tạm thời. Hãy thử lại sau.";
+    }
+  }
+  return "Không tải được dữ liệu OCR. Hãy thử lại.";
+}
 
 function statusTone(status: OcrQuestionStatus["ocrStatus"]) {
   if (status === "approved") return "green" as const;
@@ -85,29 +105,53 @@ export function AdminReviewOcr({
   const [formError, setFormError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("attention");
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const loadStatus = async (isRefresh = false) => {
-    if (!session) return;
-    if (isRefresh) setRefreshing(true);
-    try {
-      const data = await getExamOcrStatus(session.idToken, revisionId);
-      setStatus(data);
-      setLoadError(null);
-      if (data.canPublish) onOcrCompleted?.();
-    } catch (error) {
-      console.error(error);
-      setLoadError("Không tải được dữ liệu OCR. Hãy thử lại.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const loadStatus = useCallback(
+    async (isRefresh = false) => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+      if (isRefresh) setRefreshing(true);
+      try {
+        const data = await getExamOcrStatus(session.idToken, revisionId);
+        setStatus(data);
+        setLoadError(null);
+        setAutoRefresh(data.ocrProgress.pending > 0);
+        if (data.canPublish) onOcrCompleted?.();
+      } catch (error) {
+        console.error(error);
+        setAutoRefresh(false);
+        setLoadError(ocrLoadErrorMessage(error));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [onOcrCompleted, revisionId, session],
+  );
 
   useEffect(() => {
+    setLoading(true);
+    setStatus(null);
+    setLoadError(null);
+    setAutoRefresh(true);
     void loadStatus();
+  }, [loadStatus]);
+
+  useEffect(() => {
+    if (!autoRefresh || loadError) return;
     const interval = window.setInterval(() => void loadStatus(), 10_000);
     return () => window.clearInterval(interval);
-  }, [session, revisionId]);
+  }, [autoRefresh, loadError, loadStatus]);
+
+  const retryLoadStatus = () => {
+    setLoading(true);
+    setLoadError(null);
+    setAutoRefresh(true);
+    void loadStatus(true);
+  };
 
   const activeQuestion = useMemo(() => {
     if (!status) return null;
@@ -316,7 +360,7 @@ export function AdminReviewOcr({
         <Button
           type="button"
           className="mt-4"
-          onClick={() => void loadStatus(true)}
+          onClick={retryLoadStatus}
           icon={<RefreshCw size={16} />}
         >
           Thử lại
@@ -575,7 +619,7 @@ export function AdminReviewOcr({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void loadStatus(true)}
+                onClick={retryLoadStatus}
                 icon={
                   <RefreshCw
                     size={16}
