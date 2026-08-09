@@ -1,234 +1,197 @@
-<h1 align="center">
-  <img src="apps/web/public/logo.png" alt="OnThiLab Mascot" width="72" /><br />
-  OnThiLab
-</h1>
+<p align="center">
+  <img src="apps/web/public/logo.png" alt="OnThiLab" width="80" />
+</p>
+
+<h1 align="center">OnThiLab</h1>
 
 <p align="center">
-  <strong>Exam practice platform for FPT University students</strong><br />
-  <em>Nền tảng luyện đề thi FE/PE dành cho sinh viên Đại học FPT</em>
+  <strong>Nền tảng luyện đề FE thực tế cho sinh viên FPT University.</strong><br />
+  Tìm đúng môn, làm đề đúng thời gian và xem lại kết quả để ôn tập hiệu quả hơn.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node.js-22+-339933?logo=nodedotjs&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React" />
+  <a href="https://onthilab.id.vn">Production</a> ·
+  <a href="https://staging.onthilab.id.vn">Staging</a> ·
+  <a href="https://github.com/tuankiet18-dev/on-thi-lab/actions/workflows/ci.yml"><img src="https://github.com/tuankiet18-dev/on-thi-lab/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-22+-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Hono-API-E36002?logo=hono&logoColor=white" alt="Hono" />
-  <img src="https://img.shields.io/badge/PostgreSQL-Supabase-3ECF8E?logo=supabase&logoColor=white" alt="Supabase" />
-  <img src="https://img.shields.io/badge/Deploy-AWS-FF9900?logo=amazonaws&logoColor=white" alt="AWS" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/AWS-Serverless-FF9900?logo=amazonaws&logoColor=white" alt="AWS Serverless" />
 </p>
 
----
+## Mục tiêu
 
-## About / Giới thiệu
+OnThiLab giúp sinh viên luyện lại đề FE của các kỳ trước theo trải nghiệm gần với bài thi thực tế. Hệ thống chỉ cung cấp điểm và đáp án tham khảo; mọi đáp án trước khi phát hành đều được quản trị viên duyệt.
 
-**OnThiLab** is an exam practice platform for FPT University students. Students can search past FE/PE exams by course code, campus and semester; take timed mock tests with autosave; view graded results with answer explanations; and track their study progress over time.
+## Tính năng chính
 
-**OnThiLab** là nền tảng luyện đề thi cuối kỳ (FE/PE) dành cho sinh viên FPT University. Sinh viên có thể tìm đề theo mã môn, campus và học kỳ; làm bài với bộ đếm thời gian và autosave giống thi thật; xem kết quả, đáp án và theo dõi tiến độ ôn tập.
+### Dành cho sinh viên
 
-**The system supports 3 roles / Hệ thống hỗ trợ 3 vai trò:**
+- Tìm đề theo mã hoặc tên môn, campus và kỳ học.
+- Làm đề có đồng hồ đếm ngược, tự lưu đáp án, chuyển câu linh hoạt và tự nộp khi hết giờ.
+- Làm lại đề không giới hạn; xem điểm, đáp án tham khảo và chi tiết từng câu sau khi nộp.
+- Xem đề trước khi làm, lưu đề/câu hỏi cần ôn, xem lịch sử và thống kê cá nhân.
+- Đăng nhập bằng Google hoặc email/mật khẩu qua Amazon Cognito.
 
-| Role / Vai trò             | Capabilities / Chức năng                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 🎓 **Student / Sinh viên** | Search exams, take timed tests, view results, bookmark questions — Tìm đề, làm bài, xem kết quả, lưu câu hỏi |
-| 🛠️ **Contributor**         | Import exams via ZIP, review & correct answers — Nhập đề từ ZIP, duyệt và chỉnh đáp án                       |
-| 👑 **Admin**               | Publish exams, manage catalog, manage users — Xuất bản đề, quản lý danh mục, phân quyền                      |
+### Dành cho quản trị viên và cộng tác viên
 
----
+- Quản lý danh mục môn học và đề thi theo môn.
+- Nhập một hoặc nhiều ZIP; mỗi ZIP tạo một đề nháp độc lập.
+- Duyệt đáp án được gợi ý từ `answers.json`, dữ liệu comment đã crawl hoặc AI theo từng câu.
+- Chọn giữ ảnh gốc, dùng OCR text, hoặc chế độ **hybrid**: câu OCR đủ tin cậy hiển thị text; câu có biểu đồ, công thức hoặc OCR thiếu dữ liệu tự dùng ảnh gốc.
+- Duyệt, xuất bản, hủy đề và xử lý báo lỗi/góp ý của sinh viên.
 
-## Tech Stack
+## Luồng dữ liệu đề thi
 
-| Layer              | Technology                                           |
-| ------------------ | ---------------------------------------------------- |
-| **Frontend**       | React 19, Vite 7, TanStack Router, Tailwind CSS v4   |
-| **Backend API**    | Hono.js on AWS Lambda (Node.js 22)                   |
-| **Database**       | PostgreSQL via Supabase, Drizzle ORM                 |
-| **Authentication** | AWS Cognito, Google OAuth, Authorization Code + PKCE |
-| **Storage**        | AWS S3 (question images)                             |
-| **Queue**          | AWS SQS (import jobs + AI answer suggestions)        |
-| **CDN**            | AWS CloudFront                                       |
-| **Infrastructure** | AWS CDK (TypeScript)                                 |
-| **CI/CD**          | GitHub Actions                                       |
-| **Testing**        | Vitest (unit), Playwright (e2e)                      |
-| **Monorepo**       | pnpm Workspaces                                      |
-
----
-
-## Repository Structure / Cấu trúc repo
-
-```
-onthilab/
-├── apps/
-│   ├── web/          # React SPA (Frontend)
-│   ├── api/          # Hono API (Backend — runs on Lambda)
-│   └── worker/       # SQS consumer (AI answer suggestions)
-├── packages/
-│   ├── contracts/    # Shared Zod schemas & TypeScript types
-│   ├── database/     # Drizzle schema, query functions, migrations
-│   ├── config/       # Shared config utilities
-│   └── importer/     # ZIP import & validation logic
-├── infra/            # AWS CDK stacks (Lambda, S3, CloudFront, Cognito)
-├── e2e/              # Playwright end-to-end tests
-└── docs/             # Architecture, ADRs, runbooks
+```text
+ZIP ảnh + answers.json (tùy chọn)
+        │
+        ▼
+Nhập đề nháp ──► Duyệt đáp án ──► Duyệt OCR (nếu bật) ──► Xuất bản
+                                      │
+                                      └── hybrid: text hợp lệ / ảnh gốc dự phòng
 ```
 
----
+Xem chi tiết định dạng ZIP tại [docs/import-zip-format.md](docs/import-zip-format.md).
 
-## Prerequisites / Yêu cầu
+## Kiến trúc
 
-- **Node.js** ≥ 22
-- **pnpm** ≥ 10.13 → `npm install -g pnpm`
-- **AWS CLI** — only required for deployment / chỉ cần khi deploy
+| Thành phần    | Công nghệ                                               |
+| ------------- | ------------------------------------------------------- |
+| Web           | React 19, Vite 7, TanStack Router, Tailwind CSS v4      |
+| API           | Hono trên AWS Lambda (Node.js 22)                       |
+| Database      | PostgreSQL trên Supabase, Drizzle ORM                   |
+| Đăng nhập     | Amazon Cognito, Google OAuth, Authorization Code + PKCE |
+| Lưu trữ & CDN | Amazon S3, CloudFront                                   |
+| Xử lý nền     | SQS, Lambda worker, Amazon Textract cho OCR             |
+| Hạ tầng       | AWS CDK (TypeScript)                                    |
+| Kiểm thử      | Vitest, Playwright, GitHub Actions                      |
 
----
+```text
+React SPA → API Gateway → Lambda API → Supabase PostgreSQL
+    │                         │
+    └── CloudFront + S3        ├── S3 question images
+                              └── SQS → Lambda worker → Textract / AI
+```
 
-## Getting Started / Cài đặt
+## Cấu trúc repository
 
-### 1. Clone & install
+```text
+apps/
+  web/        React SPA
+  api/        Hono API chạy trên Lambda
+  worker/     Worker xử lý import, OCR và gợi ý đáp án
+packages/
+  contracts/  Zod schemas và kiểu dùng chung
+  database/   Drizzle schema, migrations và repositories
+  importer/   Đọc, kiểm tra ZIP và xử lý dữ liệu nhập
+  config/     Cấu hình dùng chung
+infra/        AWS CDK stacks
+e2e/          Playwright end-to-end tests
+docs/         Tài liệu kiến trúc, vận hành và định dạng import
+```
+
+## Bắt đầu phát triển
+
+### Yêu cầu
+
+- Node.js 22 trở lên
+- pnpm 10.13 trở lên
+- AWS CLI (chỉ cần khi triển khai)
+
+### Cài đặt
 
 ```bash
 git clone https://github.com/tuankiet18-dev/on-thi-lab.git
 cd on-thi-lab
 pnpm install
-pnpm git:setup        # Install pre-commit hooks
-```
-
-### 2. Configure environment variables / Cấu hình biến môi trường
-
-```bash
+pnpm git:setup
 cp .env.example .env.local
-# Fill in the required variables
 ```
 
-### 3. Start development servers / Chạy server
+Điền các biến cần thiết trong `.env.local`. Không commit file này hoặc credential dưới bất kỳ hình thức nào.
+
+### Chạy local
 
 ```bash
-pnpm dev              # Both web (port 5173) and api (port 8787)
-pnpm dev:web          # Frontend only
-pnpm dev:api          # Backend only
+pnpm dev       # Web :5173 và API :8787
+pnpm dev:web   # Chỉ frontend
+pnpm dev:api   # Chỉ API
 ```
 
-Open `http://localhost:5173` in your browser.
+Mở `http://localhost:5173`.
 
-> **Demo mode / Chế độ demo:** If Cognito and database are not configured, the frontend automatically falls back to local demo data so you can explore the UI without a backend.
-
----
-
-## Environment Variables / Biến môi trường
-
-### Frontend
-
-| Variable                    | Description                      |
-| --------------------------- | -------------------------------- |
-| `VITE_API_URL`              | Hono API base URL                |
-| `VITE_COGNITO_DOMAIN`       | Cognito hosted UI domain         |
-| `VITE_COGNITO_CLIENT_ID`    | Cognito App client ID            |
-| `VITE_COGNITO_REDIRECT_URI` | OAuth callback URL after sign-in |
-| `VITE_COGNITO_LOGOUT_URI`   | Redirect URL after sign-out      |
-
-### Backend
-
-| Variable                    | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `DATABASE_URL`              | PostgreSQL connection string (Supabase pooler) |
-| `COGNITO_USER_POOL_ID`      | Cognito User Pool ID                           |
-| `COGNITO_CLIENT_ID`         | Cognito App client ID                          |
-| `S3_QUESTION_IMAGES_BUCKET` | S3 bucket name for question images             |
-| `AI_SUGGESTION_QUEUE_URL`   | SQS queue URL (optional — enables AI pipeline) |
-
-> See [`docs/secrets-and-environments.md`](docs/secrets-and-environments.md) for full environment setup details.
-
----
-
-## Quality Gates / Kiểm tra chất lượng
+## Chất lượng mã nguồn
 
 ```bash
-pnpm validate         # Format check + typecheck + unit tests + build (full CI gate)
-pnpm typecheck        # TypeScript check only
-pnpm test             # Unit tests (Vitest)
-pnpm test:e2e         # End-to-end tests (Playwright)
-pnpm format           # Auto-format all source files
+pnpm validate       # format + typecheck + test + build
+pnpm typecheck      # kiểm tra TypeScript
+pnpm test           # unit tests
+pnpm test:e2e       # Playwright e2e
+pnpm format         # định dạng mã nguồn
+pnpm infra:synth    # kiểm tra CDK synthesis
 ```
 
----
+## Triển khai
 
-## Staging Deployment / Deploy lên Staging
-
-### Frontend (S3 + CloudFront)
+Các script deploy lấy API endpoint, S3 bucket và CloudFront distribution trực tiếp từ CloudFormation. Chúng build đúng Vite mode của từng môi trường và tạo cache invalidation sau khi upload web.
 
 ```bash
-VITE_API_URL='https://<api-gateway-url>/staging' \
-VITE_COGNITO_DOMAIN='https://<cognito-domain>' \
-VITE_COGNITO_CLIENT_ID='<client-id>' \
-VITE_COGNITO_REDIRECT_URI='https://staging.onthilab.id.vn/auth/callback' \
-VITE_COGNITO_LOGOUT_URI='https://staging.onthilab.id.vn/' \
-pnpm --filter @onthilab/web exec vite build --mode staging
+# Deploy đầy đủ staging: validate, CDK, web và CloudFront
+pnpm deploy:staging
 
-aws s3 sync apps/web/dist s3://<web-bucket> --delete --only-show-errors
-aws cloudfront create-invalidation --distribution-id <distribution-id> --paths '/*'
+# Chỉ deploy web staging
+pnpm deploy:staging:web
+
+# Deploy đầy đủ production (bắt buộc xác nhận)
+pnpm deploy:prod -- --confirm-production
+
+# Chỉ deploy web production
+pnpm deploy:prod:web -- --confirm-production
 ```
 
-### Backend (AWS Lambda via CDK)
+Khi release có migration database, thêm `--migrate` vào lệnh deploy. Chỉ dùng `--skip-validate` khi source hiện tại vừa được kiểm tra đầy đủ và bạn có lý do rõ ràng.
+
+Biến bí mật được lưu trong AWS Systems Manager Parameter Store; xem [docs/secrets-and-environments.md](docs/secrets-and-environments.md) và [docs/runbook.md](docs/runbook.md) trước khi vận hành.
+
+## Quy trình đóng góp
+
+Repository sử dụng **GitHub Flow**: `main` luôn phải có thể deploy và mọi thay đổi đi qua branch + pull request.
 
 ```bash
-pnpm build
-cd infra
-pnpm cdk deploy --require-approval never
-```
+git switch main
+git pull --ff-only origin main
+git switch -c fix/short-description
 
----
-
-## Contributing / Quy trình đóng góp
-
-```bash
-# 1. Create a branch from main
-git switch main && git pull origin main
-git switch -c feat/your-feature-name
-
-# 2. Make changes and validate
 pnpm validate
-
-# 3. Commit and open a PR
-git add .
-git commit -m "feat(scope): short description"
-git push -u origin feat/your-feature-name
-gh pr create --base main
+git add <files>
+git commit -m "fix(scope): short description"
+git push -u origin fix/short-description
+gh pr create --fill
 ```
 
-> **Only merge when all CI checks (`validate` and `e2e`) are green.**
->
-> **Chỉ merge khi tất cả CI checks (`validate` và `e2e`) đều xanh.**
+- Dùng Conventional Commits.
+- Tên branch chỉ dùng `feat/`, `fix/`, `hotfix/`, `refactor/`, `test/`, `docs/`, `chore/` hoặc `ci/`.
+- Không push trực tiếp lên `main`; chỉ squash merge khi CI xanh.
 
----
+Quy định đầy đủ: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Documentation / Tài liệu
+## Tài liệu
 
-| File                                                                   | Content                                            |
-| ---------------------------------------------------------------------- | -------------------------------------------------- |
-| [`docs/architecture.md`](docs/architecture.md)                         | System architecture, auth flow, service boundaries |
-| [`docs/roadmap-to-production.md`](docs/roadmap-to-production.md)       | Development phase roadmap                          |
-| [`docs/import-zip-format.md`](docs/import-zip-format.md)               | ZIP file format for exam import                    |
-| [`docs/ai-answer-suggestions.md`](docs/ai-answer-suggestions.md)       | AI answer suggestion pipeline                      |
-| [`docs/secrets-and-environments.md`](docs/secrets-and-environments.md) | Secrets & environment management                   |
-| [`docs/runbook.md`](docs/runbook.md)                                   | Operations & incident runbook                      |
+- [Kiến trúc hệ thống](docs/architecture.md)
+- [Định dạng ZIP nhập đề](docs/import-zip-format.md)
+- [Gợi ý đáp án AI](docs/ai-answer-suggestions.md)
+- [Secrets và môi trường](docs/secrets-and-environments.md)
+- [Runbook vận hành](docs/runbook.md)
+- [Roadmap production](docs/roadmap-to-production.md)
 
----
+## Lưu ý sử dụng nội dung
 
-## Development Status / Trạng thái phát triển
-
-| Phase | Scope                                              | Status         |
-| ----- | -------------------------------------------------- | -------------- |
-| 0–2   | Config, CI/CD, Auth (Cognito + Google), Onboarding | ✅ Done        |
-| 3–4   | ZIP import, AI suggestions, Exam engine            | 🔄 In progress |
-| 5     | History, Statistics, Bookmark, Reports             | 📋 Planned     |
-| 6     | Staging/Production AWS deploy, Observability       | 🔄 In progress |
-| 7–8   | Security audit, UAT, Go-live                       | 📋 Planned     |
-
-**🎯 Production MVP target: before January 6, 2027**
-
----
+OnThiLab chỉ phục vụ mục đích học tập. Người nhập nội dung chịu trách nhiệm về quyền sử dụng dữ liệu; mọi điểm số và đáp án trên hệ thống đều mang tính tham khảo.
 
 ## License
 
-This project does not currently have an open-source license.
-
-_Dự án này chưa có giấy phép mã nguồn mở._
+Chưa phát hành giấy phép mã nguồn mở.
