@@ -61,6 +61,8 @@ import {
   type BookmarkCollection,
   examOcrStatusSchema,
   type ExamOcrStatus,
+  type AdminAttentionSummary,
+  adminAttentionSummarySchema,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -789,4 +791,17 @@ export async function setExamPresentationMode(
     { method: "PATCH", body: JSON.stringify({ mode }) },
     fetcher,
   );
+}
+
+export async function getAdminAttentionSummary(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminAttentionSummary> {
+  const result = await request(
+    `/v1/admin/attention-summary`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return adminAttentionSummarySchema.parse(result);
 }

@@ -9,6 +9,7 @@ import {
   PostgresUserProfileRepository,
   PostgresFeedbackRepository,
   PostgresOcrRepository,
+  PostgresAdminAttentionRepository,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/importer";
 import { resolve } from "node:path";
@@ -130,6 +131,7 @@ export function createRuntimeApp(
         : undefined,
     }),
     feedback: new PostgresFeedbackRepository(database),
+    attention: new PostgresAdminAttentionRepository(database),
     imports: s3Client
       ? new S3ExamImportService(
           draftRepository,

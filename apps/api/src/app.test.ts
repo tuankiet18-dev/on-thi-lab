@@ -9,6 +9,7 @@ import type {
 import type {
   ProfileIdentity,
   UserProfileRepository,
+  AdminAttentionRepository,
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
@@ -140,6 +141,55 @@ function createOnboardedProfiles(
 }
 
 describe("attempt API", () => {
+  it("returns admin attention counts with role-based feedback visibility", async () => {
+    const attention: AdminAttentionRepository = {
+      getSummary: async () => ({
+        drafts: 3,
+        reports: 2,
+        feedback: 4,
+        total: 9,
+      }),
+    };
+
+    const studentApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      attention,
+    });
+    const forbidden = await studentApp.request("/v1/admin/attention-summary", {
+      headers: authorization,
+    });
+    expect(forbidden.status).toBe(403);
+
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      attention,
+    });
+    const contributorResponse = await contributorApp.request(
+      "/v1/admin/attention-summary",
+      { headers: authorization },
+    );
+    expect(contributorResponse.status).toBe(200);
+    await expect(contributorResponse.json()).resolves.toEqual({
+      data: { drafts: 3, reports: 2, feedback: 0, total: 5 },
+    });
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      attention,
+    });
+    const adminResponse = await adminApp.request(
+      "/v1/admin/attention-summary",
+      { headers: authorization },
+    );
+    expect(adminResponse.status).toBe(200);
+    await expect(adminResponse.json()).resolves.toEqual({
+      data: { drafts: 3, reports: 2, feedback: 4, total: 9 },
+    });
+  });
+
   it("creates feedback for onboarded users and lets only admins resolve it", async () => {
     const feedbackId = "70000000-0000-4000-8000-000000000001";
     let item: Feedback | null = null;

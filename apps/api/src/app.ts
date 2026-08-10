@@ -18,6 +18,7 @@ import {
   upsertCurriculumCourseSchema,
   type StudentProfile,
   type UserRole,
+  type AdminAttentionSummary,
 } from "@onthilab/contracts";
 import {
   AttemptRepositoryError,
@@ -35,6 +36,7 @@ import {
   BookmarkRepositoryError,
   type FeedbackRepository,
   type PostgresOcrRepository,
+  type AdminAttentionRepository,
 } from "@onthilab/database";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -84,6 +86,7 @@ interface AppDependencies {
   feedback: FeedbackRepository;
   ocrRepository?: PostgresOcrRepository;
   ocrService: OcrService;
+  attention: AdminAttentionRepository;
   /**
    * Public base URL for question images, including `/question-images` when
    * configured. This is useful for an external image CDN.
@@ -147,6 +150,12 @@ class UnconfiguredFeedbackRepository implements FeedbackRepository {
   }
   async resolve(): Promise<null> {
     throw new Error("Feedback repository not configured");
+  }
+}
+
+class UnconfiguredAdminAttentionRepository implements AdminAttentionRepository {
+  async getSummary(): Promise<AdminAttentionSummary> {
+    throw new Error("Admin attention repository not configured");
   }
 }
 
@@ -321,6 +330,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     reports: new UnconfiguredReportRepository(),
     bookmarks: new UnconfiguredBookmarkRepository(),
     feedback: new UnconfiguredFeedbackRepository(),
+    attention: new UnconfiguredAdminAttentionRepository(),
     ocrService: new UnconfiguredOcrService(),
     corsOrigins: ["http://localhost:5173"],
     ...overrides,
@@ -464,6 +474,29 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     await dependencies.profiles.updateRole(context.req.param("id"), role);
     return context.json({ data: { success: true } });
   });
+
+  app.get(
+    "/v1/admin/attention-summary",
+    requireContributor,
+    async (context) => {
+      const summary = await dependencies.attention.getSummary();
+      const profile = context.get("profile");
+
+      // Contributor không được biết số góp ý của user
+      if (profile.role === "contributor") {
+        return context.json({
+          data: {
+            drafts: summary.drafts,
+            reports: summary.reports,
+            feedback: 0,
+            total: summary.drafts + summary.reports,
+          },
+        });
+      }
+
+      return context.json({ data: summary });
+    },
+  );
 
   app.get("/v1/admin/users/search", requireAdmin, async (context) => {
     const query = context.req.query("q") || "";

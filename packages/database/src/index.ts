@@ -43,3 +43,4 @@ export * from "./report-repository";
 export * from "./bookmark-repository";
 export * from "./feedback-repository";
 export * from "./ocr-repository";
+export * from "./admin-attention-repository";

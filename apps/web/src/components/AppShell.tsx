@@ -22,6 +22,8 @@ import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { cn } from "../lib/cn";
 import { FeedbackDialog } from "./FeedbackDialog";
+import { CountBadge } from "./CountBadge";
+import { useAdminAttentionSummary } from "../hooks/useAdminAttention";
 
 const navigation = [
   { label: "Tổng quan", to: "/", icon: LayoutDashboard },
@@ -51,6 +53,7 @@ export function AppShell() {
     isAdmin ||
     studentProfile?.role === "contributor" ||
     session?.user.groups.includes("contributor") === true;
+  const { summary } = useAdminAttentionSummary(session?.idToken, canContribute);
 
   if (isPublicAuthPage) {
     return <Outlet />;
@@ -228,8 +231,11 @@ export function AppShell() {
                           onClick={() => setAccountOpen(false)}
                           className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
                         >
-                          <FileText size={17} aria-hidden="true" />
-                          Đề chờ duyệt
+                          <span className="flex items-center gap-2">
+                            <FileText size={17} aria-hidden="true" />
+                            Đề chờ duyệt
+                          </span>
+                          <CountBadge count={summary?.drafts ?? 0} />
                         </Link>
                         {isAdmin && (
                           <>
@@ -257,23 +263,31 @@ export function AppShell() {
                               <ShieldCheck size={17} aria-hidden="true" />
                               Phân quyền
                             </Link>
-                            <Link
-                              to="/admin/reports"
-                              onClick={() => setAccountOpen(false)}
-                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              <MessageSquareText size={17} aria-hidden="true" />
-                              Quản lý báo cáo
-                            </Link>
-                            <Link
-                              to="/admin/feedback"
-                              onClick={() => setAccountOpen(false)}
-                              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                            >
+                          </>
+                        )}
+                        <Link
+                          to="/admin/reports"
+                          onClick={() => setAccountOpen(false)}
+                          className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <span className="flex items-center gap-2">
+                            <MessageSquareText size={17} aria-hidden="true" />
+                            Quản lý báo cáo
+                          </span>
+                          <CountBadge count={summary?.reports ?? 0} />
+                        </Link>
+                        {isAdmin && (
+                          <Link
+                            to="/admin/feedback"
+                            onClick={() => setAccountOpen(false)}
+                            className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            <span className="flex items-center gap-2">
                               <MessageSquareText size={17} aria-hidden="true" />
                               Góp ý người dùng
-                            </Link>
-                          </>
+                            </span>
+                            <CountBadge count={summary?.feedback ?? 0} />
+                          </Link>
                         )}
                       </>
                     )}
@@ -354,8 +368,11 @@ export function AppShell() {
                     onClick={() => setMenuOpen(false)}
                     className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
                   >
-                    <FileText size={18} aria-hidden="true" />
-                    Đề chờ duyệt
+                    <span className="flex items-center gap-3">
+                      <FileText size={18} aria-hidden="true" />
+                      Đề chờ duyệt
+                    </span>
+                    <CountBadge count={summary?.drafts ?? 0} />
                   </Link>
                   {isAdmin && (
                     <>
@@ -383,23 +400,31 @@ export function AppShell() {
                         <ShieldCheck size={18} aria-hidden="true" />
                         Phân quyền
                       </Link>
-                      <Link
-                        to="/admin/reports"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-                      >
-                        <MessageSquareText size={18} aria-hidden="true" />
-                        Quản lý báo cáo
-                      </Link>
-                      <Link
-                        to="/admin/feedback"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-                      >
+                    </>
+                  )}
+                  <Link
+                    to="/admin/reports"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    <span className="flex items-center gap-3">
+                      <MessageSquareText size={18} aria-hidden="true" />
+                      Quản lý báo cáo
+                    </span>
+                    <CountBadge count={summary?.reports ?? 0} />
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      to="/admin/feedback"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                    >
+                      <span className="flex items-center gap-3">
                         <MessageSquareText size={18} aria-hidden="true" />
                         Góp ý người dùng
-                      </Link>
-                    </>
+                      </span>
+                      <CountBadge count={summary?.feedback ?? 0} />
+                    </Link>
                   )}
                 </>
               )}
