@@ -7,6 +7,8 @@ export interface AnswerResult {
   answers: AnswerLetter[];
   proposedType: "single" | "multiple";
   optionCount: number;
+  optionCountConfidence?: number;
+  optionCountSource?: string;
   confidence: number;
   totalComments: number;
   validVotes: number;
@@ -19,10 +21,51 @@ export interface RawVote {
   /** Used only while aggregating one import. It is never persisted. */
   author?: string;
   content: string;
+  optionCount?: number;
+  optionCountConfidence?: number;
+  optionCountSource?: string;
+  optionCountNeedsReview?: boolean;
 }
 
 const answerLetters: readonly AnswerLetter[] = ["a", "b", "c", "d", "e", "f"];
 const minConfidence = 0.75;
+const minOptionCountConfidence = 0.82;
+
+interface OptionCountEvidence {
+  count: number;
+  confidence: number;
+  source: string;
+  needsReview: boolean;
+}
+
+function optionCountEvidence(
+  votes: readonly RawVote[],
+): OptionCountEvidence | undefined {
+  return votes
+    .flatMap((vote) => {
+      if (
+        !Number.isInteger(vote.optionCount) ||
+        vote.optionCount! < 2 ||
+        vote.optionCount! > 6 ||
+        typeof vote.optionCountConfidence !== "number" ||
+        vote.optionCountConfidence < 0 ||
+        vote.optionCountConfidence > 1
+      ) {
+        return [];
+      }
+      return [
+        {
+          count: vote.optionCount!,
+          confidence: vote.optionCountConfidence,
+          source: vote.optionCountSource?.slice(0, 50) || "crawler",
+          needsReview:
+            vote.optionCountNeedsReview === true ||
+            vote.optionCountConfidence < minOptionCountConfidence,
+        },
+      ];
+    })
+    .sort((left, right) => right.confidence - left.confidence)[0];
+}
 
 function canonicalAnswer(letters: readonly AnswerLetter[]): string {
   return [...letters]
@@ -65,6 +108,7 @@ export function computeAnswer(
   votes: readonly RawVote[],
 ): AnswerResult {
   const breakdown: VoteBreakdown = {};
+  const detectedOptions = optionCountEvidence(votes);
   const seenAuthors = new Map<string, AnswerLetter[]>();
   const anonymousVotes: AnswerLetter[][] = [];
 
@@ -87,14 +131,21 @@ export function computeAnswer(
   }
 
   const validVotes = parsedVotes.length;
+  const totalComments = votes.filter((vote) => vote.content.trim()).length;
   if (validVotes === 0) {
     return {
       questionNumber,
       answers: [],
       proposedType: "single",
-      optionCount: 4,
+      optionCount: detectedOptions?.count ?? 4,
+      ...(detectedOptions
+        ? {
+            optionCountConfidence: detectedOptions.confidence,
+            optionCountSource: detectedOptions.source,
+          }
+        : {}),
       confidence: 0,
-      totalComments: votes.length,
+      totalComments,
       validVotes,
       voteBreakdown: breakdown,
       disputed: true,
@@ -111,28 +162,47 @@ export function computeAnswer(
   const answers = topAnswer.split("") as AnswerLetter[];
   const confidence = topVotes / validVotes;
   const tied = topVotes === secondVotes;
-  const disputed = tied || confidence < minConfidence;
+  const answerLowerBound = Math.max(
+    ...answers.map((answer) => letterToIndex(answer) + 1),
+  );
+  const optionCount = detectedOptions
+    ? Math.max(detectedOptions.count, answerLowerBound)
+    : Math.max(4, answerLowerBound);
+  const optionCountConflict =
+    Boolean(detectedOptions) && answerLowerBound > detectedOptions!.count;
+  const optionCountDisputed =
+    detectedOptions?.needsReview === true || optionCountConflict;
+  const disputed = tied || confidence < minConfidence || optionCountDisputed;
+  const reasons = [
+    tied
+      ? "Các tổ hợp đáp án có số phiếu ngang nhau."
+      : confidence < minConfidence
+        ? `Đồng thuận ${Math.round(confidence * 100)}% thấp hơn ${minConfidence * 100}%.`
+        : undefined,
+    optionCountConflict
+      ? "Đáp án cộng đồng vượt quá số lựa chọn OCR nhận diện."
+      : detectedOptions?.needsReview
+        ? "Số lựa chọn chưa được nhận diện đủ tin cậy."
+        : undefined,
+  ].filter((reason): reason is string => Boolean(reason));
 
   return {
     questionNumber,
     answers,
     proposedType: answers.length > 1 ? "multiple" : "single",
-    optionCount: Math.max(
-      4,
-      ...answers.map((answer) => letterToIndex(answer) + 1),
-    ),
+    optionCount,
+    ...(detectedOptions
+      ? {
+          optionCountConfidence: detectedOptions.confidence,
+          optionCountSource: detectedOptions.source,
+        }
+      : {}),
     confidence,
-    totalComments: votes.length,
+    totalComments,
     validVotes,
     voteBreakdown: breakdown,
     disputed,
-    ...(disputed
-      ? {
-          disputeReason: tied
-            ? "Các tổ hợp đáp án có số phiếu ngang nhau."
-            : `Đồng thuận ${Math.round(confidence * 100)}% thấp hơn ${minConfidence * 100}%.`,
-        }
-      : {}),
+    ...(disputed ? { disputeReason: reasons.join(" ") } : {}),
   };
 }
 

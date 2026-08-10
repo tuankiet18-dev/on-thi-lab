@@ -3,9 +3,11 @@ import {
   calculateScore,
   aiAnswerSuggestionSchema,
   createDraftImportSchema,
+  examOcrStatusSchema,
   isExactAnswer,
   publishExamResultSchema,
   updateCourseSchema,
+  updateOcrQuestionSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
 } from "./index";
@@ -185,5 +187,66 @@ describe("answer review input", () => {
         publishedAt: "2026-07-24T06:00:00.000Z",
       }),
     ).toMatchObject({ status: "published" });
+  });
+});
+
+describe("OCR review input", () => {
+  it("allows incomplete OCR options in review status only", () => {
+    expect(
+      examOcrStatusSchema.parse({
+        revisionId: "20000000-0000-4000-8000-000000000002",
+        presentationMode: "hybrid",
+        ocrProgress: {
+          total: 1,
+          approved: 0,
+          needsReview: 1,
+          pending: 0,
+          failed: 0,
+        },
+        questions: [
+          {
+            questionId: "10000000-0000-4000-8000-000000000001",
+            order: 1,
+            ocrStatus: "needs_review",
+            textContent: "OCR text without labels",
+            options: [],
+            optionCount: 0,
+            confidence: 0.87,
+            flagReasons: ["missing_option_labels"],
+            validationIssues: [],
+            imageUrl: "/question-images/example.webp",
+            contentMode: "image",
+          },
+        ],
+        canPublish: true,
+      }),
+    ).toMatchObject({
+      questions: [{ options: [], ocrStatus: "needs_review" }],
+    });
+  });
+
+  it("requires a stem and between two and six non-empty options", () => {
+    expect(
+      updateOcrQuestionSchema.parse({
+        textContent: "  What is the answer?  ",
+        options: [" First ", "Second"],
+      }),
+    ).toEqual({
+      textContent: "What is the answer?",
+      options: ["First", "Second"],
+    });
+
+    expect(() =>
+      updateOcrQuestionSchema.parse({
+        textContent: "Question",
+        options: ["Only one"],
+      }),
+    ).toThrow();
+    expect(() =>
+      updateOcrQuestionSchema.parse({
+        textContent: "Question",
+        options: ["A", ""],
+      }),
+    ).toThrow();
   });
 });

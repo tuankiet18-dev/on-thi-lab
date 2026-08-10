@@ -12,7 +12,14 @@ comment.
 ```json
 {
   "1775674360012.webp": [
-    { "author": "crawler-id", "content": "AB" },
+    {
+      "author": "crawler-id",
+      "content": "AB",
+      "optionCount": 4,
+      "optionCountConfidence": 0.97,
+      "optionCountSource": "ocr",
+      "optionCountNeedsReview": false
+    },
     { "author": "crawler-id-2", "content": "Đáp án đúng là A, B" }
   ]
 }
@@ -25,8 +32,14 @@ comment.
   không suy diễn từ phần giải thích còn lại.
 - Khi một người có nhiều comment, chỉ vote có thể parse sau cùng được dùng để
   tổng hợp và định danh người đó bị loại bỏ ngay sau bước này.
-- Gợi ý luôn cần quản trị viên áp dụng và lưu thành đáp án chính thức. Những
-  câu có đồng thuận dưới 75% hoặc hòa phiếu được gắn cờ cần kiểm tra.
+- `optionCount` nhận từ 2 đến 6. Hệ thống chỉ tự lưu đáp án khi comment có đồng
+  thuận rõ ràng và OCR nhận diện số lựa chọn với độ tin cậy từ 82%. Loại câu
+  một/nhiều đáp án, số lựa chọn và đáp án được ghi ngay khi tạo đề nháp.
+- Câu có đồng thuận dưới 75%, hòa phiếu, OCR không chắc chắn hoặc thiếu metadata
+  số lựa chọn được giữ ở trạng thái “Cần kiểm tra”. Trang duyệt mặc định chỉ
+  hiển thị các ngoại lệ này; quản trị viên không phải lưu lại toàn bộ đề.
+- Với đề nháp được tạo trước thay đổi này, trang duyệt tự áp dụng các gợi ý
+  cộng đồng đủ điều kiện khi mở đề.
 
 Giới hạn bảo mật: ZIP tối đa 250 MB, ảnh tối đa 20 MB, `answers.json` tối đa
 1 MB, tổng dữ liệu giải nén tối đa 500 MB và tỷ lệ nén tối đa 100:1.

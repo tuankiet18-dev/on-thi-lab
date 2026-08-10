@@ -56,4 +56,55 @@ describe("community answer aggregation", () => {
     expect(results.get(1)?.answers).toEqual(["b"]);
     expect(results.get(2)?.answers).toEqual(["a", "c"]);
   });
+
+  it("uses high-confidence crawler option counts above and below four", () => {
+    expect(
+      computeAnswer(1, [
+        {
+          content: "B",
+          optionCount: 3,
+          optionCountConfidence: 0.97,
+          optionCountSource: "ocr",
+        },
+      ]),
+    ).toMatchObject({
+      answers: ["b"],
+      optionCount: 3,
+      optionCountSource: "ocr",
+      disputed: false,
+    });
+
+    expect(
+      computeAnswer(2, [
+        {
+          content: "F",
+          optionCount: 6,
+          optionCountConfidence: 0.96,
+          optionCountSource: "ocr",
+        },
+      ]),
+    ).toMatchObject({
+      answers: ["f"],
+      optionCount: 6,
+      disputed: false,
+    });
+  });
+
+  it("keeps low-confidence option detection but flags it for review", () => {
+    expect(
+      computeAnswer(1, [
+        {
+          content: "A",
+          optionCount: 5,
+          optionCountConfidence: 0.55,
+          optionCountSource: "answer-lower-bound",
+          optionCountNeedsReview: true,
+        },
+      ]),
+    ).toMatchObject({
+      optionCount: 5,
+      disputed: true,
+      disputeReason: "Số lựa chọn chưa được nhận diện đủ tin cậy.",
+    });
+  });
 });

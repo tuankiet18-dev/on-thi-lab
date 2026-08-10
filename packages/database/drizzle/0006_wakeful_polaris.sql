@@ -1,0 +1,1 @@
+ALTER TYPE "public"."presentation_mode" ADD VALUE 'hybrid';

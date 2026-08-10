@@ -21,7 +21,9 @@ Admin yêu cầu gợi ý cho câu đang mở
      AWS: một message SQS cho câu đã chọn
   → worker đọc đúng ảnh của câu đó ở server-side
   → provider Vision trả JSON có cấu trúc
+  → worker tự nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
   → worker kiểm tra loại câu, số lựa chọn, chỉ số và confidence
+  → cập nhật số lựa chọn của câu nếu AI phát hiện cấu trúc khác
   → lưu suggested hoặc failed vào ai_metadata
   → UI polling trong khi còn queued/processing
   → người duyệt áp dụng và lưu → confirmed
@@ -65,6 +67,7 @@ vì message sẽ chỉ nằm trong queue.
   `retry-after`. Cửa sổ chờ dài hơn 90 giây (ví dụ chạm hạn mức token/ngày) sẽ
   được đánh dấu `failed` để thao tác không treo nhiều giờ.
 - Nút tạo lại chỉ queue câu đang mở nếu câu chưa có đáp án chính thức.
+- Mỗi yêu cầu chỉ gửi đúng ảnh câu đang mở; không gửi toàn bộ đề.
 - `queued`, `processing`, `suggested` và `confirmed` không bị queue trùng.
 - Không log API key, data URL ảnh hoặc raw response đầy đủ.
 - Có thể đổi provider tương thích Chat Completions qua `AI_BASE_URL` mà không

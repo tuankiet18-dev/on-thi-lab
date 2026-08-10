@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QuestionContent } from "../components/QuestionContent";
 import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -419,82 +420,92 @@ export function AttemptPage() {
             </div>
 
             <div className="bg-white p-3 sm:p-6">
-              <button
-                type="button"
-                onClick={() => setImageExpanded(true)}
-                className="group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
-                aria-label={`Phóng to ảnh câu ${currentIndex + 1}`}
-              >
-                <img
-                  src={questionImageUrl(question.imageUrl)}
-                  alt={question.imageAlt}
-                  className="h-auto max-h-[55vh] w-full object-contain"
-                  width="1200"
-                  height="520"
-                />
-                <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white backdrop-blur-sm sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-                  <Maximize2 size={15} aria-hidden="true" />
-                  Phóng to
-                </span>
-              </button>
+              <QuestionContent
+                presentationMode={question.contentMode}
+                textContent={question.textContent}
+                options={question.options}
+                showOptions={false}
+                imageUrl={questionImageUrl(question.imageUrl)}
+                imageAlt={question.imageAlt}
+                order={currentIndex + 1}
+                onExpandImage={() => setImageExpanded(true)}
+              />
             </div>
 
-            <div className="border-t border-border bg-slate-50/80 p-4 sm:p-6">
+            <div className="border-t border-border bg-slate-50/80 p-4 sm:p-5">
               <fieldset>
                 <legend className="mb-3 text-sm font-semibold text-slate-600">
                   Chọn đáp án của bạn:
                 </legend>
-                <div className="flex flex-wrap items-center gap-4">
-                  {question.options.map((option, optionIndex) => {
-                    const selected = selectedOptions.includes(optionIndex);
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        role={question.type === "single" ? "radio" : "checkbox"}
-                        aria-checked={selected}
-                        onClick={() => chooseOption(optionIndex)}
-                        className={cn(
-                          "group relative grid size-12 shrink-0 place-items-center border-2 text-lg font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40",
-                          question.type === "single"
-                            ? "rounded-full"
-                            : "rounded-xl",
-                          selected
-                            ? "border-primary bg-primary text-white shadow-md shadow-primary/20 scale-105"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm hover:-translate-y-0.5",
-                        )}
-                        aria-label={`Chọn đáp án ${option}`}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            </div>
+                <div className="flex flex-col items-start gap-3">
+                  <div className="grid w-full gap-2 sm:grid-cols-2">
+                    {question.options.map((option, optionIndex) => {
+                      const selected = selectedOptions.includes(optionIndex);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          role={
+                            question.type === "single" ? "radio" : "checkbox"
+                          }
+                          aria-checked={selected}
+                          onClick={() => chooseOption(optionIndex)}
+                          className={cn(
+                            "group relative flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl border-2 px-3 text-left transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40 motion-reduce:transform-none motion-reduce:transition-none",
+                            selected
+                              ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
+                              : "border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm",
+                          )}
+                          aria-label={`Chọn đáp án ${String.fromCharCode(65 + optionIndex)}: ${option}`}
+                        >
+                          <span
+                            className={cn(
+                              "grid size-8 shrink-0 place-items-center rounded-lg text-sm font-bold",
+                              selected
+                                ? "bg-white/20 text-white"
+                                : "bg-slate-100 text-slate-700",
+                            )}
+                          >
+                            {String.fromCharCode(65 + optionIndex)}
+                          </span>
+                          <span className="whitespace-pre-wrap text-sm font-medium sm:text-base">
+                            {option}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border p-4 sm:p-5">
-              <Button
-                variant="secondary"
-                disabled={currentIndex === 0}
-                onClick={() =>
-                  setCurrentIndex((index) => Math.max(0, index - 1))
-                }
-                icon={<ChevronLeft size={18} />}
-              >
-                Câu trước
-              </Button>
-              <Button
-                disabled={currentIndex === questions.length - 1}
-                onClick={() =>
-                  setCurrentIndex((index) =>
-                    Math.min(questions.length - 1, index + 1),
-                  )
-                }
-              >
-                Câu tiếp
-                <ChevronRight size={18} aria-hidden="true" />
-              </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      className="min-w-28"
+                      disabled={currentIndex === 0}
+                      onClick={() =>
+                        setCurrentIndex((index) => Math.max(0, index - 1))
+                      }
+                      icon={<ChevronLeft size={18} />}
+                    >
+                      Câu trước
+                    </Button>
+                    <Button
+                      className="min-w-28"
+                      disabled={currentIndex === questions.length - 1}
+                      onClick={() =>
+                        setCurrentIndex((index) =>
+                          Math.min(questions.length - 1, index + 1),
+                        )
+                      }
+                    >
+                      Câu sau
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Đáp án được lưu tự động sau khi chọn.
+                </p>
+              </fieldset>
             </div>
           </section>
 
@@ -662,14 +673,14 @@ export function AttemptPage() {
             role="dialog"
             aria-modal="true"
             aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
+            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white p-4"
           >
-            <img
-              src={questionImageUrl(question.imageUrl)}
-              alt={`Ảnh phóng to ${question.imageAlt}`}
-              width="1920"
-              height="620"
-              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
+            <QuestionContent
+              presentationMode={question.contentMode}
+              textContent={question.textContent}
+              options={question.options}
+              imageUrl={questionImageUrl(question.imageUrl)}
+              imageAlt={`Chi tiết ${question.imageAlt}`}
             />
           </section>
         </div>

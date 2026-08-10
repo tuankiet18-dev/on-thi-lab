@@ -7,6 +7,7 @@ import {
   createReportSchema,
   bookmarkCollectionSchema,
   bookmarkStateSchema,
+  confirmTrustedSuggestionsResultSchema,
   draftExamReviewSchema,
   draftImportResultSchema,
   examSchema,
@@ -30,6 +31,7 @@ import {
   type AttemptResult,
   type AttemptSummary,
   type CreateDraftImportInput,
+  type ConfirmTrustedSuggestionsResult,
   type AdminExamSummary,
   type AdminCatalog,
   type CreateCourseInput,
@@ -57,6 +59,10 @@ import {
   studentStatisticsSchema,
   type StudentStatistics,
   type BookmarkCollection,
+  examOcrStatusSchema,
+  type ExamOcrStatus,
+  type AdminAttentionSummary,
+  adminAttentionSummarySchema,
 } from "@onthilab/contracts";
 import { webConfig } from "./config";
 
@@ -68,6 +74,21 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+/**
+ * An API endpoint returned HTTP 2xx but its response did not match the
+ * contract expected by the web client. Keeping this distinct from ApiError
+ * lets a screen stop polling instead of appearing to load forever.
+ */
+export class ApiResponseValidationError extends Error {
+  constructor(
+    readonly endpoint: string,
+    readonly issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>,
+  ) {
+    super(`Dữ liệu phản hồi không hợp lệ từ ${endpoint}`);
+    this.name = "ApiResponseValidationError";
   }
 }
 
@@ -241,6 +262,20 @@ export async function markExamReviewReady(
     fetcher,
   );
   return reviewReadinessResultSchema.parse(result);
+}
+
+export async function confirmTrustedCommunitySuggestions(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ConfirmTrustedSuggestionsResult> {
+  const result = await request(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/community-suggestions/confirm`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return confirmTrustedSuggestionsResultSchema.parse(result);
 }
 
 export async function publishExam(
@@ -665,4 +700,108 @@ export async function saveAdminCurriculumCourse(
     { method: "PUT", body: JSON.stringify(input) },
     fetcher,
   );
+}
+
+export async function getExamOcrStatus(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ExamOcrStatus> {
+  const result = await request(
+    `/v1/admin/revisions/${revisionId}/ocr`,
+    idToken,
+    {},
+    fetcher,
+  );
+  const parsed = examOcrStatusSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new ApiResponseValidationError(
+      `/v1/admin/revisions/${revisionId}/ocr`,
+      parsed.error.issues.map((issue) => ({
+        path: issue.path,
+        message: issue.message,
+      })),
+    );
+  }
+  return parsed.data;
+}
+
+export async function approveOcrQuestion(
+  idToken: string,
+  questionId: string,
+  input: { textContent: string; options: string[] },
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+    fetcher,
+  );
+}
+
+export async function rejectOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr`,
+    idToken,
+    { method: "DELETE" },
+    fetcher,
+  );
+}
+
+export async function retryOcrQuestion(
+  idToken: string,
+  questionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/questions/${questionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
+export async function retryRevisionOcr(
+  idToken: string,
+  revisionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/ocr/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+}
+
+export async function setExamPresentationMode(
+  idToken: string,
+  revisionId: string,
+  mode: "image" | "text" | "hybrid",
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await request(
+    `/v1/admin/revisions/${revisionId}/presentation`,
+    idToken,
+    { method: "PATCH", body: JSON.stringify({ mode }) },
+    fetcher,
+  );
+}
+
+export async function getAdminAttentionSummary(
+  idToken: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminAttentionSummary> {
+  const result = await request(
+    `/v1/admin/attention-summary`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return adminAttentionSummarySchema.parse(result);
 }

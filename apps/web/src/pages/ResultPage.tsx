@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { QuestionContent } from "../components/QuestionContent";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
@@ -47,7 +48,13 @@ export function ResultPage() {
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(
     null,
   );
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<null | {
+    imageUrl: string;
+    imageAlt: string;
+    textContent?: string | null;
+    options?: string[] | null;
+    contentMode: "image" | "text";
+  }>(null);
   const [bookmarkedExam, setBookmarkedExam] = useState(false);
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(
     new Set(),
@@ -539,13 +546,20 @@ export function ResultPage() {
                   </div>
                   {isExpanded && (
                     <div className="mt-4 overflow-hidden rounded-xl border border-border bg-slate-50">
-                      <img
-                        src={questionImageUrl(question.imageUrl)}
-                        alt={question.imageAlt}
-                        loading="lazy"
-                        className="max-h-[680px] w-full object-contain cursor-zoom-in transition-transform hover:scale-[1.01]"
-                        onClick={() =>
-                          setZoomedImage(questionImageUrl(question.imageUrl))
+                      <QuestionContent
+                        presentationMode={question.contentMode}
+                        imageUrl={questionImageUrl(question.imageUrl)}
+                        imageAlt={question.imageAlt}
+                        textContent={question.textContent}
+                        options={question.options}
+                        onExpandImage={() =>
+                          setZoomedImage({
+                            imageUrl: questionImageUrl(question.imageUrl),
+                            imageAlt: question.imageAlt,
+                            textContent: question.textContent,
+                            options: question.options,
+                            contentMode: question.contentMode,
+                          })
                         }
                       />
                     </div>
@@ -603,12 +617,18 @@ export function ResultPage() {
           >
             <X size={28} aria-hidden="true" />
           </button>
-          <img
-            src={zoomedImage}
-            alt="Ảnh câu hỏi phóng to"
-            className="max-h-[90dvh] max-w-[90vw] rounded-xl bg-white object-contain shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          />
+          <div
+            className="w-full max-w-5xl rounded-xl bg-white p-4 overflow-auto max-h-[90dvh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <QuestionContent
+              presentationMode={zoomedImage.contentMode}
+              imageUrl={zoomedImage.imageUrl}
+              imageAlt={zoomedImage.imageAlt}
+              textContent={zoomedImage.textContent}
+              options={zoomedImage.options}
+            />
+          </div>
         </div>
       )}
     </div>

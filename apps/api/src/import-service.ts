@@ -100,14 +100,44 @@ function parseCommunityAnswers(content: string): CommunityAnswers {
     }
     result[fileName] = votes.flatMap((vote) => {
       if (!vote || typeof vote !== "object" || !("content" in vote)) return [];
-      const content = (vote as { content?: unknown }).content;
-      const author = (vote as { author?: unknown }).author;
+      const candidate = vote as {
+        content?: unknown;
+        author?: unknown;
+        optionCount?: unknown;
+        optionCountConfidence?: unknown;
+        optionCountSource?: unknown;
+        optionCountNeedsReview?: unknown;
+      };
+      const content = candidate.content;
+      const author = candidate.author;
       if (typeof content !== "string" || content.length > 4_000) return [];
       return [
         {
           content,
           ...(typeof author === "string"
             ? { author: author.slice(0, 200) }
+            : {}),
+          ...(Number.isInteger(candidate.optionCount) &&
+          Number(candidate.optionCount) >= 2 &&
+          Number(candidate.optionCount) <= 6
+            ? { optionCount: Number(candidate.optionCount) }
+            : {}),
+          ...(typeof candidate.optionCountConfidence === "number" &&
+          candidate.optionCountConfidence >= 0 &&
+          candidate.optionCountConfidence <= 1
+            ? {
+                optionCountConfidence: candidate.optionCountConfidence,
+              }
+            : {}),
+          ...(typeof candidate.optionCountSource === "string"
+            ? {
+                optionCountSource: candidate.optionCountSource.slice(0, 50),
+              }
+            : {}),
+          ...(typeof candidate.optionCountNeedsReview === "boolean"
+            ? {
+                optionCountNeedsReview: candidate.optionCountNeedsReview,
+              }
             : {}),
         },
       ];
@@ -129,7 +159,7 @@ async function readOptionalCommunityAnswers(
   }
 }
 
-function draftQuestionsFromImages(
+export function draftQuestionsFromImages(
   images: readonly ExtractedQuestionImage[],
   storagePrefix: string,
   answers?: CommunityAnswers,
@@ -141,18 +171,32 @@ function draftQuestionsFromImages(
 
   return images.map((image) => {
     const suggestion = suggestions.get(image.order);
+    const proposedAnswers =
+      suggestion?.answers.map((answer) => "abcdef".indexOf(answer)) ?? [];
+    const hasTrustedOptionCount =
+      typeof suggestion?.optionCountConfidence === "number" &&
+      suggestion.optionCountConfidence >= 0.82 &&
+      Boolean(suggestion.optionCountSource);
+    const canAutoSave =
+      suggestion !== undefined &&
+      suggestion.validVotes > 0 &&
+      suggestion.disputed === false &&
+      hasTrustedOptionCount &&
+      proposedAnswers.length > 0;
     const aiMetadata = suggestion
       ? suggestion.validVotes > 0
         ? {
-            status: "suggested" as const,
+            status: canAutoSave
+              ? ("confirmed" as const)
+              : ("suggested" as const),
             provider: "community-comments",
             model: "exact-consensus-v1",
             confidence: suggestion.confidence,
             proposedType: suggestion.proposedType,
             optionCount: suggestion.optionCount,
-            proposedAnswers: suggestion.answers.map((answer) =>
-              "abcdef".indexOf(answer),
-            ),
+            optionCountConfidence: suggestion.optionCountConfidence,
+            optionCountSource: suggestion.optionCountSource,
+            proposedAnswers,
             validVotes: suggestion.validVotes,
             totalComments: suggestion.totalComments,
             voteBreakdown: suggestion.voteBreakdown,
@@ -173,7 +217,9 @@ function draftQuestionsFromImages(
       order: image.order,
       imageKey: posix.join(storagePrefix, image.fileName),
       imageHash: image.sha256,
+      type: suggestion?.proposedType ?? "single",
       optionCount: suggestion?.optionCount ?? 4,
+      ...(canAutoSave ? { correctOptions: proposedAnswers } : {}),
       aiMetadata,
     };
   });

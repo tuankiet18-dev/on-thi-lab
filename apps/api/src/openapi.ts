@@ -357,6 +357,128 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/revisions/{revisionId}/ocr": {
+      get: {
+        operationId: "getExamOcrStatus",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "revisionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "OCR progress and review data for a revision" },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+    },
+    "/v1/admin/revisions/{revisionId}/ocr/retry": {
+      post: {
+        operationId: "retryRevisionOcr",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "revisionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "All question images queued for a fresh OCR run",
+          },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+    },
+    "/v1/admin/questions/{questionId}/ocr": {
+      patch: {
+        operationId: "approveOcrQuestion",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "questionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "OCR text and options approved" },
+          "400": { description: "Text or options are invalid" },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+      delete: {
+        operationId: "markOcrQuestionForReview",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "questionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "OCR result marked for manual handling" },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+    },
+    "/v1/admin/questions/{questionId}/ocr/retry": {
+      post: {
+        operationId: "retryOcrQuestion",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "questionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Question queued for OCR again" },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+    },
+    "/v1/admin/revisions/{revisionId}/presentation": {
+      patch: {
+        operationId: "setExamPresentationMode",
+        tags: ["Admin OCR"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "revisionId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": { description: "Exam presentation changed to text or image" },
+          "400": { description: "Presentation mode is invalid" },
+          "403": { description: "Contributor or admin role required" },
+          "503": { description: "OCR is not configured" },
+        },
+      },
+    },
     "/v1/admin/exams/{examId}/ready": {
       post: {
         operationId: "markExamReviewReady",

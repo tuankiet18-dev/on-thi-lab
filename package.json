@@ -19,7 +19,11 @@
     "git:setup": "git config core.hooksPath .githooks",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "infra:synth": "pnpm --filter @onthilab/infra synth"
+    "infra:synth": "pnpm --filter @onthilab/infra synth",
+    "deploy:staging": "bash ./deploy-staging.sh",
+    "deploy:staging:web": "bash ./deploy-staging-web.sh",
+    "deploy:prod": "bash ./deploy-prod.sh",
+    "deploy:prod:web": "bash ./deploy-prod-web.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",

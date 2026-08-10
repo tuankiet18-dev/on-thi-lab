@@ -12,12 +12,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "yauzl": "^3.2.0"
+    "@onthilab/database": "workspace:*",
+    "yauzl": "^3.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/node": "^24.0.10",
     "@types/yauzl": "^2.10.3",
     "@types/yazl": "^3.3.0",
-    "@types/node": "^24.0.10",
     "vitest": "^3.2.4",
     "yazl": "^3.3.1"
   }

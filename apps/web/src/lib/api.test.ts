@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  ApiResponseValidationError,
   createAttempt,
   getAttempt,
   getAttemptSession,
   getCatalog,
   getDraftExamReview,
+  getExamOcrStatus,
   getPublishedExam,
   markExamReviewReady,
   getMyProfile,
@@ -139,6 +141,7 @@ describe("profile API client", () => {
           examType: "FE",
           isRetake: false,
           durationMinutes: 60,
+          extractText: true,
         },
         new File(["PK"], "questions.zip", { type: "application/zip" }),
         fetcher,
@@ -156,6 +159,7 @@ describe("profile API client", () => {
     const examId = "20000000-0000-4000-8000-000000000001";
     const questionId = "40000000-0000-4000-8000-000000000001";
     const review = {
+      presentationMode: "image",
       examId,
       revisionId: "30000000-0000-4000-8000-000000000001",
       examCode: "SWD392-SP26-FE",
@@ -241,22 +245,25 @@ describe("profile API client", () => {
   it("publishes a reviewed exam and loads it from the live catalog", async () => {
     const examId = "20000000-0000-4000-8000-000000000001";
     const publishedAt = "2026-07-24T06:00:00.000Z";
-    const summary = {
-      id: examId,
-      code: "SWD392-SP26-FE",
-      courseCode: "SWD392",
-      courseName: "Software Architecture and Design",
-      semester: "SP26",
-      campus: "Hòa Lạc",
-      examType: "FE",
-      isRetake: false,
-      durationMinutes: 60,
-      questionCount: 1,
-      publishedAt,
-      answerConfidence: "verified",
-    } as const;
+    const summary = [
+      {
+        id: examId,
+        code: "SWD392-SP26-FE",
+        courseCode: "SWD392",
+        courseName: "Software Architecture and Design",
+        semester: "SP26",
+        campus: "Hòa Lạc",
+        examType: "FE",
+        isRetake: false,
+        durationMinutes: 60,
+        questionCount: 1,
+        publishedAt: "2026-07-24T06:00:00.000Z",
+        answerConfidence: "verified",
+        presentationMode: "image",
+      },
+    ];
     const exam = {
-      ...summary,
+      ...summary[0],
       instructions: ["Không thể tạm dừng."],
       shuffleQuestions: true,
       questions: [
@@ -265,6 +272,7 @@ describe("profile API client", () => {
           order: 1,
           imageUrl: "http://localhost:8787/question-images/Q1.jpg",
           imageAlt: "Câu hỏi 1",
+          contentMode: "image",
           type: "single",
           options: ["A", "B", "C", "D"],
         },
@@ -286,7 +294,7 @@ describe("profile API client", () => {
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: [summary] }), { status: 200 }),
+        new Response(JSON.stringify({ data: summary }), { status: 200 }),
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ data: exam }), { status: 200 }),
@@ -295,9 +303,9 @@ describe("profile API client", () => {
     await expect(
       publishExam("signed-id-token", examId, fetcher),
     ).resolves.toMatchObject({ status: "published" });
-    await expect(getCatalog("signed-id-token", fetcher)).resolves.toEqual([
+    await expect(getCatalog("signed-id-token", fetcher)).resolves.toEqual(
       summary,
-    ]);
+    );
     await expect(
       getPublishedExam("signed-id-token", examId, fetcher),
     ).resolves.toEqual(exam);
@@ -448,6 +456,7 @@ describe("profile API client", () => {
               questionCount: 1,
               publishedAt: "2026-07-24T06:00:00.000Z",
               answerConfidence: "reviewed",
+              presentationMode: "image",
               shuffleQuestions: true,
               instructions: [],
               questions: [
@@ -456,6 +465,7 @@ describe("profile API client", () => {
                   order: 1,
                   imageUrl: "https://example.test/Q1.jpg",
                   imageAlt: "Câu hỏi 1",
+                  contentMode: "image",
                   type: "single",
                   options: ["A", "B", "C", "D"],
                 },
@@ -481,5 +491,69 @@ describe("profile API client", () => {
         }),
       }),
     );
+  });
+});
+
+describe("OCR API client", () => {
+  const revisionId = "30000000-0000-4000-8000-000000000001";
+  const questionId = "40000000-0000-4000-8000-000000000001";
+
+  const ocrStatus = {
+    revisionId,
+    presentationMode: "hybrid",
+    ocrProgress: {
+      total: 1,
+      approved: 0,
+      needsReview: 1,
+      pending: 0,
+      failed: 0,
+    },
+    questions: [
+      {
+        questionId,
+        order: 1,
+        ocrStatus: "needs_review",
+        textContent: "Question text",
+        options: [],
+        optionCount: 0,
+        confidence: 0.72,
+        flagReasons: ["missing_option_labels"],
+        validationIssues: [],
+        imageUrl: "/question-images/drafts/example/Q1.webp",
+        contentMode: "image",
+      },
+    ],
+    canPublish: true,
+  } as const;
+
+  it("accepts incomplete OCR options so one question cannot block the review", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: ocrStatus }), { status: 200 }),
+      );
+
+    await expect(
+      getExamOcrStatus("signed-id-token", revisionId, fetcher),
+    ).resolves.toEqual(ocrStatus);
+  });
+
+  it("throws a typed error when the OCR response itself violates the contract", async () => {
+    const invalidStatus = {
+      ...ocrStatus,
+      questions: [{ ...ocrStatus.questions[0], options: "not-an-array" }],
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: invalidStatus }), { status: 200 }),
+      );
+
+    await expect(
+      getExamOcrStatus("signed-id-token", revisionId, fetcher),
+    ).rejects.toMatchObject({
+      name: "ApiResponseValidationError",
+      endpoint: `/v1/admin/revisions/${revisionId}/ocr`,
+    } satisfies Partial<ApiResponseValidationError>);
   });
 });

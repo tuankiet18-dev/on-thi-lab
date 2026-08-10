@@ -13,8 +13,14 @@
     "validate:zip": "tsx src/validate-zip.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/client-sqs": "^3.1098.0",
+    "@aws-sdk/client-ssm": "^3.1098.0",
+    "@aws-sdk/client-textract": "^3.1098.0",
     "@onthilab/database": "workspace:*",
     "@onthilab/importer": "workspace:*",
+    "@types/aws-lambda": "^8.10.162",
+    "sharp": "^0.35.3",
     "zod": "^4.0.5"
   },
   "devDependencies": {

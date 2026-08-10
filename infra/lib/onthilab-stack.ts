@@ -15,6 +15,8 @@ import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as iam from "aws-cdk-lib/aws-iam";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Construct } from "constructs";
@@ -129,6 +131,23 @@ export class OnThiLabStack extends Stack {
       },
     });
 
+    const ocrDlq = new sqs.Queue(this, "OcrDlq", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: Duration.days(14),
+    });
+
+    const ocrQueue = new sqs.Queue(this, "OcrQueue", {
+      // OCR does not need ordered delivery. A standard queue lets different
+      // question images run concurrently; the database claim below makes
+      // at-least-once delivery idempotent before a Textract request is made.
+      queueName: `onthilab-ocr-${props.stage}`,
+      visibilityTimeout: Duration.minutes(3),
+      deadLetterQueue: {
+        queue: ocrDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
     new cloudwatch.Alarm(this, "ImportDeadLetterQueueAlarm", {
       metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible(),
       threshold: 1,
@@ -145,6 +164,25 @@ export class OnThiLabStack extends Stack {
       comparisonOperator:
         cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       alarmDescription: "Alert when messages are stuck in the queue for >1hr.",
+    });
+
+    new cloudwatch.Alarm(this, "OcrDeadLetterQueueAlarm", {
+      metric: ocrDlq.metricApproximateNumberOfMessagesVisible(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator:
+        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: "Alert when an OCR job reaches the DLQ.",
+    });
+
+    new cloudwatch.Alarm(this, "OcrQueueOldMessageAlarm", {
+      metric: ocrQueue.metricApproximateAgeOfOldestMessage(),
+      threshold: Duration.minutes(15).toSeconds(),
+      evaluationPeriods: 1,
+      comparisonOperator:
+        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription:
+        "Alert when OCR work is waiting for more than 15 minutes.",
     });
 
     if (
@@ -181,6 +219,9 @@ export class OnThiLabStack extends Stack {
           minify: true,
           sourceMap: true,
           target: "node22",
+          format: lambdaNodejs.OutputFormat.ESM,
+          banner:
+            "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
         },
         environment: {
           APP_ENV: props.stage === "prod" ? "production" : "staging",
@@ -206,20 +247,98 @@ export class OnThiLabStack extends Stack {
             ? "true"
             : "false",
           FEATURE_MONETIZATION_ENABLED: "false",
+          OCR_QUEUE_URL: ocrQueue.queueUrl,
         },
       });
       databaseParameter.grantRead(apiHandler);
       aiApiKeyParameter?.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
       importQueue.grantSendMessages(apiHandler);
+      ocrQueue.grantSendMessages(apiHandler);
+
+      const workerHandler = new lambdaNodejs.NodejsFunction(
+        this,
+        "WorkerHandler",
+        {
+          runtime: lambda.Runtime.NODEJS_22_X,
+          entry: join(projectRoot, "apps/worker/src/lambda.ts"),
+          handler: "handler",
+          memorySize: 512,
+          timeout: Duration.minutes(2),
+          architecture: lambda.Architecture.ARM_64,
+          bundling: {
+            minify: true,
+            sourceMap: true,
+            target: "node22",
+            format: lambdaNodejs.OutputFormat.ESM,
+            banner:
+              "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
+            nodeModules: [],
+            commandHooks: {
+              beforeBundling(inputDir: string, outputDir: string): string[] {
+                return [];
+              },
+              beforeInstall(inputDir: string, outputDir: string): string[] {
+                return [];
+              },
+              afterBundling(inputDir: string, outputDir: string): string[] {
+                return [
+                  `cd ${outputDir} && npm init -y && npm install --os=linux --cpu=arm64 sharp`,
+                ];
+              },
+            },
+          },
+          environment: {
+            DATABASE_PARAMETER_NAME: props.databaseParameterName,
+            QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+            OCR_QUEUE_URL: ocrQueue.queueUrl,
+          },
+        },
+      );
+
+      databaseParameter.grantRead(workerHandler);
+      questionImageBucket.grantReadWrite(workerHandler);
+
+      workerHandler.addEventSource(
+        new SqsEventSource(ocrQueue, {
+          batchSize: 1,
+          maxConcurrency: 3,
+        }),
+      );
+
+      workerHandler.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ["textract:DetectDocumentText"],
+          resources: ["*"],
+        }),
+      );
+
+      new cloudwatch.Alarm(this, "OcrWorkerErrorAlarm", {
+        metric: workerHandler.metricErrors({ period: Duration.minutes(5) }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "Alert when the OCR worker throws an error.",
+      });
+
+      new cloudwatch.Alarm(this, "OcrWorkerThrottleAlarm", {
+        metric: workerHandler.metricThrottles({ period: Duration.minutes(5) }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "Alert when OCR worker concurrency is throttled.",
+      });
 
       const api = new apigateway.LambdaRestApi(this, "PublicApi", {
         handler: apiHandler,
         proxy: true,
         // Lambda proxy responses encode binary bodies as Base64. API Gateway
-        // chooses binary handling from the first browser Accept value (often
-        // image/avif), not the response Content-Type. Include that value and
-        // the formats we serve without making JSON/OPTIONS binary responses.
+        // Register only the image formats served by the question-image route.
+        // Keeping JSON/OPTIONS outside the binary list is important: API
+        // Gateway must return the CORS preflight as a normal 204 response so
+        // authenticated browser requests (for example /v1/me) can proceed.
         binaryMediaTypes: [
           "image/avif",
           "image/webp",
@@ -256,6 +375,7 @@ export class OnThiLabStack extends Stack {
       value: questionImageBucket.bucketName,
     });
     new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
+    new CfnOutput(this, "OcrQueueUrl", { value: ocrQueue.queueUrl });
     new CfnOutput(this, "AiSuggestionQueueUrl", {
       value: importQueue.queueUrl,
       description: "Set this value as AI_SUGGESTION_QUEUE_URL.",

@@ -9,6 +9,7 @@ import type {
 import type {
   ProfileIdentity,
   UserProfileRepository,
+  AdminAttentionRepository,
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
@@ -140,6 +141,55 @@ function createOnboardedProfiles(
 }
 
 describe("attempt API", () => {
+  it("returns admin attention counts with role-based feedback visibility", async () => {
+    const attention: AdminAttentionRepository = {
+      getSummary: async () => ({
+        drafts: 3,
+        reports: 2,
+        feedback: 4,
+        total: 9,
+      }),
+    };
+
+    const studentApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      attention,
+    });
+    const forbidden = await studentApp.request("/v1/admin/attention-summary", {
+      headers: authorization,
+    });
+    expect(forbidden.status).toBe(403);
+
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      attention,
+    });
+    const contributorResponse = await contributorApp.request(
+      "/v1/admin/attention-summary",
+      { headers: authorization },
+    );
+    expect(contributorResponse.status).toBe(200);
+    await expect(contributorResponse.json()).resolves.toEqual({
+      data: { drafts: 3, reports: 2, feedback: 0, total: 5 },
+    });
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      attention,
+    });
+    const adminResponse = await adminApp.request(
+      "/v1/admin/attention-summary",
+      { headers: authorization },
+    );
+    expect(adminResponse.status).toBe(200);
+    await expect(adminResponse.json()).resolves.toEqual({
+      data: { drafts: 3, reports: 2, feedback: 4, total: 9 },
+    });
+  });
+
   it("creates feedback for onboarded users and lets only admins resolve it", async () => {
     const feedbackId = "70000000-0000-4000-8000-000000000001";
     let item: Feedback | null = null;
@@ -399,6 +449,59 @@ describe("attempt API", () => {
     });
   });
 
+  it("maps OCR review image keys through the question image endpoint", async () => {
+    const revisionId = "20000000-0000-4000-8000-000000000002";
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      ocrRepository: {
+        getExamOcrStatus: async () => ({
+          revisionId,
+          presentationMode: "hybrid",
+          ocrProgress: {
+            total: 1,
+            approved: 1,
+            needsReview: 0,
+            pending: 0,
+            failed: 0,
+          },
+          questions: [
+            {
+              questionId: "30000000-0000-4000-8000-000000000003",
+              order: 1,
+              ocrStatus: "approved",
+              textContent: "Question",
+              options: ["First", "Second"],
+              optionCount: 2,
+              confidence: 0.99,
+              flagReasons: [],
+              validationIssues: [],
+              imageUrl: "drafts/example/Q1.webp",
+              contentMode: "text",
+            },
+          ],
+          canPublish: true,
+        }),
+      } as any,
+    });
+
+    const response = await isolatedApp.request(
+      `/v1/admin/revisions/${revisionId}/ocr`,
+      { headers: authorization },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        questions: [
+          {
+            imageUrl: "/question-images/drafts/example/Q1.webp",
+          },
+        ],
+      },
+    });
+  });
+
   it("publishes an OpenAPI document", async () => {
     const response = await app.request("/openapi.json");
     const document = (await response.json()) as {
@@ -415,6 +518,9 @@ describe("attempt API", () => {
       document.paths[
         "/v1/admin/exams/{examId}/questions/{questionId}/ai-suggestion"
       ],
+    ).toBeDefined();
+    expect(
+      document.paths["/v1/admin/revisions/{revisionId}/ocr"],
     ).toBeDefined();
   });
 
@@ -735,6 +841,7 @@ describe("attempt API", () => {
           durationMinutes: 60,
           isRetake: false,
           status: "draft",
+          presentationMode: "image",
           publishedAt: null,
           answeredCount: 0,
           questionCount: 1,
@@ -762,6 +869,13 @@ describe("attempt API", () => {
             aiSuggestion: null,
           };
         },
+        confirmTrustedSuggestions: async (_examId, actorId) => ({
+          examId,
+          confirmedCount: actorId ? 1 : 0,
+          answeredCount: 1,
+          questionCount: 1,
+          remainingCount: 0,
+        }),
         markReady: async () => ({
           examId,
           status: "review",
@@ -812,6 +926,15 @@ describe("attempt API", () => {
     expect(saveResponse.status).toBe(200);
     expect(changedBy).toBe("10000000-0000-4000-8000-000000000001");
 
+    const confirmResponse = await isolatedApp.request(
+      `/v1/admin/exams/${examId}/community-suggestions/confirm`,
+      { method: "POST", headers: authorization },
+    );
+    expect(confirmResponse.status).toBe(200);
+    await expect(confirmResponse.json()).resolves.toMatchObject({
+      data: { confirmedCount: 1, remainingCount: 0 },
+    });
+
     const readyResponse = await isolatedApp.request(
       `/v1/admin/exams/${examId}/ready`,
       { method: "POST", headers: authorization },
@@ -829,6 +952,9 @@ describe("attempt API", () => {
       deleteExam: async () => {},
       findReview: async () => null,
       saveAnswer: async () => {
+        throw new Error("not used");
+      },
+      confirmTrustedSuggestions: async () => {
         throw new Error("not used");
       },
       markReady: async () => {
