@@ -1,7 +1,6 @@
 import type {
   AdminCatalog,
   CreateDraftImportInput,
-  DraftImportResult,
   ProfileOptions,
 } from "@onthilab/contracts";
 import { Link, Navigate } from "@tanstack/react-router";
@@ -19,82 +18,19 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { getAdminCatalog } from "../features/admin/api";
+import { uploadDraftImport } from "../features/exam-review/api";
+import { getProfileOptions } from "../features/profiles/api";
 import {
-  ApiError,
-  getAdminCatalog,
-  getProfileOptions,
-  uploadDraftImport,
-} from "../lib/api";
+  emptyImportMetadata,
+  fallbackCampuses,
+  formatFileSize,
+  importErrorMessage,
+  isImportMetadataComplete,
+  queueStatusLabel,
+  type ImportQueueItem,
+} from "../features/exam-import/model";
 import { cn } from "../lib/cn";
-
-type ImportStatus = "pending" | "uploading" | "success" | "error";
-
-interface ImportQueueItem {
-  id: string;
-  archive: File;
-  metadata: CreateDraftImportInput;
-  status: ImportStatus;
-  result?: DraftImportResult;
-  error?: string;
-}
-
-const fallbackCampuses = [
-  { code: "HL", name: "Hòa Lạc" },
-  { code: "HCM", name: "Hồ Chí Minh" },
-  { code: "DN", name: "Đà Nẵng" },
-  { code: "CT", name: "Cần Thơ" },
-  { code: "QN", name: "Quy Nhơn" },
-];
-
-const emptyMetadata = (): CreateDraftImportInput => ({
-  courseCode: "",
-  semester: "",
-  campusCode: "",
-  examType: "FE",
-  isRetake: false,
-  durationMinutes: 0,
-  extractText: false,
-});
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getImportErrorMessage(reason: unknown): string {
-  if (reason instanceof SyntaxError) return "File answers.json không hợp lệ.";
-  if (reason instanceof ApiError) {
-    const messages: Record<string, string> = {
-      CAMPUS_NOT_FOUND: "Campus không tồn tại trong hệ thống.",
-      COURSE_NOT_FOUND: "Mã môn chưa có trong danh mục.",
-      EXAM_ALREADY_EXISTS: "Đề thi này đã tồn tại.",
-      INVALID_ARCHIVE:
-        "ZIP không hợp lệ. Kiểm tra lại ảnh, tên file và answers.json.",
-      DUPLICATE_IMAGES: "ZIP chứa các ảnh giống hệt nhau (nội dung trùng lặp).",
-    };
-    return messages[reason.code] ?? "Không thể nhập đề. Vui lòng thử lại.";
-  }
-  return "Không thể nhập đề. Vui lòng thử lại.";
-}
-
-function queueStatusLabel(status: ImportStatus): string {
-  return {
-    pending: "Chờ nhập",
-    uploading: "Đang nhập",
-    success: "Đã tạo nháp",
-    error: "Cần thử lại",
-  }[status];
-}
-
-function isMetadataComplete(metadata: CreateDraftImportInput): boolean {
-  return (
-    metadata.courseCode.length > 0 &&
-    metadata.semester.trim().length > 0 &&
-    metadata.campusCode.length > 0 &&
-    metadata.durationMinutes >= 15 &&
-    metadata.durationMinutes <= 240
-  );
-}
 
 let nextQueueItemId = 0;
 
@@ -120,7 +56,7 @@ export function AdminImportPage() {
     (item) => item.status === "pending" || item.status === "error",
   );
   const readyItems = waitingItems.filter((item) =>
-    isMetadataComplete(item.metadata),
+    isImportMetadataComplete(item.metadata),
   );
   const incompleteCount = waitingItems.length - readyItems.length;
   const failedItems = importQueue.filter((item) => item.status === "error");
@@ -187,7 +123,7 @@ export function AdminImportPage() {
       ...archives.map((archive) => ({
         id: `import-${Date.now()}-${nextQueueItemId++}`,
         archive,
-        metadata: emptyMetadata(),
+        metadata: emptyImportMetadata(),
         status: "pending" as const,
       })),
     ]);
@@ -249,7 +185,7 @@ export function AdminImportPage() {
               ? {
                   ...currentItem,
                   status: "error",
-                  error: getImportErrorMessage(reason),
+                  error: importErrorMessage(reason),
                 }
               : currentItem,
           ),
@@ -401,7 +337,7 @@ export function AdminImportPage() {
                 <div className="divide-y divide-border">
                   {importQueue.map((item, index) => {
                     const isLocked = submitting || item.status === "success";
-                    const complete = isMetadataComplete(item.metadata);
+                    const complete = isImportMetadataComplete(item.metadata);
                     const statusTone =
                       item.status === "success"
                         ? "green"

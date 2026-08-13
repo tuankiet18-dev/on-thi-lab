@@ -12,30 +12,30 @@ import {
   ChevronLeft,
   ChevronRight,
   LoaderCircle,
-  Maximize2,
   Rocket,
   Save,
   ShieldCheck,
   Sparkles,
-  X,
 } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 import { useAuth } from "../auth/AuthContext";
-import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { PublishConfirmationDialog } from "../features/exam-review/components/PublishConfirmationDialog";
+import { QuestionImageCard } from "../features/exam-review/components/QuestionImageCard";
+import { ReviewHeader } from "../features/exam-review/components/ReviewHeader";
+import { ReviewQuestionNavigator } from "../features/exam-review/components/ReviewQuestionNavigator";
 import {
-  ApiError,
   confirmTrustedCommunitySuggestions,
   getDraftExamReview,
   markExamReviewReady,
   publishExam,
   queueAiAnswerSuggestion,
   saveQuestionReviewAnswer,
-} from "../lib/api";
-import { questionImageUrl } from "../lib/question-image-url";
+} from "../features/exam-review/api";
+import { ApiError } from "../api/http";
 import { AdminReviewOcr } from "./AdminReviewOcr";
 
 type UnsavedAnswer = {
@@ -76,7 +76,6 @@ export function AdminReviewPage() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [aiError, setAiError] = useState("");
-  const [imageExpanded, setImageExpanded] = useState(false);
   const [showOnlyPending, setShowOnlyPending] = useState(true);
   const [activeTab, setActiveTab] = useState<"answers" | "ocr">("answers");
   const [feedback, setFeedback] = useState("");
@@ -178,15 +177,6 @@ export function AdminReviewPage() {
     currentQuestion?.options.length,
     currentQuestion?.type,
   ]);
-
-  useEffect(() => {
-    if (!imageExpanded) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setImageExpanded(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [imageExpanded]);
 
   useEffect(() => {
     if (!showPublishConfirmation || publishing) return;
@@ -636,9 +626,6 @@ export function AdminReviewPage() {
 
   if (!review || !currentQuestion) return null;
 
-  const progress = Math.round(
-    (review.answeredCount / review.questionCount) * 100,
-  );
   const pendingCount = pendingQuestionIndexes.length;
   const currentAiStatus = currentQuestion.aiSuggestion?.status;
   const currentAiBusy =
@@ -703,51 +690,7 @@ export function AdminReviewPage() {
         />
       ) : (
         <>
-          <header className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={review.status === "draft" ? "amber" : "green"}>
-                  {review.status === "published"
-                    ? "Đã xuất bản"
-                    : review.status === "review"
-                      ? "Chờ xuất bản"
-                      : "Đang duyệt"}
-                </Badge>
-                <span className="text-sm text-slate-500">
-                  {review.courseCode} · {review.semester} · {review.campus.name}
-                </span>
-              </div>
-              <h1 className="mt-2 font-heading text-2xl font-bold text-foreground">
-                Duyệt đáp án {review.examCode}
-              </h1>
-              <p className="mt-1 text-sm text-slate-600">{review.courseName}</p>
-            </div>
-            <div className="w-full max-w-sm">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-700">
-                  Đáp án đã lưu
-                </span>
-                <span className="font-bold tabular-nums text-primary">
-                  {review.answeredCount}/{review.questionCount}
-                </span>
-              </div>
-              <div
-                className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
-                role="progressbar"
-                aria-label="Tiến độ duyệt đáp án"
-                aria-valuemin={0}
-                aria-valuemax={review.questionCount}
-                aria-valuenow={review.answeredCount}
-              >
-                <div
-                  className="h-full rounded-full bg-primary transition-transform duration-200"
-                  style={{
-                    width: `${progress}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </header>
+          <ReviewHeader review={review} />
 
           {review.status === "draft" && trustedSuggestionCount > 0 && (
             <Card className="flex flex-col gap-3 border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -795,36 +738,12 @@ export function AdminReviewPage() {
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <main className="contents">
-              <Card className="overflow-hidden xl:col-start-1 xl:row-start-1 xl:self-start">
-                <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                  <h2 className="font-heading text-lg font-bold">
-                    Câu {currentQuestion.order}
-                  </h2>
-                  <span className="text-sm tabular-nums text-slate-500">
-                    {currentIndex + 1}/{review.questionCount}
-                  </span>
-                </div>
-                <div className="bg-slate-50 p-3 sm:p-5">
-                  <button
-                    type="button"
-                    onClick={() => setImageExpanded(true)}
-                    className="group relative block w-full cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
-                    aria-label={`Mở rộng ảnh câu hỏi ${currentQuestion.order}`}
-                  >
-                    <img
-                      src={questionImageUrl(currentQuestion.imageUrl)}
-                      alt={`Câu hỏi ${currentQuestion.order} của đề ${review.examCode}`}
-                      width={1920}
-                      height={620}
-                      className="min-h-48 w-full rounded-xl border border-border bg-white object-contain"
-                    />
-                    <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white opacity-100 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-                      <Maximize2 size={15} aria-hidden="true" />
-                      Phóng to
-                    </span>
-                  </button>
-                </div>
-              </Card>
+              <QuestionImageCard
+                currentIndex={currentIndex}
+                examCode={review.examCode}
+                question={currentQuestion}
+                questionCount={review.questionCount}
+              />
 
               <Card className="p-5 sm:p-6 xl:col-start-2 xl:row-start-1 xl:self-start">
                 {review.status === "draft" &&
@@ -1187,91 +1106,15 @@ export function AdminReviewPage() {
             </main>
 
             <aside className="grid gap-4 xl:col-span-2 xl:row-start-2 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
-              <Card className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="font-heading font-bold">Danh sách câu</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {autoSavedCount} tự lưu · {pendingCount} cần kiểm tra
-                    </p>
-                  </div>
-                  <div
-                    className="inline-flex rounded-xl border border-border bg-slate-50 p-1"
-                    aria-label="Lọc danh sách câu"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setShowOnlyPending(true)}
-                      className={cn(
-                        "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                        showOnlyPending
-                          ? "bg-white text-primary shadow-sm"
-                          : "text-slate-600",
-                      )}
-                      aria-pressed={showOnlyPending}
-                    >
-                      Cần kiểm tra ({pendingCount})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowOnlyPending(false)}
-                      className={cn(
-                        "min-h-10 cursor-pointer rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                        !showOnlyPending
-                          ? "bg-white text-primary shadow-sm"
-                          : "text-slate-600",
-                      )}
-                      aria-pressed={!showOnlyPending}
-                    >
-                      Tất cả ({review.questionCount})
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10 xl:grid-cols-12">
-                  {review.questions.map((question, index) => {
-                    const answered = question.correctOptions.length > 0;
-                    const suggested =
-                      question.aiSuggestion?.status === "suggested";
-                    const active = index === currentIndex;
-                    if (showOnlyPending && answered && !active) return null;
-                    return (
-                      <button
-                        key={question.id}
-                        type="button"
-                        onClick={() => goToQuestion(index)}
-                        className={cn(
-                          "relative grid size-11 cursor-pointer place-items-center rounded-lg border text-sm font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
-                          active
-                            ? "border-primary bg-primary text-white"
-                            : answered
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                              : suggested
-                                ? "border-amber-300 bg-amber-50 text-amber-800"
-                                : "border-border bg-white text-slate-600 hover:border-primary/40 hover:bg-primary-soft",
-                        )}
-                        aria-label={`Câu ${question.order}${answered ? ", đã có đáp án" : ", chưa có đáp án"}`}
-                        aria-current={active ? "step" : undefined}
-                      >
-                        {question.order}
-                        {answered && !active && (
-                          <Check
-                            size={10}
-                            className="absolute right-0.5 top-0.5"
-                            aria-hidden="true"
-                          />
-                        )}
-                        {suggested && !answered && !active && (
-                          <AlertTriangle
-                            size={9}
-                            className="absolute right-0.5 top-0.5"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
+              <ReviewQuestionNavigator
+                autoSavedCount={autoSavedCount}
+                currentIndex={currentIndex}
+                onQuestionChange={goToQuestion}
+                onShowOnlyPendingChange={setShowOnlyPending}
+                pendingCount={pendingCount}
+                questions={review.questions}
+                showOnlyPending={showOnlyPending}
+              />
 
               <Card
                 className={cn(
@@ -1371,128 +1214,13 @@ export function AdminReviewPage() {
             </aside>
           </div>
 
-          {imageExpanded && (
-            <div
-              className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
-              role="presentation"
-              onMouseDown={(event) => {
-                if (event.currentTarget === event.target)
-                  setImageExpanded(false);
-              }}
-            >
-              <div className="mb-3 flex items-center justify-between text-white">
-                <p className="font-heading font-bold">
-                  Câu {currentQuestion.order} · kéo ngang để xem toàn bộ
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setImageExpanded(false)}
-                  className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-                  aria-label="Đóng ảnh phóng to"
-                >
-                  <X aria-hidden="true" />
-                </button>
-              </div>
-              <section
-                role="dialog"
-                aria-modal="true"
-                aria-label={`Ảnh phóng to câu ${currentQuestion.order}`}
-                className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
-              >
-                <img
-                  src={questionImageUrl(currentQuestion.imageUrl)}
-                  alt={`Ảnh phóng to câu hỏi ${currentQuestion.order}`}
-                  width={1920}
-                  height={620}
-                  className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
-                />
-              </section>
-            </div>
-          )}
-
           {showPublishConfirmation && (
-            <div
-              className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
-              role="presentation"
-              onMouseDown={(event) => {
-                if (event.currentTarget === event.target && !publishing) {
-                  setShowPublishConfirmation(false);
-                }
-              }}
-            >
-              <section
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="publish-title"
-                className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-modal sm:p-7"
-              >
-                <span className="grid size-12 place-items-center rounded-xl bg-blue-50 text-primary">
-                  <Rocket size={23} aria-hidden="true" />
-                </span>
-                <h2
-                  id="publish-title"
-                  className="mt-5 font-heading text-2xl font-bold"
-                >
-                  Xuất bản đề {review.examCode}?
-                </h2>
-                <p className="mt-2 leading-7 text-slate-600">
-                  Sau khi xác nhận, đề sẽ xuất hiện trong kho thi và sinh viên
-                  có thể bắt đầu làm bài ngay.
-                </p>
-                <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
-                  <div>
-                    <dt className="text-slate-500">Số câu</dt>
-                    <dd className="mt-1 font-bold">
-                      {review.questionCount} câu
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Thời gian</dt>
-                    <dd className="mt-1 font-bold">
-                      {review.durationMinutes} phút
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Campus</dt>
-                    <dd className="mt-1 font-bold">{review.campus.name}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Đáp án</dt>
-                    <dd className="mt-1 font-bold text-emerald-700">
-                      Đã duyệt đủ
-                    </dd>
-                  </div>
-                </dl>
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={publishing}
-                    onClick={() => setShowPublishConfirmation(false)}
-                  >
-                    Chưa xuất bản
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={publishing}
-                    onClick={() => void publishReviewedExam()}
-                    icon={
-                      publishing ? (
-                        <LoaderCircle
-                          size={17}
-                          className="animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <Rocket size={17} aria-hidden="true" />
-                      )
-                    }
-                  >
-                    {publishing ? "Đang xuất bản..." : "Xác nhận xuất bản"}
-                  </Button>
-                </div>
-              </section>
-            </div>
+            <PublishConfirmationDialog
+              onClose={() => setShowPublishConfirmation(false)}
+              onConfirm={() => void publishReviewedExam()}
+              publishing={publishing}
+              review={review}
+            />
           )}
         </>
       )}

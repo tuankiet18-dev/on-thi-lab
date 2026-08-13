@@ -1,11 +1,7 @@
 import type {
-  AiAnswerSuggestion,
   ConfirmTrustedSuggestionsResult,
-  CreateDraftImportInput,
-  DraftExamReview,
   DraftImportResult,
   PublishExamResult,
-  ReviewQuestion,
   ReviewReadinessResult,
   UpdateQuestionAnswerInput,
 } from "@onthilab/contracts";
@@ -20,237 +16,26 @@ import {
   questions,
   users,
 } from "./schema";
+import type {
+  AiAnswerProposalInput,
+  AiSuggestionJob,
+  AiSuggestionRepository,
+  AdminExamSummary,
+  CreateDraftExamInput,
+  DraftImportRepository,
+  ExamReviewRepository,
+  StoredDraftExamReview,
+  StoredReviewQuestion,
+} from "./modules/exam-review/model";
+import { DraftImportRepositoryError } from "./modules/exam-review/model";
+import {
+  buildExamCode,
+  isUniqueViolation,
+  toAiSuggestion,
+  trustedCommunitySuggestion,
+} from "./modules/exam-review/rules";
 
-export interface DraftQuestionInput {
-  order: number;
-  imageKey: string;
-  imageHash: string;
-  type?: "single" | "multiple";
-  optionCount: number;
-  correctOptions?: number[];
-  aiMetadata?: any;
-}
-
-export interface CreateDraftExamInput extends CreateDraftImportInput {
-  createdBy: string;
-  questions: DraftQuestionInput[];
-}
-
-export type DraftImportRepositoryErrorCode =
-  | "ANSWERS_INCOMPLETE"
-  | "CAMPUS_NOT_FOUND"
-  | "COURSE_NOT_FOUND"
-  | "EXAM_ALREADY_EXISTS"
-  | "EXAM_NOT_EDITABLE"
-  | "EXAM_NOT_FOUND"
-  | "EXAM_NOT_READY"
-  | "QUESTION_NOT_FOUND"
-  | "DUPLICATE_IMAGES";
-
-export class DraftImportRepositoryError extends Error {
-  constructor(
-    readonly code: DraftImportRepositoryErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "DraftImportRepositoryError";
-  }
-}
-
-export interface DraftImportRepository {
-  createDraft(input: CreateDraftExamInput): Promise<DraftImportResult>;
-}
-
-export type StoredReviewQuestion = Omit<ReviewQuestion, "imageUrl"> & {
-  imageKey: string;
-};
-
-export type StoredDraftExamReview = Omit<DraftExamReview, "questions"> & {
-  questions: StoredReviewQuestion[];
-};
-
-export interface AdminExamSummary {
-  id: string;
-  code: string;
-  courseCode: string;
-  semester: string;
-  status: string;
-  creatorName: string;
-  createdAt: Date;
-}
-
-export interface ExamReviewRepository {
-  findDrafts(): Promise<AdminExamSummary[]>;
-  findAllExams(): Promise<AdminExamSummary[]>;
-  deleteExam(examId: string): Promise<void>;
-  findReview(examId: string): Promise<StoredDraftExamReview | null>;
-  saveAnswer(input: {
-    examId: string;
-    questionId: string;
-    changedBy: string;
-    answer: UpdateQuestionAnswerInput;
-  }): Promise<StoredReviewQuestion>;
-  confirmTrustedSuggestions(
-    examId: string,
-    changedBy: string,
-  ): Promise<ConfirmTrustedSuggestionsResult>;
-  markReady(examId: string, changedBy: string): Promise<ReviewReadinessResult>;
-  publish(examId: string, approvedBy: string): Promise<PublishExamResult>;
-}
-
-export interface AiSuggestionJob {
-  examId: string;
-  questionId: string;
-  imageKey: string;
-  courseCode: string;
-  optionCount: number;
-}
-
-export interface AiAnswerProposalInput {
-  proposedType: "single" | "multiple";
-  optionCount: number;
-  proposedAnswers: number[];
-  confidence: number;
-  provider: string;
-  model: string;
-  rationale?: string;
-  raw?: unknown;
-}
-
-export interface AiSuggestionRepository {
-  queueUnanswered(examId: string): Promise<{
-    jobs: AiSuggestionJob[];
-    skippedCount: number;
-  }>;
-  queueQuestion(
-    examId: string,
-    questionId: string,
-  ): Promise<{
-    jobs: AiSuggestionJob[];
-    skippedCount: number;
-  }>;
-  markProcessing(questionId: string): Promise<void>;
-  saveSuggestion(
-    questionId: string,
-    proposal: AiAnswerProposalInput,
-  ): Promise<void>;
-  markFailed(questionId: string, message: string): Promise<void>;
-}
-
-type QuestionAiMetadata = typeof questions.$inferSelect.aiMetadata;
-
-export interface TrustedSuggestionAnswer {
-  type: "single" | "multiple";
-  optionCount: number;
-  correctOptions: number[];
-}
-
-/**
- * Only community answers with an unambiguous consensus and a trusted option
- * count may be confirmed in bulk. AI suggestions always remain manual.
- */
-export function trustedCommunitySuggestion(
-  metadata: QuestionAiMetadata,
-): TrustedSuggestionAnswer | null {
-  const optionCount = metadata?.optionCount;
-  if (
-    metadata?.status !== "suggested" ||
-    metadata.provider !== "community-comments" ||
-    metadata.requiresReview !== false ||
-    typeof metadata.optionCountConfidence !== "number" ||
-    metadata.optionCountConfidence < 0.82 ||
-    !metadata.optionCountSource ||
-    (metadata.proposedType !== "single" &&
-      metadata.proposedType !== "multiple") ||
-    typeof optionCount !== "number" ||
-    !Number.isInteger(optionCount) ||
-    optionCount < 2 ||
-    optionCount > 6 ||
-    !Array.isArray(metadata.proposedAnswers) ||
-    metadata.proposedAnswers.length === 0
-  ) {
-    return null;
-  }
-
-  const correctOptions = [...new Set(metadata.proposedAnswers)].sort(
-    (left, right) => left - right,
-  );
-  if (
-    correctOptions.length !== metadata.proposedAnswers.length ||
-    correctOptions.some(
-      (option) =>
-        !Number.isInteger(option) || option < 0 || option >= optionCount,
-    ) ||
-    (metadata.proposedType === "single" && correctOptions.length !== 1) ||
-    (metadata.proposedType === "multiple" && correctOptions.length < 2)
-  ) {
-    return null;
-  }
-
-  return {
-    type: metadata.proposedType,
-    optionCount,
-    correctOptions,
-  };
-}
-
-function toAiSuggestion(
-  metadata: typeof questions.$inferSelect.aiMetadata,
-): AiAnswerSuggestion | null {
-  if (!metadata?.status || !metadata.updatedAt) return null;
-  return {
-    status: metadata.status,
-    proposedType: metadata.proposedType,
-    optionCount: metadata.optionCount,
-    optionCountConfidence: metadata.optionCountConfidence,
-    optionCountSource: metadata.optionCountSource,
-    proposedAnswers: metadata.proposedAnswers,
-    confidence: metadata.confidence,
-    provider: metadata.provider,
-    model: metadata.model,
-    error: metadata.error,
-    validVotes: metadata.validVotes,
-    totalComments: metadata.totalComments,
-    voteBreakdown: metadata.voteBreakdown,
-    requiresReview: metadata.requiresReview,
-    disputeReason: metadata.disputeReason,
-    updatedAt: metadata.updatedAt,
-  };
-}
-
-export function buildExamCode(
-  input: Pick<
-    CreateDraftImportInput,
-    "courseCode" | "semester" | "examType" | "isRetake"
-  >,
-): string {
-  return [
-    input.courseCode.toUpperCase(),
-    input.semester.toUpperCase(),
-    input.examType,
-    ...(input.isRetake ? ["RETAKE"] : []),
-  ].join("-");
-}
-
-export function isUniqueViolation(
-  error: unknown,
-  constraintName?: string,
-): boolean {
-  let current: unknown = error;
-
-  for (let depth = 0; depth < 6; depth += 1) {
-    if (typeof current !== "object" || current === null) return false;
-    if ("code" in current && current.code === "23505") {
-      if (constraintName && "constraint_name" in current) {
-        return current.constraint_name === constraintName;
-      }
-      return true;
-    }
-    current = "cause" in current ? current.cause : undefined;
-  }
-
-  return false;
-}
+export * from "./modules/exam-review";
 
 export class PostgresDraftImportRepository
   implements DraftImportRepository, ExamReviewRepository, AiSuggestionRepository
