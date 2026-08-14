@@ -6,7 +6,9 @@
 - Không commit `.env.local`, `client_secret.json`, access key hoặc file export từ
   Google/payOS.
 - Biến có prefix `VITE_` là public vì được đóng gói vào browser.
-- Production dùng GitHub Actions OIDC; không tạo AWS access key dài hạn cho CI.
+- CI hiện chỉ validate/test/build và không có quyền deploy. Deploy staging/prod
+  được thực hiện bởi operator đã xác thực AWS CLI; không commit access key hoặc
+  tạo key dài hạn cho GitHub Actions.
 - Development, staging và production dùng credential khác nhau.
 
 ## Development local
@@ -40,9 +42,10 @@ Authorized redirect URI:
 https://onthilab-dev-563702590722.auth.ap-southeast-1.amazoncognito.com/oauth2/idpresponse
 ```
 
-Google provider development đã được thêm vào Cognito. Local có thể bật
-`FEATURE_GOOGLE_AUTH_ENABLED=true`; staging/production vẫn giữ tắt cho tới khi
-có credential riêng và đăng nhập end-to-end thành công.
+Google provider đã được cấu hình riêng cho development, staging và production.
+Khi thay callback/logout URL phải kiểm tra cả Cognito app client, Google OAuth
+client và biến public trong đúng `.env.<mode>`; không dùng URL localhost trong
+staging/production.
 
 `pnpm dev` tự nạp `.env.local` cho cả Vite và API development. Browser gửi
 Cognito ID token qua bearer header; API dùng `COGNITO_USER_POOL_ID` và
@@ -106,14 +109,19 @@ chỉ cho Lambda đọc:
 Không dùng Supabase service role key và không đưa `DATABASE_URL` hoặc bất kỳ
 Supabase key nào vào biến `VITE_*`.
 
-## Credential checklist
+## Environment status
 
-| Hệ thống                     | Development | Staging        | Production       |
-| ---------------------------- | ----------- | -------------- | ---------------- |
-| AWS account/role             | Active      | Pending        | Pending          |
-| Google OAuth client          | Active      | Pending        | Pending          |
-| Cognito User Pool/App Client | Provisioned | Pending        | Pending          |
-| AI Vision provider           | Pending     | Pending        | Pending          |
-| payOS channel                | Local, tắt  | Pending        | Pending          |
-| Domain và DNS                | Không cần   | CloudFront URL | `onthilab.id.vn` |
-| Support mailbox              | Gmail tạm   | Gmail tạm      | Chưa đăng ký     |
+Trạng thái không nhạy cảm được ghi ở đây; không ghi giá trị parameter hoặc ARN.
+
+| Hệ thống                     | Development        | Staging                  | Production       |
+| ---------------------------- | ------------------ | ------------------------ | ---------------- |
+| Cognito User Pool/App Client | Active             | Active                   | Active           |
+| Google OAuth                 | Active             | Active                   | Active           |
+| Database parameter           | Local `.env.local` | SSM + Supabase           | SSM + Supabase   |
+| AI/OCR worker                | Optional           | Active                   | Active           |
+| payOS                        | Local/configurable | Feature disabled         | Feature disabled |
+| Public domain                | `localhost:5173`   | `staging.onthilab.id.vn` | `onthilab.id.vn` |
+
+Sau khi rotate credential, deploy đúng stack/môi trường và smoke test login hoặc
+worker tương ứng. Trạng thái phát hành tổng thể nằm trong
+`docs/project-status.md`.

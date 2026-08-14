@@ -319,6 +319,13 @@ export const attempts = pgTable(
   },
   (table) => [
     index("attempts_user_status_idx").on(table.userId, table.status),
+    index("attempts_resume_idx").on(
+      table.userId,
+      table.examId,
+      table.deviceIdHash,
+      table.status,
+      table.startedAt,
+    ),
     index("attempts_expiry_idx").on(table.status, table.expiresAt),
   ],
 );

@@ -36,28 +36,26 @@ React SPA
   và `state` được kiểm tra trước khi đổi code lấy token.
 - API xác thực Cognito ID token trong bearer header, gồm chữ ký, issuer,
   audience/client ID, loại token và expiry trước khi tin cậy email/tên.
-- Onboarding lưu vào bảng `users`, kiểm tra MSSV/email unique, lấy campus/ngành
-  từ database và lấy role từ server. Catalog/exam/attempt API yêu cầu người dùng
-  đã hoàn tất hồ sơ.
+- Onboarding lưu vào bảng `users`, lấy role từ server và chỉ yêu cầu campus.
+  MSSV/ngành là thông tin hồ sơ tùy chọn, có thể bổ sung sau. Catalog/exam/
+  attempt API yêu cầu người dùng đã hoàn tất onboarding tối thiểu.
 
 ## Ranh giới hệ thống
 
 ```text
 React/Vite
+   ├── CloudFront ── S3 web
+   ├── CloudFront ── S3 question images
    │
    ▼
-CloudFront ── S3 web
-   │
-   ▼
-API Gateway ── Lambda/Hono ── Supabase PostgreSQL
-                         ├── S3 question images
+API Gateway ── Lambda/Hono ── Supabase PostgreSQL qua transaction pooler
                          ├── SQS import jobs ── AI Vision provider
                          └── Cognito / payOS webhook
 ```
 
 ## Quy tắc bất biến
 
-- Một người dùng chỉ có một attempt `in_progress`.
+- Một người dùng có tối đa một attempt `in_progress` cho mỗi đề.
 - `expiresAt` từ server là nguồn thời gian chính thức; client chỉ hiển thị countdown.
 - Autosave dùng `sequence` tăng dần để request đến muộn không ghi đè đáp án mới.
 - Submit là idempotent.
@@ -74,17 +72,25 @@ API Gateway ── Lambda/Hono ── Supabase PostgreSQL
 
 ## Chi phí AWS và Supabase
 
-Supabase PostgreSQL Free là database cho closed beta, kết nối từ Lambda chỉ qua
-`DATABASE_URL` đọc lúc cold start từ SSM Parameter Store SecureString. CDK không còn provision Aurora hay
-VPC, tránh chi phí nền không cần thiết. S3 private qua CloudFront OAC, SQS có
-DLQ và tài nguyên dev có thể xóa. Trước khi deploy production cần:
+Supabase PostgreSQL Free là database cho public MVP traffic thấp, kết nối từ
+Lambda chỉ qua `DATABASE_URL` đọc lúc cold start từ SSM Parameter Store
+SecureString. CDK không còn provision Aurora hay VPC, tránh chi phí nền không
+cần thiết. S3 private qua CloudFront OAC, SQS có DLQ và tài nguyên dev có thể
+xóa. Các control vận hành bắt buộc gồm:
 
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
 - đặt Supabase ở region gần Singapore, dùng pooler connection string cho Lambda;
 - sao lưu PostgreSQL hằng ngày sang S3 và diễn tập restore;
 - thêm WAF/rate limit, log retention và cảnh báo lỗi;
-- cấu hình domain production, ACM certificate và secrets theo environment;
-- nối Lambda/API Gateway và worker vào các package ứng dụng.
+- giữ domain, ACM certificate và parameter tách biệt theo environment;
+- chạy smoke test và kiểm tra alarm sau mỗi production deploy.
+
+Trong giai đoạn 100–300 sinh viên đồng thời, mỗi API Lambda container chỉ mở một
+database connection, API Gateway có rate/burst guardrail và ảnh câu hỏi đi
+thẳng qua CloudFront. Không đặt reserved concurrency khi quota account còn thấp;
+mức 200 người đã được xác minh, còn mốc 300 cần tăng quota Lambda và test lại.
+Chi tiết nằm trong `docs/project-status.md`, `docs/load-testing.md` và
+`docs/capacity-runbook.md`.
 
 Trong development, pipeline AI dùng hàng đợi nền có giới hạn concurrency. Khi
 `AI_SUGGESTION_QUEUE_URL` được cấu hình, API chuyển sang producer SQS. Worker

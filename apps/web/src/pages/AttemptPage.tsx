@@ -36,8 +36,13 @@ import {
   DesktopQuestionNavigator,
   MobileQuestionNavigator,
 } from "../features/attempts/components/QuestionNavigator";
+import {
+  AnswerSaveQueue,
+  retryTransientAttemptRequest,
+  type AnswerSaveState,
+} from "../features/attempts/answer-save-queue";
 
-type SaveState = "saved" | "saving" | "offline";
+type SaveState = AnswerSaveState;
 
 function formatTime(totalSeconds: number): string {
   const safeSeconds = Math.max(totalSeconds, 0);
@@ -62,8 +67,22 @@ export function AttemptPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const sequence = useRef(0);
-  const pendingSaves = useRef<Promise<void>>(Promise.resolve());
+  const saveQueue = useRef<AnswerSaveQueue | null>(null);
   const didAutoSubmit = useRef(false);
+
+  useEffect(() => {
+    if (!configured || !session) {
+      saveQueue.current = null;
+      return;
+    }
+    saveQueue.current = new AnswerSaveQueue({
+      save: (answer) => saveAttemptAnswer(session.idToken, attemptId, answer),
+      onStateChange: setSaveState,
+    });
+    return () => {
+      saveQueue.current = null;
+    };
+  }, [attemptId, configured, session]);
 
   useEffect(() => {
     let active = true;
@@ -152,7 +171,7 @@ export function AttemptPage() {
       setSubmitting(true);
       setError("");
       try {
-        await pendingSaves.current;
+        await saveQueue.current?.flush();
         if (!configured) {
           const local = loadAttempt(attemptId) ?? createOrResumeAttempt();
           const submitted = submitLocalAttempt(
@@ -167,7 +186,10 @@ export function AttemptPage() {
           return;
         }
         if (!session) return;
-        await submitRemoteAttempt(session.idToken, attempt.id, reason);
+        await retryTransientAttemptRequest(
+          () => submitRemoteAttempt(session.idToken, attempt.id, reason),
+          { retryDelaysMs: [500, 1_200, 2_500, 5_000] },
+        );
         await navigate({
           to: "/results/$attemptId",
           params: { attemptId: attempt.id },
@@ -259,18 +281,11 @@ export function AttemptPage() {
       Math.floor(Date.now() / 1_000),
     );
     const currentSequence = sequence.current;
-    pendingSaves.current = pendingSaves.current
-      .then(async () => {
-        await saveAttemptAnswer(session.idToken, attempt.id, {
-          questionId: question.id,
-          selectedOptions: nextSelection,
-          sequence: currentSequence,
-        });
-        setSaveState("saved");
-      })
-      .catch(() => {
-        setSaveState("offline");
-      });
+    saveQueue.current?.enqueue({
+      questionId: question.id,
+      selectedOptions: nextSelection,
+      sequence: currentSequence,
+    });
   }
 
   function toggleFlag() {

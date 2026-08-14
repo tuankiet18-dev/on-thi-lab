@@ -10,6 +10,7 @@ import {
   PostgresFeedbackRepository,
   PostgresOcrRepository,
   PostgresAdminAttentionRepository,
+  isSupabaseTransactionPoolerUrl,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/importer";
 import { resolve } from "node:path";
@@ -49,7 +50,19 @@ export function createRuntimeApp(
     return createApp({ ...authDependencies, corsOrigins });
   }
 
-  const database = createDatabase(env.DATABASE_URL);
+  if (
+    env.APP_ENV !== "development" &&
+    env.DATABASE_URL.includes("supabase.com") &&
+    !isSupabaseTransactionPoolerUrl(env.DATABASE_URL)
+  ) {
+    console.warn(
+      "[OnThiLab] DATABASE_URL is not the Supabase transaction pooler endpoint (port 6543).",
+    );
+  }
+
+  const database = createDatabase(env.DATABASE_URL, {
+    maxConnections: env.DATABASE_MAX_CONNECTIONS,
+  });
   const imageBaseUrl = env.QUESTION_IMAGE_BASE_URL?.replace(/\/$/, "");
   const imageStorageRoot = resolve(
     env.QUESTION_IMAGE_STORAGE_PATH ??

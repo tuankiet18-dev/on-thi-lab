@@ -23,6 +23,7 @@ const envSchema = z.object({
 
   // ── Database ─────────────────────────────────────────────────────────────
   DATABASE_URL: z.string().url().optional(),
+  DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(10).default(1),
 
   // ── Cognito ──────────────────────────────────────────────────────────────
   COGNITO_USER_POOL_ID: z.string().optional(),

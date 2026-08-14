@@ -75,5 +75,6 @@ Không bỏ qua CI và không force-push vào `main`.
 
 - Chỉ lưu local trong `.env.local`.
 - Không gửi Google, payOS hoặc AWS secret qua commit, PR, issue hay chat.
-- Production/staging lưu trong AWS Secrets Manager.
+- Production/staging lưu cấu hình server-side trong AWS Systems Manager
+  Parameter Store theo `docs/secrets-and-environments.md`.
 - Nếu secret từng bị commit, xóa file là chưa đủ: phải revoke/rotate secret ngay.

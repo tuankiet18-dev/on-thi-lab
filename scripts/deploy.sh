@@ -72,7 +72,7 @@ certificate_region="us-east-1"
 stack_name="OnThiLab-${stage}"
 env_file=".env.${vite_mode}"
 
-for command in aws pnpm curl; do
+for command in aws pnpm curl node; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "Missing required command: $command" >&2
     exit 1
@@ -123,14 +123,31 @@ if [[ "$skip_validate" != true ]]; then
   pnpm validate
 fi
 
+database_url="$(aws ssm get-parameter \
+  --region "$aws_region" \
+  --name "$database_parameter_name" \
+  --with-decryption \
+  --query 'Parameter.Value' \
+  --output text)"
+if ! DATABASE_URL_TO_CHECK="$database_url" node <<'NODE'
+const value = process.env.DATABASE_URL_TO_CHECK;
+try {
+  const url = new URL(value);
+  const isSupabase = url.hostname.endsWith(".supabase.com");
+  const isTransactionPooler =
+    url.hostname.endsWith(".pooler.supabase.com") && url.port === "6543";
+  process.exitCode = isSupabase && !isTransactionPooler ? 1 : 0;
+} catch {
+  process.exitCode = 1;
+}
+NODE
+then
+  echo "WARNING: ${database_parameter_name} is not a Supabase transaction pooler URL on port 6543." >&2
+  echo "Lambda remains capped at one connection, but the pooler URL is strongly recommended." >&2
+fi
+
 if [[ "$run_migrations" == true ]]; then
   echo "==> Running ${stage} database migrations"
-  database_url="$(aws ssm get-parameter \
-    --region "$aws_region" \
-    --name "$database_parameter_name" \
-    --with-decryption \
-    --query 'Parameter.Value' \
-    --output text)"
   DATABASE_URL="$database_url" pnpm --filter @onthilab/database migrate
 fi
 

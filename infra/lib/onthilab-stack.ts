@@ -12,6 +12,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sqs from "aws-cdk-lib/aws-sqs";
@@ -117,6 +118,26 @@ export class OnThiLabStack extends Stack {
       ],
     });
 
+    // Question objects use immutable keys. Serving them from their own private
+    // CloudFront origin keeps image bytes off API Gateway and the API Lambda.
+    // The legacy API route remains available for local development and old
+    // clients while newly returned URLs point at this distribution.
+    const questionImageDistribution = new cloudfront.Distribution(
+      this,
+      "QuestionImageDistribution",
+      {
+        defaultBehavior: {
+          origin:
+            origins.S3BucketOrigin.withOriginAccessControl(questionImageBucket),
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          compress: true,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+      },
+    );
+
     const deadLetterQueue = new sqs.Queue(this, "ImportDeadLetterQueue", {
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: Duration.days(14),
@@ -209,12 +230,19 @@ export class OnThiLabStack extends Stack {
             },
           )
         : undefined;
+      const apiLogGroup = new logs.LogGroup(this, "ApiLogGroup", {
+        retention: isProduction
+          ? logs.RetentionDays.ONE_MONTH
+          : logs.RetentionDays.TWO_WEEKS,
+        removalPolicy: dataRemovalPolicy,
+      });
       const apiHandler = new lambdaNodejs.NodejsFunction(this, "ApiHandler", {
         runtime: lambda.Runtime.NODEJS_22_X,
         entry: join(projectRoot, "apps/api/src/lambda.ts"),
         handler: "handler",
         memorySize: 1024,
         timeout: Duration.seconds(29),
+        logGroup: apiLogGroup,
         bundling: {
           minify: true,
           sourceMap: true,
@@ -227,9 +255,11 @@ export class OnThiLabStack extends Stack {
           APP_ENV: props.stage === "prod" ? "production" : "staging",
           LOG_LEVEL: "info",
           DATABASE_PARAMETER_NAME: props.databaseParameterName,
+          DATABASE_MAX_CONNECTIONS: "1",
           COGNITO_USER_POOL_ID: props.cognitoUserPoolId,
           COGNITO_CLIENT_ID: props.cognitoClientId,
           QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+          QUESTION_IMAGE_BASE_URL: `https://${questionImageDistribution.distributionDomainName}`,
           ...(props.aiApiKeyParameterName
             ? {
                 AI_API_KEY_PARAMETER_NAME: props.aiApiKeyParameterName,
@@ -256,6 +286,12 @@ export class OnThiLabStack extends Stack {
       importQueue.grantSendMessages(apiHandler);
       ocrQueue.grantSendMessages(apiHandler);
 
+      const workerLogGroup = new logs.LogGroup(this, "WorkerLogGroup", {
+        retention: isProduction
+          ? logs.RetentionDays.ONE_MONTH
+          : logs.RetentionDays.TWO_WEEKS,
+        removalPolicy: dataRemovalPolicy,
+      });
       const workerHandler = new lambdaNodejs.NodejsFunction(
         this,
         "WorkerHandler",
@@ -266,6 +302,7 @@ export class OnThiLabStack extends Stack {
           memorySize: 512,
           timeout: Duration.minutes(2),
           architecture: lambda.Architecture.ARM_64,
+          logGroup: workerLogGroup,
           bundling: {
             minify: true,
             sourceMap: true,
@@ -290,6 +327,7 @@ export class OnThiLabStack extends Stack {
           },
           environment: {
             DATABASE_PARAMETER_NAME: props.databaseParameterName,
+            DATABASE_MAX_CONNECTIONS: "1",
             QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
             OCR_QUEUE_URL: ocrQueue.queueUrl,
           },
@@ -331,6 +369,12 @@ export class OnThiLabStack extends Stack {
         alarmDescription: "Alert when OCR worker concurrency is throttled.",
       });
 
+      const apiAccessLogGroup = new logs.LogGroup(this, "ApiAccessLogGroup", {
+        retention: isProduction
+          ? logs.RetentionDays.ONE_MONTH
+          : logs.RetentionDays.TWO_WEEKS,
+        removalPolicy: dataRemovalPolicy,
+      });
       const api = new apigateway.LambdaRestApi(this, "PublicApi", {
         handler: apiHandler,
         proxy: true,
@@ -351,6 +395,22 @@ export class OnThiLabStack extends Stack {
           loggingLevel: apigateway.MethodLoggingLevel.INFO,
           dataTraceEnabled: false,
           metricsEnabled: true,
+          throttlingRateLimit: 80,
+          throttlingBurstLimit: 160,
+          accessLogDestination: new apigateway.LogGroupLogDestination(
+            apiAccessLogGroup,
+          ),
+          accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
+            caller: false,
+            httpMethod: true,
+            ip: true,
+            protocol: true,
+            requestTime: true,
+            resourcePath: true,
+            responseLength: true,
+            status: true,
+            user: false,
+          }),
         },
         defaultCorsPreflightOptions: {
           allowOrigins: [
@@ -360,6 +420,64 @@ export class OnThiLabStack extends Stack {
           allowMethods: apigateway.Cors.ALL_METHODS,
           allowHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
         },
+      });
+
+      new cloudwatch.Alarm(this, "ApiLambdaErrorAlarm", {
+        metric: apiHandler.metricErrors({
+          period: Duration.minutes(5),
+          statistic: "Sum",
+        }),
+        threshold: 5,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "API Lambda returned at least 5 errors in 5 minutes.",
+      });
+
+      new cloudwatch.Alarm(this, "ApiLambdaThrottleAlarm", {
+        metric: apiHandler.metricThrottles({ period: Duration.minutes(1) }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "API Lambda reached its concurrency guardrail.",
+      });
+
+      new cloudwatch.Alarm(this, "ApiLambdaConcurrencyAlarm", {
+        metric: apiHandler.metric("ConcurrentExecutions", {
+          period: Duration.minutes(1),
+          statistic: "Maximum",
+        }),
+        threshold: 32,
+        evaluationPeriods: 2,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription:
+          "API Lambda used at least 80% of reserved concurrency for 2 minutes.",
+      });
+
+      new cloudwatch.Alarm(this, "ApiGatewayServerErrorAlarm", {
+        metric: api.metricServerError({
+          period: Duration.minutes(5),
+          statistic: "Sum",
+        }),
+        threshold: 5,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "API Gateway returned at least 5 server errors.",
+      });
+
+      new cloudwatch.Alarm(this, "ApiGatewayLatencyAlarm", {
+        metric: api.metricLatency({
+          period: Duration.minutes(5),
+          statistic: "p95",
+        }),
+        threshold: Duration.seconds(2).toMilliseconds(),
+        evaluationPeriods: 2,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        alarmDescription: "API Gateway p95 latency exceeded 2 seconds.",
       });
 
       new CfnOutput(this, "ApiEndpoint", {
@@ -373,6 +491,10 @@ export class OnThiLabStack extends Stack {
     });
     new CfnOutput(this, "QuestionImageBucketName", {
       value: questionImageBucket.bucketName,
+    });
+    new CfnOutput(this, "QuestionImageDistributionDomain", {
+      value: questionImageDistribution.distributionDomainName,
+      description: "Private S3 image origin served through CloudFront.",
     });
     new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
     new CfnOutput(this, "OcrQueueUrl", { value: ocrQueue.queueUrl });

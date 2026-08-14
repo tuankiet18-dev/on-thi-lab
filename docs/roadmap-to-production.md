@@ -1,77 +1,95 @@
-# OnThiLab — Roadmap to production
+# OnThiLab delivery roadmap
 
-Roadmap này là tài liệu điều phối triển khai. Product scope chi tiết và các quyết
-định nghiệp vụ vẫn lấy từ `spec.md`.
+Roadmap này mô tả hướng phát triển sau khi Production MVP đã hoạt động. Phạm
+vi nghiệp vụ chi tiết lấy từ `spec.md`; trạng thái release thực tế lấy từ
+`docs/project-status.md`.
 
-## Mốc phát hành
+## Product direction
 
-- Production MVP miễn phí: mục tiêu trước ngày 06/01/2027.
-- Catalog launch: đủ 41 môn ưu tiên, kể cả môn chưa có đề.
-- Data launch: tối thiểu 20–30 đề đã duyệt, bao phủ ít nhất 8–10 môn kỳ 1–3.
-- Monetization: mặc định tắt; chỉ đánh giá bật sau 3 tháng hoặc 1.000 MAU.
+- Duy trì public MVP miễn phí và không giới hạn lượt làm bài.
+- Quản lý nội dung theo **môn → các đề**, không phụ thuộc vào việc admin phải
+  biết toàn bộ chương trình đào tạo.
+- Phát hành dữ liệu dần: danh mục có thể đầy đủ trước, đề chỉ xuất hiện sau khi
+  đã review.
+- Monetization/payOS mặc định tắt; chỉ đánh giá lại khi sản phẩm có dữ liệu sử
+  dụng đủ tin cậy.
+- Flashcard và dữ liệu Quizlet được hoãn để ưu tiên độ ổn định của exam engine.
 
-## Trạng thái phase
+## Completed foundation
 
-| Phase | Phạm vi                                         | Trạng thái  | Exit gate                                      |
-| ----- | ----------------------------------------------- | ----------- | ---------------------------------------------- |
-| 0     | Config, flags, seed, CI, tài liệu vận hành      | Done        | `pnpm validate`, CDK synth và E2E đạt          |
-| 1     | PostgreSQL persistence và API thật              | Done        | Không còn in-memory API trong luồng production |
-| 2     | Cognito, Google OAuth, onboarding, RBAC         | Done        | Auth/RBAC integration tests đạt                |
-| 3     | ZIP, S3, SQS, AI Vision, review, publish        | In progress | Import và duyệt được đề có số ảnh linh hoạt    |
-| 4     | Exam engine production                          | In progress | Autosave/timeout/idempotency/concurrency đạt   |
-| 5     | History, stats, bookmark, report, admin         | Planned     | Acceptance criteria User/Admin đạt             |
-| 6     | AWS/Supabase staging/prod, CI/CD, observability | In progress | Staging deploy/rollback/restore đạt            |
-| 7     | Security, legal, launch data, closed beta       | Planned     | Không còn P0/P1, UAT đạt                       |
-| 8     | Production rollout và payOS feature flag        | Planned     | Go-live checklist và smoke test đạt            |
+| Capability                          | Trạng thái | Release evidence                                    |
+| ----------------------------------- | ---------- | --------------------------------------------------- |
+| Auth, Google/email, profile và RBAC | Done       | Cognito + JWT server validation                     |
+| Danh mục môn và kho đề              | Done       | Search/filter theo môn, campus, kỳ                  |
+| Import nhiều ZIP và chống trùng     | Done       | Ảnh tên tùy ý, số câu linh hoạt, `answers.json`     |
+| Review đáp án và publish            | Done       | Audit, review gate, immutable revision              |
+| OCR/hybrid                          | Done       | Text hợp lệ; fallback ảnh theo câu                  |
+| Exam engine                         | Done       | Timer server, monotonic autosave, idempotent submit |
+| Student review tools                | Done       | Preview, result, history, stats, bookmark           |
+| Moderation                          | Done       | Report, feedback, admin attention count             |
+| Staging và production serverless    | Done       | S3/CloudFront, API Gateway/Lambda, SQS, Supabase    |
+| Capacity guardrails cho public MVP  | Done       | CloudWatch alarms, API throttle, DB connection cap  |
 
-Phase 2 đã có Cognito User Pool, Google IdP, email/password,
-Authorization Code + PKCE, refresh/logout, JWT middleware ở API và persistence
-hồ sơ PostgreSQL. API yêu cầu onboarding trước khi truy cập catalog/exam/attempt
-và role được trả từ database. Guard contributor/admin đã được áp dụng trên API
-nhập đề và có integration test RBAC.
+## Current release track
 
-Phase 3 đã có validator ZIP an toàn, giải nén ảnh tên tùy ý, checksum bất biến,
-multipart API tạo exam/revision/question ở trạng thái draft và storage adapter
-local để kiểm thử. Contributor/Admin có thể duyệt từng đáp án, chọn dạng một
-hoặc nhiều đáp án, xem tiến độ theo số câu thực tế và chuyển đề sang trạng thái `review`.
-Mọi lần sửa đáp án đều có audit trước/sau. Pipeline gợi ý đáp án AI đã có
-provider server-side, validation JSON, trạng thái queued/processing/suggested/
-failed/confirmed, local concurrency queue, SQS producer và UI Admin xác nhận
-chi phí. AI không ghi thẳng đáp án; người duyệt phải áp dụng và lưu từng câu.
-Admin đã có bước xác nhận cuối, khóa revision và xuất bản đề vào catalog. Phần
-còn lại của phase là presigned S3 và deploy SQS consumer worker trên AWS.
+### R1 — Reliability before growth
 
-Phase 4 đã thay catalog và exam demo bằng API PostgreSQL. Attempt lưu revision,
-thứ tự câu đã trộn, timer server, autosave có sequence, submit idempotent và
-exact-match score. Đáp án đúng chỉ được trả về sau khi nộp. Người dùng có thể
-bắt đầu lượt thi mới không giới hạn trong giai đoạn ra mắt. Còn lại là
-integration/load test concurrency và lịch sử làm bài.
+Mục tiêu: xác minh 300 sinh viên đồng thời mà không có Lambda throttle.
 
-Phase 6 dùng Supabase PostgreSQL thay Aurora Serverless để phù hợp closed beta.
-AWS vẫn là lớp deploy: CloudFront/S3 cho web, API Gateway/Lambda cho API, S3
-private cho ảnh đề, SQS/DLQ cho tác vụ nền, SSM Parameter Store SecureString
-cho database connection string và Google OAuth. Domain production là `onthilab.id.vn`; database, auth và ứng dụng web
-được tách staging/prod, trong giới hạn hai Supabase Free project.
+- Tăng Lambda account concurrency quota tối thiểu 50, khuyến nghị 100.
+- Chạy lại load test 300 users trên staging.
+- Nối CloudWatch alarms với kênh thông báo có người trực.
+- Tự động hóa post-deploy smoke test của critical exam flow.
+
+Exit gate: error rate dưới 1%, submit error dưới 0,1%, không Lambda throttle và
+không mất đáp án đã nhận HTTP 200.
+
+### R2 — Data safety and operations
+
+Mục tiêu: có bằng chứng khôi phục được hệ thống khi dữ liệu hoặc release gặp sự
+cố.
+
+- Xác minh backup schedule của Supabase.
+- Diễn tập restore staging và ghi nhận RPO/RTO thực tế.
+- Diễn tập rollback một release ứng dụng.
+- Hoàn thiện owner/escalation cho report, feedback và queue lỗi.
+
+Exit gate: restore/rollback drill có biên bản và không dựa vào thao tác chưa
+được kiểm chứng.
+
+### R3 — Performance and product learning
+
+Mục tiêu: cải thiện thời gian tải và thu thập dữ liệu sử dụng trước khi mở rộng
+phạm vi.
+
+- Code-split frontend theo route, giảm initial JavaScript bundle.
+- Theo dõi search → exam detail → attempt → submit funnel.
+- Đánh giá chất lượng OCR/review theo môn và layout ảnh.
+- Chỉ nâng Supabase sau khi đã kiểm tra query/index và metrics vượt guardrail.
+
+### R4 — Optional expansion
+
+- Flashcard nếu dữ liệu và quyền sử dụng nguồn đã rõ.
+- Monetization/payOS qua feature flag sau khi có quyết định sản phẩm.
+- Nội dung PE chỉ khi có engine và review workflow riêng phù hợp.
 
 ## Data waves
 
-| Wave |  Kỳ | Số môn | Ghi chú                             |
-| ---- | --: | -----: | ----------------------------------- |
-| 1    | 1–3 |     15 | Nguồn dữ liệu launch chính          |
-| 2    | 4–5 |     10 | Mở ngay sau khi Wave 1 ổn định      |
-| 3    | 6–7 |      7 | Xác minh format với môn project/OJT |
-| 4    | 8–9 |      9 | Hoàn thiện toàn bộ catalog          |
+| Wave |  Kỳ | Số môn định hướng | Ghi chú                    |
+| ---- | --: | ----------------: | -------------------------- |
+| 1    | 1–3 |                15 | Nguồn dữ liệu launch chính |
+| 2    | 4–5 |                10 | Mở sau khi Wave 1 ổn định  |
+| 3    | 6–7 |                 7 | Xác minh môn project/OJT   |
+| 4    | 8–9 |                 9 | Hoàn thiện dần catalog     |
 
-Các môn lab, project hoặc thiên thực hành được gắn
-`exam_format_status=requires_review`. Chỉ đề FE trắc nghiệm được publish trong
-MVP; môn không có FE vẫn xuất hiện trong catalog với trạng thái phù hợp.
+Các môn lab, project hoặc thiên thực hành phải được đánh dấu cần review. Public
+MVP chỉ phát hành đề FE trắc nghiệm đã qua duyệt.
 
-## Go/no-go production
+## Release gates
 
-- Không còn lỗi P0 hoặc P1.
-- Submit thành công tối thiểu 99,9% trong load test.
-- Chịu được 200 lượt thi đồng thời theo workload đã chốt.
-- Backup restore thử thành công; RTO không quá 4 giờ và RPO không quá 15 phút.
-- Budget alerts, logs, alarms và support channel hoạt động.
-- Terms, Privacy, disclaimer và content removal flow đã public.
-- Có rollback runbook và một lần diễn tập rollback trên staging.
+- Không còn lỗi P0/P1 đã biết trong phạm vi release.
+- `pnpm validate` đạt và migration có kế hoạch tương thích/rollback.
+- Staging smoke test critical path đạt.
+- Capacity không vượt mức đã xác minh trong `project-status.md`.
+- API health, CloudFormation và CloudFront invalidation được kiểm tra sau deploy.
+- Release thay đổi persistence/infra phải cập nhật runbook liên quan.

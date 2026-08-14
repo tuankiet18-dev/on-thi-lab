@@ -26,6 +26,18 @@
 
 OnThiLab giúp sinh viên luyện lại đề FE của các kỳ trước theo trải nghiệm gần với bài thi thực tế. Hệ thống chỉ cung cấp điểm và đáp án tham khảo; mọi đáp án trước khi phát hành đều được quản trị viên duyệt.
 
+## Trạng thái hiện tại
+
+- Production MVP: [onthilab.id.vn](https://onthilab.id.vn)
+- Staging/UAT: [staging.onthilab.id.vn](https://staging.onthilab.id.vn)
+- Luồng cốt lõi auth → import/review → publish → làm bài → kết quả đang hoạt
+  động.
+- Load test staging đã đạt mục tiêu 200 sinh viên đồng thời; mốc 300 cần tăng
+  Lambda account concurrency và kiểm tra lại.
+
+Xem snapshot phát hành, chất lượng và rủi ro mới nhất tại
+[docs/project-status.md](docs/project-status.md).
+
 ## Tính năng chính
 
 ### Dành cho sinh viên
@@ -131,6 +143,7 @@ pnpm validate       # format + typecheck + test + build
 pnpm typecheck      # kiểm tra TypeScript
 pnpm test           # unit tests
 pnpm test:e2e       # Playwright e2e
+pnpm test:load:staging # k6, chỉ chạy với staging test users
 pnpm format         # định dạng mã nguồn
 pnpm infra:synth    # kiểm tra CDK synthesis
 ```
@@ -147,10 +160,10 @@ pnpm deploy:staging
 pnpm deploy:staging:web
 
 # Deploy đầy đủ production (bắt buộc xác nhận)
-pnpm deploy:prod -- --confirm-production
+pnpm deploy:prod --confirm-production
 
 # Chỉ deploy web production
-pnpm deploy:prod:web -- --confirm-production
+pnpm deploy:prod:web --confirm-production
 ```
 
 Khi release có migration database, thêm `--migrate` vào lệnh deploy. Chỉ dùng `--skip-validate` khi source hiện tại vừa được kiểm tra đầy đủ và bạn có lý do rõ ràng.
@@ -181,12 +194,14 @@ Quy định đầy đủ: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Tài liệu
 
-- [Kiến trúc hệ thống](docs/architecture.md)
-- [Định dạng ZIP nhập đề](docs/import-zip-format.md)
-- [Gợi ý đáp án AI](docs/ai-answer-suggestions.md)
+- [Mục lục tài liệu](docs/README.md)
+- [Trạng thái dự án](docs/project-status.md)
+- [Product specification](spec.md)
+- [Kiến trúc và code map](docs/architecture.md) · [docs/code-map.md](docs/code-map.md)
+- [Vận hành và deploy](docs/runbook.md)
+- [Load testing và capacity](docs/load-testing.md) · [docs/capacity-runbook.md](docs/capacity-runbook.md)
 - [Secrets và môi trường](docs/secrets-and-environments.md)
-- [Runbook vận hành](docs/runbook.md)
-- [Roadmap production](docs/roadmap-to-production.md)
+- [Quy trình đóng góp](CONTRIBUTING.md)
 
 ## Lưu ý sử dụng nội dung
 

@@ -1,31 +1,36 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import {
+  buildPostgresClientOptions,
+  type DatabaseConnectionOptions,
+} from "./connection-config";
 
-function createPostgresClient(connectionString: string) {
-  let requiresTls = false;
-  try {
-    requiresTls = new URL(connectionString).hostname.endsWith(".supabase.com");
-  } catch {
-    // The postgres client will raise the configuration error with its own
-    // validation when it is instantiated.
-  }
-
-  return postgres(connectionString, {
-    prepare: false,
-    ...(requiresTls ? { ssl: "require" as const } : {}),
-  });
+function createPostgresClient(
+  connectionString: string,
+  options: DatabaseConnectionOptions = {},
+) {
+  return postgres(
+    connectionString,
+    buildPostgresClientOptions(connectionString, options),
+  );
 }
 
-export function createDatabase(connectionString: string) {
-  const client = createPostgresClient(connectionString);
+export function createDatabase(
+  connectionString: string,
+  options: DatabaseConnectionOptions = {},
+) {
+  const client = createPostgresClient(connectionString, options);
   return drizzle(client, { schema });
 }
 
 export type OnThiLabDatabase = ReturnType<typeof createDatabase>;
 
-export function createDatabaseConnection(connectionString: string) {
-  const client = createPostgresClient(connectionString);
+export function createDatabaseConnection(
+  connectionString: string,
+  options: DatabaseConnectionOptions = {},
+) {
+  const client = createPostgresClient(connectionString, options);
 
   return {
     db: drizzle(client, { schema }),
@@ -34,6 +39,7 @@ export function createDatabaseConnection(connectionString: string) {
 }
 
 export * from "./schema";
+export * from "./connection-config";
 export * from "./attempt-repository";
 export * from "./catalog-repository";
 export * from "./admin-catalog-repository";
