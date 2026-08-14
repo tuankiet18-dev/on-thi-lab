@@ -15,6 +15,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
+    "test:load:staging": "bash ./scripts/run-load-test.sh",
     "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "git:setup": "git config core.hooksPath .githooks",
     "format": "prettier --write .",

@@ -6,7 +6,7 @@ import {
   type SaveAnswerInput,
 } from "@onthilab/contracts";
 import { createHash, randomInt } from "node:crypto";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
 import {
   attemptAnswers,
@@ -467,25 +467,8 @@ export class PostgresAttemptRepository implements AttemptRepository {
         );
       }
 
-      const [current] = await transaction
-        .select({ sequence: attemptAnswers.sequence })
-        .from(attemptAnswers)
-        .where(
-          and(
-            eq(attemptAnswers.attemptId, attempt.id),
-            eq(attemptAnswers.questionId, question.id),
-          ),
-        )
-        .limit(1);
-      if (current && input.answer.sequence < current.sequence) {
-        return {
-          savedAt: new Date().toISOString(),
-          sequence: current.sequence,
-        };
-      }
-
       const savedAt = new Date();
-      await transaction
+      const [saved] = await transaction
         .insert(attemptAnswers)
         .values({
           attemptId: attempt.id,
@@ -501,11 +484,41 @@ export class PostgresAttemptRepository implements AttemptRepository {
             sequence: input.answer.sequence,
             answeredAt: savedAt,
           },
+          setWhere: lte(attemptAnswers.sequence, input.answer.sequence),
+        })
+        .returning({
+          sequence: attemptAnswers.sequence,
+          answeredAt: attemptAnswers.answeredAt,
         });
 
+      // A stale request loses the conditional upsert. Read the winning
+      // sequence only on this rare path instead of before every autosave.
+      if (!saved) {
+        const [current] = await transaction
+          .select({
+            sequence: attemptAnswers.sequence,
+            answeredAt: attemptAnswers.answeredAt,
+          })
+          .from(attemptAnswers)
+          .where(
+            and(
+              eq(attemptAnswers.attemptId, attempt.id),
+              eq(attemptAnswers.questionId, question.id),
+            ),
+          )
+          .limit(1);
+        if (!current) {
+          throw new Error("Không thể xác nhận đáp án vừa lưu.");
+        }
+        return {
+          savedAt: current.answeredAt.toISOString(),
+          sequence: current.sequence,
+        };
+      }
+
       return {
-        savedAt: savedAt.toISOString(),
-        sequence: input.answer.sequence,
+        savedAt: saved.answeredAt.toISOString(),
+        sequence: saved.sequence,
       };
     });
   }

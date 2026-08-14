@@ -1,0 +1,1 @@
+CREATE INDEX "attempts_resume_idx" ON "attempts" USING btree ("user_id","exam_id","device_id_hash","status","started_at");

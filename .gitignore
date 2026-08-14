@@ -19,6 +19,7 @@ client_secret*.json
 cdk.out/
 playwright-report/
 test-results/
+load-tests/users.local.json
 *.log
 *.zip
 *.tsbuildinfo

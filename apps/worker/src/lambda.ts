@@ -54,7 +54,9 @@ async function getOcrRepository() {
         );
         connectionString = response.Parameter?.Value ?? "";
       }
-      const dbConnection = createDatabaseConnection(connectionString);
+      const dbConnection = createDatabaseConnection(connectionString, {
+        maxConnections: 1,
+      });
       return new PostgresOcrRepository(dbConnection.db);
     })();
   }

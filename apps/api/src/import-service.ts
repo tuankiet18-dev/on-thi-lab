@@ -375,6 +375,7 @@ export class S3ExamImportService implements ExamImportService {
             Key: key,
             Body: await readFile(join(extractedDirectory, image.fileName)),
             ContentType: contentTypeFor(image.fileName),
+            CacheControl: "public, max-age=31536000, immutable",
           }),
         );
         uploadedImageKeys.push(key);
