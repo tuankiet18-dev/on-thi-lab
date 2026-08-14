@@ -9,7 +9,7 @@
 Sinh viên FPT thường phải tìm đề cũ qua nhiều nguồn không chính thống, đề thiếu đáp án hoặc đáp án sai, và không có cách nào tự luyện trong điều kiện sát với thực tế thi. OnThiLab giải quyết đúng vấn đề đó:
 
 - **Đề thi được kiểm duyệt** — mỗi đề phải qua bước duyệt đáp án trước khi xuất bản
-- **Ưu tiên đúng môn** — hệ thống biết campus, ngành học và ưu tiên đề phù hợp
+- **Ưu tiên đúng môn** — tìm nhanh theo mã/tên môn và lọc đề theo campus
 - **Làm bài như thi thật** — timer, autosave, không xem đáp án trước khi nộp
 - **Theo dõi tiến độ** — điểm số, lịch sử, câu đã lưu để ôn lại
 
@@ -24,7 +24,8 @@ Sinh viên FPT thường phải tìm đề cũ qua nhiều nguồn không chính
 ## Tính năng cốt lõi
 
 - 🔍 **Tìm kiếm thông minh** — tìm theo mã môn (SWD392, PRN222), tên môn, không phân biệt dấu
-- 🎓 **Cá nhân hóa** — ưu tiên đề theo campus và ngành học của bạn
+- 🎓 **Cá nhân hóa** — campus là thông tin khởi tạo; MSSV và ngành có thể thêm
+  sau trong hồ sơ
 - ⏱️ **Exam engine** — timer server-side, autosave mỗi thay đổi, nộp bài idempotent
 - 📊 **Thống kê** — điểm trung bình, điểm cao nhất, lịch sử làm bài
 - 🔖 **Bookmark** — lưu đề và câu hỏi cần xem lại
@@ -45,7 +46,12 @@ Testing:   Vitest + Playwright
 
 ## Trạng thái hiện tại
 
-Dự án đang ở giai đoạn **Closed Beta** trên môi trường Staging tại `staging.onthilab.id.vn`. Các tính năng cốt lõi (auth, import đề, làm bài, chấm điểm) đã hoàn thiện. Mục tiêu ra mắt Production MVP trước **06/01/2027**.
+Production MVP đang hoạt động tại [onthilab.id.vn](https://onthilab.id.vn), với
+staging riêng tại
+[staging.onthilab.id.vn](https://staging.onthilab.id.vn). Các luồng auth, quản
+lý môn, import/review/publish, OCR hybrid, làm bài và xem kết quả đã hoạt động.
+Trạng thái kiểm thử và rủi ro mới nhất được ghi tại
+[project-status.md](project-status.md).
 
 ---
 

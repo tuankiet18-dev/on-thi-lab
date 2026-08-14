@@ -1,5 +1,29 @@
 # Product Specification — OnThiLab
 
+> Đây là source of truth cho phạm vi và quyết định nghiệp vụ. Trạng thái triển
+> khai hiện tại được duy trì riêng tại
+> [docs/project-status.md](docs/project-status.md), không suy ra từ checklist
+> lịch sử bên dưới.
+
+## Current amendments
+
+Các quyết định dưới đây thay thế phần baseline lịch sử nếu có mâu thuẫn:
+
+- Production MVP đã hoạt động tại `onthilab.id.vn`; staging dùng
+  `staging.onthilab.id.vn`.
+- PostgreSQL chạy trên Supabase qua transaction pooler; hệ thống không provision
+  Aurora/RDS.
+- Một sinh viên có tối đa một attempt `in_progress` **cho mỗi đề**, không phải
+  một attempt trên toàn hệ thống.
+- Onboarding chỉ bắt buộc campus; MSSV và ngành là thông tin profile tùy chọn.
+- Nội dung được quản lý theo môn → các đề; curriculum/ngành không phải điều kiện
+  để admin phát hành môn.
+- Lượt làm bài hiện không giới hạn; monetization/payOS mặc định tắt.
+- OCR hỗ trợ hybrid: từng câu có thể dùng text đã duyệt hoặc ảnh gốc.
+
+Các estimate Aurora, AWS credit và roadmap dated bên dưới được giữ làm lịch sử
+quyết định ban đầu, không phải cấu hình vận hành hiện tại.
+
 | Thuộc tính | Giá trị |
 |---|---|
 | Trạng thái | Approved — Ready for implementation |

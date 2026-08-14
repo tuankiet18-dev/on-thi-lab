@@ -57,7 +57,7 @@ provider. Queue đã có DLQ, mã hóa do SQS quản lý, visibility timeout 5 p
 retry tối đa 3 lần.
 
 Trước khi bật trên production cần deploy consumer worker có quyền đọc bucket
-ảnh, đọc secret AI và ghi Aurora. Không bật flag nếu consumer chưa hoạt động,
+ảnh, đọc parameter AI và ghi Supabase PostgreSQL. Không bật flag nếu consumer chưa hoạt động,
 vì message sẽ chỉ nằm trong queue.
 
 ## Vận hành và chi phí
