@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runner-owned raw evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "baseSha",
+    "currentHead",
+    "patchSha256",
+    "changedFiles",
+    "diffStat",
+    "commands",
+    "policyViolations",
+    "agy",
+    "gateStatus",
+    "collectedAt"
+  ],
+  "properties": {
+    "taskId": { "type": "string" },
+    "baseSha": { "type": "string" },
+    "currentHead": { "type": "string" },
+    "patchSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "diffStat": { "type": "string" },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "argv",
+          "required",
+          "exitCode",
+          "durationSeconds",
+          "log"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "argv": { "type": "array", "items": { "type": "string" } },
+          "required": { "type": "boolean" },
+          "exitCode": { "type": "integer" },
+          "durationSeconds": { "type": "integer", "minimum": 0 },
+          "log": { "type": "string" }
+        }
+      }
+    },
+    "policyViolations": { "type": "array", "items": { "type": "string" } },
+    "agy": {
+      "type": "object",
+      "required": ["status", "conversationId", "model", "effort", "usage"],
+      "properties": {
+        "status": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "model": { "type": "string" },
+        "effort": { "type": "string" },
+        "usage": { "type": "object" }
+      }
+    },
+    "gateStatus": { "enum": ["PASS", "FAIL", "NEEDS_REVIEW"] },
+    "collectedAt": { "type": "string" }
+  }
+}

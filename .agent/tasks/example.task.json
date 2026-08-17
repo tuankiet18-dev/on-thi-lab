@@ -1,0 +1,34 @@
+{
+  "$schema": "../schemas/task.schema.json",
+  "taskId": "TASK-EXAMPLE",
+  "title": "Replace with a bounded implementation title",
+  "objective": "Describe the desired outcome and explicit non-goals.",
+  "risk": "L0",
+  "baseSha": "0000000000000000000000000000000000000000",
+  "executor": {
+    "model": "gemini-3.7-flash-medium",
+    "effort": "medium",
+    "selectedBy": "codex",
+    "timeout": "10m",
+    "maxTotalTokens": 120000
+  },
+  "allowedPaths": ["apps/web/src/features/example/**"],
+  "forbiddenPaths": ["package.json", "pnpm-lock.yaml", "infra/**"],
+  "contextFiles": ["docs/code-map.md", "apps/web/src/features/example/api.ts"],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "statement": "Replace with a testable outcome.",
+      "verification": "Covered by the target feature test."
+    }
+  ],
+  "verification": [
+    {
+      "id": "web-test",
+      "argv": ["pnpm", "--filter", "@onthilab/web", "test"],
+      "required": true
+    }
+  ],
+  "rollback": "Revert the single Codex-created task commit.",
+  "escalateIf": ["A public contract or dependency must change."]
+}

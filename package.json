@@ -16,7 +16,8 @@
     "test": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
     "test:load:staging": "bash ./scripts/run-load-test.sh",
-    "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm agent:test",
+    "agent:test": "bash ./scripts/tests/agent-pipeline.test.sh",
     "git:setup": "git config core.hooksPath .githooks",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
+    "ajv": "^8.20.0",
     "esbuild": "^0.25.12",
     "prettier": "^3.6.2",
     "typescript": "^5.8.3"

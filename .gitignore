@@ -25,3 +25,8 @@ load-tests/users.local.json
 *.tsbuildinfo
 .DS_Store
 infra/cdk.context.json
+
+# Agent pipeline runtime evidence stays local or in CI artifacts. Only sanitized
+# attestations under .agent/attestations are versioned.
+.agent/runs/
+.agent/worktrees/

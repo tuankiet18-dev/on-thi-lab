@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "command(git status)",
+      "command(git diff)",
+      "command(git rev-parse)",
+      "command(pnpm format:check)",
+      "command(pnpm typecheck)",
+      "command(pnpm test)",
+      "command(pnpm build)",
+      "command(pnpm validate)",
+      "command(pnpm --filter @onthilab/api test)",
+      "command(pnpm --filter @onthilab/web test)",
+      "command(pnpm --filter @onthilab/worker test)",
+      "command(pnpm --filter @onthilab/contracts test)",
+      "command(pnpm --filter @onthilab/database test)",
+      "command(pnpm --filter @onthilab/importer test)"
+    ],
+    "deny": [
+      "command(git add)",
+      "command(git commit)",
+      "command(git push)",
+      "command(git reset)",
+      "command(git rebase)",
+      "command(git merge)",
+      "command(git tag)",
+      "command(pnpm install)",
+      "command(pnpm add)",
+      "command(pnpm remove)",
+      "command(pnpm deploy.*)",
+      "command(bash .*deploy.*)",
+      "command(aws)",
+      "command(cdk)",
+      "write_file(.git/)",
+      "write_file(.agent/)",
+      "write_file(package.json)",
+      "write_file(pnpm-lock.yaml)",
+      "read_file(.env)",
+      "read_file(.env.local)"
+    ]
+  }
+}

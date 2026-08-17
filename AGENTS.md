@@ -73,3 +73,20 @@ pnpm validate
 
 For API route moves, `pnpm --filter @onthilab/api test` is mandatory. For
 contract changes, test contracts plus every consuming package.
+
+## Codex + Antigravity pipeline
+
+- Codex owns triage, task contracts, model selection, review and the final
+  commit. Antigravity is an implementation worker and must never stage, commit,
+  amend, rebase, squash or push changes.
+- The default executor is `gemini-3.7-flash-medium`. Only Codex may override
+  execution settings. Escalate within the Gemini 3.7 Flash family to
+  `gemini-3.7-flash-high` before selecting a different model family.
+- Run each task in an isolated worktree. Remediation continues with uncommitted
+  changes in that worktree and is limited to two rounds.
+- Raw model output, command logs and patches stay under `.agent/runs/` as local
+  or CI artifacts. Commit only a sanitized attestation from
+  `.agent/attestations/`.
+- A passing test is necessary but not sufficient. Codex must verify acceptance
+  criteria, scope, affected invariants and evidence freshness before creating
+  exactly one new commit after the final PASS.

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Antigravity self-report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "changedFiles",
+    "acceptance",
+    "commandsAttempted",
+    "assumptions",
+    "knownLimitations",
+    "residualRisks",
+    "needsEscalation"
+  ],
+  "properties": {
+    "summary": { "type": "string" },
+    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["PASS", "FAIL", "NOT_RUN"] },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "commandsAttempted": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "knownLimitations": { "type": "array", "items": { "type": "string" } },
+    "residualRisks": { "type": "array", "items": { "type": "string" } },
+    "needsEscalation": { "type": "boolean" },
+    "escalationReason": { "type": "string" }
+  }
+}
