@@ -21,6 +21,18 @@ const settings = fs.existsSync(settingsPath)
   ? JSON.parse(fs.readFileSync(settingsPath, "utf8"))
   : {};
 const unique = (values) => [...new Set(values)];
+const workspaceAllow = [
+  `read_file(${repository})`,
+  `write_file(${repository})`,
+];
+const workspaceDeny = [
+  `write_file(${path.join(repository, ".git")})`,
+  `write_file(${path.join(repository, ".agent")})`,
+  `write_file(${path.join(repository, "package.json")})`,
+  `write_file(${path.join(repository, "pnpm-lock.yaml")})`,
+  `read_file(${path.join(repository, ".env")})`,
+  `read_file(${path.join(repository, ".env.local")})`,
+];
 
 settings.trustedWorkspaces = unique([
   ...(settings.trustedWorkspaces ?? []),
@@ -31,10 +43,12 @@ settings.permissions = {
   allow: unique([
     ...(settings.permissions?.allow ?? []),
     ...(policy.permissions.allow ?? []),
+    ...workspaceAllow,
   ]),
   deny: unique([
     ...(settings.permissions?.deny ?? []),
     ...(policy.permissions.deny ?? []),
+    ...workspaceDeny,
   ]),
   ask: unique(settings.permissions?.ask ?? []),
 };

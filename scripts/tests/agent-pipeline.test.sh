@@ -216,7 +216,11 @@ expect_success "isolated worktree helper creates task branch" bash -c \
 [[ $(jq -r '.baseSha' "$worktree_destination/.agent/tasks/TASK-TEST.json") == \
   "$(git -C "$repo" rev-parse HEAD)" ]] || fail "worktree task base SHA was not normalized"
 jq -e --arg workspace "$worktree_destination" \
-  '.trustedWorkspaces | index($workspace) != null' "$AGY_SETTINGS_PATH" >/dev/null || \
+  '(.trustedWorkspaces | index($workspace) != null) and
+   (.permissions.allow | index("read_file(" + $workspace + ")") != null) and
+   (.permissions.allow | index("write_file(" + $workspace + ")") != null) and
+   (.permissions.deny | index("write_file(" + $workspace + "/.agent)") != null)' \
+  "$AGY_SETTINGS_PATH" >/dev/null || \
   fail "created worktree was not registered as a trusted AGY workspace"
 mkdir -p "$repo/apps/api/node_modules"
 mkdir -p "$worktree_destination/apps/api"
