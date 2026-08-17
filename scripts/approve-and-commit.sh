@@ -48,6 +48,8 @@ agent_changed_files "$base_sha" | while IFS= read -r file; do
   [[ -n $file ]] || continue
   if [[ $file == "$attestation_rel" ]]; then
     printf '%s\n' "$file"
+  elif [[ $file == "$task_rel" ]]; then
+    printf '%s\n' "$file"
   elif agent_path_forbidden "$task_snapshot" "$file"; then
     agent_die "forbidden path present at commit gate: $file"
   elif agent_path_allowed "$task_snapshot" "$file" "$task_rel"; then

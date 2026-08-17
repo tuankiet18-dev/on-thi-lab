@@ -73,7 +73,9 @@ fi
 
 while IFS= read -r file; do
   [[ -n $file ]] || continue
-  if agent_path_forbidden "$control_task" "$file"; then
+  if [[ $file == "$task_rel" ]]; then
+    continue
+  elif agent_path_forbidden "$control_task" "$file"; then
     printf 'forbidden path changed: %s\n' "$file" >>"$violations_file"
   elif ! agent_path_allowed "$control_task" "$file" "$task_rel"; then
     printf 'out-of-scope path changed: %s\n' "$file" >>"$violations_file"

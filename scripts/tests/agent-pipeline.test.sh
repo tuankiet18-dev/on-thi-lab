@@ -90,7 +90,7 @@ write_task() {
     baseSha:$base,
     executor:{model:"gemini-3.7-flash-medium",effort:"medium",selectedBy:"codex",timeout:"1m",maxTotalTokens:1000},
     allowedPaths:["src/**"],
-    forbiddenPaths:["forbidden.txt","package.json","pnpm-lock.yaml"],
+    forbiddenPaths:[".agent/**","forbidden.txt","package.json","pnpm-lock.yaml"],
     contextFiles:["AGENTS.md"],
     acceptanceCriteria:[{id:"AC-1",statement:"Feature file exists.",verification:"fixture check"}],
     verification:[{id:"fixture-test",argv:["pnpm","test"],required:true}],
