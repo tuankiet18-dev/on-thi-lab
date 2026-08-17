@@ -4,6 +4,10 @@ set -euo pipefail
 
 source_root=$(git rev-parse --show-toplevel)
 export AGENT_SCHEMA_VALIDATOR="$source_root/scripts/validate-agent-json.mjs"
+rg -q 'Do not use.*run_command|`run_command` only' "$source_root/.agent/prompts/implement.md" || {
+  printf '%s\n' 'FAIL: worker prompt must restrict inspection shell commands' >&2
+  exit 1
+}
 test_root=$(mktemp -d)
 trap 'rm -rf "$test_root"' EXIT
 

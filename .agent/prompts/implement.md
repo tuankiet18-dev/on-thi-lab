@@ -17,8 +17,12 @@ Execution:
 1. Read `AGENTS.md`, `.agent/project-context.md`, the task contract and only its
    `contextFiles` plus code/tests directly required by that request path.
 2. Inspect the current relevant implementation and tests before editing.
+   Use `list_dir`, `view_file` and `grep_search` for inspection. Do not use
+   `run_command` for `pwd`, `ls`, `cat`, `find`, `sed` or similar inspection.
 3. Implement every acceptance criterion without unrelated refactoring.
-4. You may attempt only the verification commands declared in the contract.
+4. You may use `run_command` only for an exact `verification[].argv` command
+   declared in the contract. Run one command per tool call; never add `&&`,
+   pipes, redirects, command substitution or shell wrappers.
    The outer runner will execute them independently after you finish.
 5. Return the structured self-report required by the supplied JSON schema.
    Be explicit about assumptions, limitations, residual risks and escalation.
