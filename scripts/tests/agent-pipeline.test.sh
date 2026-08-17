@@ -204,6 +204,11 @@ expect_success "isolated worktree helper creates task branch" bash -c \
 [[ -f "$worktree_destination/.git" ]] || fail "created task directory is not a linked worktree"
 [[ $(jq -r '.baseSha' "$worktree_destination/.agent/tasks/TASK-TEST.json") == \
   "$(git -C "$repo" rev-parse HEAD)" ]] || fail "worktree task base SHA was not normalized"
+mkdir -p "$repo/apps/api/node_modules"
+mkdir -p "$worktree_destination/apps/api"
+ln -s "$repo/apps/api/node_modules" "$worktree_destination/apps/api/node_modules"
+expect_success "linked dependency artifacts are excluded from task diff" bash -c \
+  "cd '$worktree_destination' && source scripts/agent-pipeline-lib.sh && ! agent_changed_files \"\$(git rev-parse HEAD)\" | grep -q node_modules"
 
 settings_fixture="$test_root/agy-settings.json"
 printf '%s\n' '{"trustedWorkspaces":["/existing/workspace"],"customSetting":true}' >"$settings_fixture"

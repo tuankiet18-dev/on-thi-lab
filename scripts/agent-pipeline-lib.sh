@@ -138,7 +138,9 @@ agent_changed_files() {
   {
     git diff --name-only "$base_sha" --
     git ls-files --others --exclude-standard
-  } | LC_ALL=C sort -u
+  } | LC_ALL=C sort -u | while IFS= read -r path; do
+    [[ $path == node_modules || $path == */node_modules ]] || printf '%s\n' "$path"
+  done
 }
 
 agent_path_matches() {
@@ -185,6 +187,7 @@ agent_write_patch() {
   local file
   while IFS= read -r file; do
     [[ -f $file ]] || continue
+    [[ $file == node_modules || $file == */node_modules ]] && continue
     [[ -n $excluded && $file == "$excluded" ]] && continue
     git diff --no-index --binary /dev/null "$file" >>"$temporary" 2>/dev/null || true
   done < <(git ls-files --others --exclude-standard | LC_ALL=C sort)
