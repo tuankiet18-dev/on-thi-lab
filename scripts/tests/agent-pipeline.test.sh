@@ -14,6 +14,7 @@ rg -Fq '{{WORKSPACE_ROOT}}' "$source_root/.agent/prompts/implement.md" || {
 }
 test_root=$(mktemp -d)
 trap 'rm -rf "$test_root"' EXIT
+export AGY_SETTINGS_PATH="$test_root/agy-settings-global.json"
 
 pass_count=0
 
@@ -48,6 +49,7 @@ new_repo() {
   local repo="$test_root/$name"
   mkdir -p "$repo/scripts/tests/fixtures" "$repo/.agent"
   cp "$source_root/scripts/agent-pipeline-lib.sh" "$repo/scripts/"
+  cp "$source_root/scripts/configure-antigravity-permissions.mjs" "$repo/scripts/"
   cp "$source_root/scripts/run-agy-with-budget.mjs" "$repo/scripts/"
   cp "$source_root/scripts/validate-agent-json.mjs" "$repo/scripts/"
   cp "$source_root/scripts/create-agent-worktree.sh" "$repo/scripts/"
@@ -59,6 +61,7 @@ new_repo() {
   cp "$source_root/scripts/tests/fixtures/fake-pnpm.sh" "$repo/scripts/tests/fixtures/pnpm"
   cp -R "$source_root/.agent/schemas" "$repo/.agent/"
   cp -R "$source_root/.agent/prompts" "$repo/.agent/"
+  cp -R "$source_root/.agent/policies" "$repo/.agent/"
   cp "$source_root/.agent/project-context.md" "$repo/.agent/"
   cp "$source_root/AGENTS.md" "$repo/"
   cp "$source_root/.gitignore" "$repo/"
@@ -212,6 +215,9 @@ expect_success "isolated worktree helper creates task branch" bash -c \
 [[ -f "$worktree_destination/.git" ]] || fail "created task directory is not a linked worktree"
 [[ $(jq -r '.baseSha' "$worktree_destination/.agent/tasks/TASK-TEST.json") == \
   "$(git -C "$repo" rev-parse HEAD)" ]] || fail "worktree task base SHA was not normalized"
+jq -e --arg workspace "$worktree_destination" \
+  '.trustedWorkspaces | index($workspace) != null' "$AGY_SETTINGS_PATH" >/dev/null || \
+  fail "created worktree was not registered as a trusted AGY workspace"
 mkdir -p "$repo/apps/api/node_modules"
 mkdir -p "$worktree_destination/apps/api"
 ln -s "$repo/apps/api/node_modules" "$worktree_destination/apps/api/node_modules"

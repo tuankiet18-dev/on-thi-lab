@@ -40,7 +40,10 @@ settings.permissions = {
 };
 
 fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-if (fs.existsSync(settingsPath)) {
+if (
+  fs.existsSync(settingsPath) &&
+  process.env.AGY_SETTINGS_SKIP_BACKUP !== "1"
+) {
   const timestamp = new Date().toISOString().replaceAll(":", "-");
   fs.copyFileSync(settingsPath, `${settingsPath}.backup-${timestamp}`);
 }

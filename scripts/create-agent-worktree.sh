@@ -11,7 +11,7 @@ source "$script_dir/agent-pipeline-lib.sh"
 
 task_input=$1
 base_ref=${2:-HEAD}
-agent_require_tools git jq sha256sum
+agent_require_tools git jq sha256sum node
 root=$(agent_repo_root)
 cd "$root"
 task_abs=$(agent_task_abs "$task_input")
@@ -44,6 +44,7 @@ while IFS= read -r package_file; do
   mkdir -p "$destination/$package_dir"
   ln -s "$root/$package_dir/node_modules" "$destination/$package_dir/node_modules"
 done < <(git ls-files '*/package.json')
+AGY_SETTINGS_SKIP_BACKUP=1 node "$destination/scripts/configure-antigravity-permissions.mjs"
 
 printf 'Created isolated task worktree.\n'
 printf '  branch: %s\n' "$branch"
