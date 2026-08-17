@@ -21,6 +21,14 @@ const settings = fs.existsSync(settingsPath)
   ? JSON.parse(fs.readFileSync(settingsPath, "utf8"))
   : {};
 const unique = (values) => [...new Set(values)];
+const deprecatedRelativeRules = new Set([
+  "write_file(.git/)",
+  "write_file(.agent/)",
+  "write_file(package.json)",
+  "write_file(pnpm-lock.yaml)",
+  "read_file(.env)",
+  "read_file(.env.local)",
+]);
 const workspaceAllow = [
   `read_file(${repository})`,
   `write_file(${repository})`,
@@ -46,7 +54,9 @@ settings.permissions = {
     ...workspaceAllow,
   ]),
   deny: unique([
-    ...(settings.permissions?.deny ?? []),
+    ...(settings.permissions?.deny ?? []).filter(
+      (rule) => !deprecatedRelativeRules.has(rule),
+    ),
     ...(policy.permissions.deny ?? []),
     ...workspaceDeny,
   ]),

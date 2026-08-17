@@ -236,7 +236,9 @@ jq -e --arg root "$source_root" '
   .customSetting == true and
   (.trustedWorkspaces | index("/existing/workspace") != null) and
   (.trustedWorkspaces | index($root) != null) and
-  (.permissions.deny | index("command(git commit)") != null)
+  (.permissions.deny | index("command(git commit)") != null) and
+  (.permissions.allow | index("unsandboxed(pnpm format:check)") != null) and
+  (.permissions.deny | index("write_file(.agent/)") == null)
 ' "$settings_fixture" >/dev/null || fail "permission installer did not merge settings safely"
 
 printf '1..%s\n' "$pass_count"

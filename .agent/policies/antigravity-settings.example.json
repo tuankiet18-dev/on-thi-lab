@@ -14,7 +14,18 @@
       "command(pnpm --filter @onthilab/worker test)",
       "command(pnpm --filter @onthilab/contracts test)",
       "command(pnpm --filter @onthilab/database test)",
-      "command(pnpm --filter @onthilab/importer test)"
+      "command(pnpm --filter @onthilab/importer test)",
+      "unsandboxed(pnpm format:check)",
+      "unsandboxed(pnpm typecheck)",
+      "unsandboxed(pnpm test)",
+      "unsandboxed(pnpm build)",
+      "unsandboxed(pnpm validate)",
+      "unsandboxed(pnpm --filter @onthilab/api test)",
+      "unsandboxed(pnpm --filter @onthilab/web test)",
+      "unsandboxed(pnpm --filter @onthilab/worker test)",
+      "unsandboxed(pnpm --filter @onthilab/contracts test)",
+      "unsandboxed(pnpm --filter @onthilab/database test)",
+      "unsandboxed(pnpm --filter @onthilab/importer test)"
     ],
     "deny": [
       "command(git add)",
@@ -30,13 +41,7 @@
       "command(pnpm deploy.*)",
       "command(bash .*deploy.*)",
       "command(aws)",
-      "command(cdk)",
-      "write_file(.git/)",
-      "write_file(.agent/)",
-      "write_file(package.json)",
-      "write_file(pnpm-lock.yaml)",
-      "read_file(.env)",
-      "read_file(.env.local)"
+      "command(cdk)"
     ]
   }
 }
