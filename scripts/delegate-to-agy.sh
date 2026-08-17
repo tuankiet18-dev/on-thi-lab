@@ -74,6 +74,7 @@ chmod a-w "$run_dir/task-contract.json"
 template="$root/.agent/prompts/implement.md"
 prompt=$(<"$template")
 prompt=${prompt//'{{TASK_FILE}}'/$task_rel}
+prompt=${prompt//'{{WORKSPACE_ROOT}}'/$root}
 if ((round > 0)); then
   prior_round=$((round - 1))
   prompt+=$'\n\nThis is remediation round '

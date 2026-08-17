@@ -8,6 +8,10 @@ rg -q 'Do not use.*run_command|`run_command` only' "$source_root/.agent/prompts/
   printf '%s\n' 'FAIL: worker prompt must restrict inspection shell commands' >&2
   exit 1
 }
+rg -Fq '{{WORKSPACE_ROOT}}' "$source_root/.agent/prompts/implement.md" || {
+  printf '%s\n' 'FAIL: worker prompt must pin the active workspace root' >&2
+  exit 1
+}
 test_root=$(mktemp -d)
 trap 'rm -rf "$test_root"' EXIT
 

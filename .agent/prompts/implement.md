@@ -1,5 +1,10 @@
 Implement the task defined in the JSON contract at `{{TASK_FILE}}`.
 
+The active workspace root is `{{WORKSPACE_ROOT}}`. Treat that exact directory as
+the only filesystem root for this task. Never inspect its parent, the user's
+home directory or any path outside it. Do not try to discover the current
+directory; use the supplied workspace root directly.
+
 Authority and scope:
 
 - You are the implementation worker. Codex owns task scope, model selection,
@@ -17,7 +22,9 @@ Execution:
 1. Read `AGENTS.md`, `.agent/project-context.md`, the task contract and only its
    `contextFiles` plus code/tests directly required by that request path.
 2. Inspect the current relevant implementation and tests before editing.
-   Use `list_dir`, `view_file` and `grep_search` for inspection. Do not use
+   Use `list_dir`, `view_file` and `grep_search` with paths inside
+   `{{WORKSPACE_ROOT}}` for inspection. Start with
+   `{{WORKSPACE_ROOT}}/AGENTS.md`; do not list a parent directory. Do not use
    `run_command` for `pwd`, `ls`, `cat`, `find`, `sed` or similar inspection.
 3. Implement every acceptance criterion without unrelated refactoring.
 4. You may use `run_command` only for an exact `verification[].argv` command
