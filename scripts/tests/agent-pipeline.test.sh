@@ -5,11 +5,11 @@ set -euo pipefail
 source_root=$(git rev-parse --show-toplevel)
 export AGENT_SCHEMA_VALIDATOR="$source_root/scripts/validate-agent-json.mjs"
 export AGENT_PRETTIER_BIN="$source_root/node_modules/.bin/prettier"
-rg -q 'Do not use.*run_command|`run_command` only' "$source_root/.agent/prompts/implement.md" || {
+grep -E -q 'Do not use.*run_command|`run_command` only' "$source_root/.agent/prompts/implement.md" || {
   printf '%s\n' 'FAIL: worker prompt must restrict inspection shell commands' >&2
   exit 1
 }
-rg -Fq '{{WORKSPACE_ROOT}}' "$source_root/.agent/prompts/implement.md" || {
+grep -Fq '{{WORKSPACE_ROOT}}' "$source_root/.agent/prompts/implement.md" || {
   printf '%s\n' 'FAIL: worker prompt must pin the active workspace root' >&2
   exit 1
 }
@@ -126,6 +126,9 @@ expect_failure "primary worktree delegation is rejected" env \
 expect_success "delegate valid task" run_delegate "$repo" success
 expect_success "deterministic gate passes" env PATH="$repo/scripts/tests/fixtures:$PATH" \
   bash -c "cd '$repo' && scripts/review-agent-run.sh .agent/tasks/TASK-TEST.json"
+jq -e '.diffStat | length > 0' \
+  "$repo/.agent/runs/TASK-TEST/round-0/evidence.json" >/dev/null || \
+  fail "evidence diffStat omitted an untracked implementation file"
 expect_success "Codex records PASS" bash -c \
   "cd '$repo' && scripts/record-codex-review.sh .agent/tasks/TASK-TEST.json --verdict PASS"
 expect_success "single final commit is created" bash -c \
@@ -216,6 +219,8 @@ expect_success "isolated worktree helper creates task branch" bash -c \
 [[ -f "$worktree_destination/.git" ]] || fail "created task directory is not a linked worktree"
 [[ $(jq -r '.baseSha' "$worktree_destination/.agent/tasks/TASK-TEST.json") == \
   "$(git -C "$repo" rev-parse HEAD)" ]] || fail "worktree task base SHA was not normalized"
+git -C "$worktree_destination" status --short | grep -q 'node_modules' && \
+  fail "linked dependency artifacts appear in worktree status"
 "$AGENT_PRETTIER_BIN" --check "$worktree_destination/.agent/tasks/TASK-TEST.json" >/dev/null || \
   fail "worktree task contract was not formatted"
 jq -e --arg workspace "$worktree_destination" \

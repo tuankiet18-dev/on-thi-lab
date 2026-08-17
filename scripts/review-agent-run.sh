@@ -26,7 +26,7 @@ while (($#)); do
   esac
 done
 
-agent_require_tools git jq sha256sum pnpm rg
+agent_require_tools git jq sha256sum pnpm grep
 root=$(agent_repo_root)
 cd "$root"
 task_abs=$(agent_task_abs "$task_input")
@@ -58,9 +58,8 @@ agent_changed_files "$base_sha" >"$changed_file_list"
 
 expected_task_sha=$(jq -r '.taskSha256' "$invocation")
 current_task_sha=$(sha256sum "$task_abs" | cut -d' ' -f1)
-snapshot_task_sha=$(sha256sum "$task_snapshot" | cut -d' ' -f1)
-if [[ $current_task_sha != "$expected_task_sha" || $snapshot_task_sha != "$expected_task_sha" ]]; then
-  printf '%s\n' "task contract changed after delegation" >>"$violations_file"
+if [[ $expected_task_sha != "$current_task_sha" ]]; then
+  printf 'task contract changed after Antigravity delegation: %s\n' "$task_rel" >>"$violations_file"
 fi
 
 current_head=$(git rev-parse HEAD)
@@ -69,6 +68,18 @@ if [[ $current_head != "$base_sha" ]]; then
 fi
 if [[ -n $(git diff --cached --name-only) ]]; then
   printf '%s\n' "staged changes detected; worker staging is forbidden" >>"$violations_file"
+fi
+
+if [[ -f $agy_output ]]; then
+  if ! jq -e '(.usage.total_tokens != null) or (.usage.totalTokens != null)' "$agy_output" >/dev/null 2>&1; then
+    printf '%s\n' 'worker report missing usage metadata' >>"$violations_file"
+  else
+    used_tokens=$(jq -r '.usage.total_tokens // .usage.totalTokens // 0' "$agy_output")
+    budget_limit=$(jq -r '.executor.maxTotalTokens // 0' "$control_task")
+    if (( budget_limit > 0 && used_tokens > budget_limit )); then
+      printf 'worker exceeded token budget: %s > %s\n' "$used_tokens" "$budget_limit" >>"$violations_file"
+    fi
+  fi
 fi
 
 while IFS= read -r file; do
@@ -85,11 +96,11 @@ done <"$changed_file_list"
 if [[ $risk == L2 || $risk == L3 ]] && ! agent_has_exact_command "$control_task" pnpm validate; then
   printf '%s\n' "$risk tasks must declare pnpm validate" >>"$violations_file"
 fi
-if rg -q '^apps/api/src/modules/.+/routes\.ts$' "$changed_file_list" && \
+if grep -E -q '^apps/api/src/modules/.+/routes\.ts$' "$changed_file_list" && \
   ! agent_has_exact_command "$control_task" pnpm --filter @onthilab/api test; then
   printf '%s\n' "API route changes require pnpm --filter @onthilab/api test" >>"$violations_file"
 fi
-if rg -q '^packages/contracts/src/' "$changed_file_list" && \
+if grep -E -q '^packages/contracts/src/' "$changed_file_list" && \
   ! agent_has_exact_command "$control_task" pnpm validate; then
   printf '%s\n' "contract changes require pnpm validate" >>"$violations_file"
 fi
@@ -158,7 +169,7 @@ fi
 patch_file="$run_dir/diff.patch"
 agent_write_patch "$base_sha" "$patch_file"
 patch_sha=$(sha256sum "$patch_file" | cut -d' ' -f1)
-diff_stat=$(git diff --stat "$base_sha" --)
+diff_stat=$(git apply --stat "$patch_file")
 changed_json=$(jq -R . <"$changed_file_list" | jq -s 'map(select(length > 0))')
 violations_json=$(jq -R . <"$violations_file" | jq -s 'map(select(length > 0))')
 usage=$(jq '.usage // {}' "$agy_output")
