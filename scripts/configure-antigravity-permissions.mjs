@@ -36,11 +36,13 @@ const workspaceAllow = [
 const workspaceDeny = [
   `write_file(${path.join(repository, ".git")})`,
   `write_file(${path.join(repository, ".agent")})`,
-  `write_file(${path.join(repository, "package.json")})`,
-  `write_file(${path.join(repository, "pnpm-lock.yaml")})`,
   `read_file(${path.join(repository, ".env")})`,
   `read_file(${path.join(repository, ".env.local")})`,
 ];
+const deprecatedWorkspaceRules = new Set([
+  `write_file(${path.join(repository, "package.json")})`,
+  `write_file(${path.join(repository, "pnpm-lock.yaml")})`,
+]);
 
 settings.trustedWorkspaces = unique([
   ...(settings.trustedWorkspaces ?? []),
@@ -55,7 +57,9 @@ settings.permissions = {
   ]),
   deny: unique([
     ...(settings.permissions?.deny ?? []).filter(
-      (rule) => !deprecatedRelativeRules.has(rule),
+      (rule) =>
+        !deprecatedRelativeRules.has(rule) &&
+        !deprecatedWorkspaceRules.has(rule),
     ),
     ...(policy.permissions.deny ?? []),
     ...workspaceDeny,

@@ -14,6 +14,8 @@ base_ref=${2:-HEAD}
 agent_require_tools git jq sha256sum node
 root=$(agent_repo_root)
 cd "$root"
+prettier_bin=${AGENT_PRETTIER_BIN:-"$root/node_modules/.bin/prettier"}
+[[ -x $prettier_bin ]] || agent_die "Prettier executable not found: $prettier_bin"
 task_abs=$(agent_task_abs "$task_input")
 [[ -f $task_abs ]] || agent_die "task contract not found: $task_input"
 agent_validate_task "$task_abs"
@@ -34,6 +36,7 @@ git worktree add -b "$branch" "$destination" "$base_sha"
 mkdir -p "$destination/.agent/tasks"
 destination_task="$destination/.agent/tasks/$task_id.json"
 jq --arg baseSha "$base_sha" '.baseSha = $baseSha' "$task_abs" >"$destination_task"
+"$prettier_bin" --write "$destination_task" >/dev/null
 
 [[ -d "$root/node_modules" ]] || \
   agent_die "primary workspace has no node_modules; run pnpm install there before creating tasks"

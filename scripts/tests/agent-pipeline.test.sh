@@ -4,6 +4,7 @@ set -euo pipefail
 
 source_root=$(git rev-parse --show-toplevel)
 export AGENT_SCHEMA_VALIDATOR="$source_root/scripts/validate-agent-json.mjs"
+export AGENT_PRETTIER_BIN="$source_root/node_modules/.bin/prettier"
 rg -q 'Do not use.*run_command|`run_command` only' "$source_root/.agent/prompts/implement.md" || {
   printf '%s\n' 'FAIL: worker prompt must restrict inspection shell commands' >&2
   exit 1
@@ -215,6 +216,8 @@ expect_success "isolated worktree helper creates task branch" bash -c \
 [[ -f "$worktree_destination/.git" ]] || fail "created task directory is not a linked worktree"
 [[ $(jq -r '.baseSha' "$worktree_destination/.agent/tasks/TASK-TEST.json") == \
   "$(git -C "$repo" rev-parse HEAD)" ]] || fail "worktree task base SHA was not normalized"
+"$AGENT_PRETTIER_BIN" --check "$worktree_destination/.agent/tasks/TASK-TEST.json" >/dev/null || \
+  fail "worktree task contract was not formatted"
 jq -e --arg workspace "$worktree_destination" \
   '(.trustedWorkspaces | index($workspace) != null) and
    (.permissions.allow | index("read_file(" + $workspace + ")") != null) and
