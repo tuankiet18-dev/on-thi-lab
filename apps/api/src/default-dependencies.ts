@@ -52,6 +52,9 @@ const unavailableAdminCatalogRepository: AdminCatalogRepository = {
 };
 
 const unavailableProfileRepository: UserProfileRepository = {
+  findById: async () => {
+    throw new Error("Profile storage is not configured");
+  },
   findBySubject: async () => {
     throw new Error("Profile storage is not configured");
   },
@@ -64,7 +67,13 @@ const unavailableProfileRepository: UserProfileRepository = {
   updateRole: async () => {
     throw new Error("Profile storage is not configured");
   },
+  updateStatus: async () => {
+    throw new Error("Profile storage is not configured");
+  },
   searchUsers: async () => {
+    throw new Error("Profile storage is not configured");
+  },
+  listUsersForAdmin: async () => {
     throw new Error("Profile storage is not configured");
   },
 };

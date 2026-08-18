@@ -68,7 +68,8 @@ export class CognitoIdTokenVerifier implements TokenVerifier {
         name,
         groups,
       };
-    } catch {
+    } catch (error) {
+      console.error("[CognitoIdTokenVerifier] Verification failed:", error);
       throw new AuthenticationError(
         "INVALID_TOKEN",
         "The bearer token is invalid or expired",

@@ -1,0 +1,26 @@
+{
+  "$schema": "../schemas/execution-policy.schema.json",
+  "defaultModel": "gemini-3.7-flash-medium",
+  "defaultEffort": "medium",
+  "sameFamilyEscalation": "gemini-3.7-flash-high",
+  "sameFamilyEscalationEffort": "high",
+  "defaultTokenBudgets": {
+    "L0": 120000,
+    "L1": 200000,
+    "L2": 350000,
+    "L3": 500000
+  },
+  "maxRemediationRounds": 2,
+  "modelSelectionOwner": "codex",
+  "commitOwner": "codex",
+  "workerGitDenials": [
+    "add",
+    "commit",
+    "amend",
+    "rebase",
+    "merge",
+    "reset",
+    "push",
+    "tag"
+  ]
+}

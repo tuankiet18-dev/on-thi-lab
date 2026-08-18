@@ -35,6 +35,113 @@ export function emptyImportMetadata(): CreateDraftImportInput {
   };
 }
 
+export function inferImportMetadataFromFileName(
+  fileName: string,
+  availableCourses?: readonly { code: string }[],
+  availableCampuses?: readonly { code: string }[],
+): CreateDraftImportInput {
+  const baseName = fileName.replace(/\.zip$/i, "").replace(/_cropped$/i, "");
+  const tokens = baseName.split(/[-_.\s]+/);
+
+  let courseCode = "";
+  let semester = "";
+  let campusCode = "";
+  let examType: "FE" | "PE" = "FE";
+  let isRetake = false;
+  const extractText = false;
+
+  // 1. Campus detection
+  let matchedCampusCode = "";
+  if (availableCampuses && availableCampuses.length > 0) {
+    const matchedCampus = availableCampuses.find(
+      (c) =>
+        tokens.some((t) => t.toUpperCase() === c.code.toUpperCase()) ||
+        baseName.toUpperCase().includes(`_${c.code.toUpperCase()}_`) ||
+        baseName.toUpperCase().includes(`-${c.code.toUpperCase()}-`),
+    );
+    if (matchedCampus) {
+      matchedCampusCode = matchedCampus.code;
+    }
+  }
+
+  // 2. Course detection
+  if (availableCourses && availableCourses.length > 0) {
+    const matchedTokenCourse = availableCourses.find((c) =>
+      tokens.some((t) => t.toUpperCase() === c.code.toUpperCase()),
+    );
+    if (matchedTokenCourse) {
+      courseCode = matchedTokenCourse.code;
+    } else {
+      const matchedSubstringCourse = availableCourses.find((c) =>
+        baseName.toUpperCase().includes(c.code.toUpperCase()),
+      );
+      if (matchedSubstringCourse) {
+        courseCode = matchedSubstringCourse.code;
+      }
+    }
+  }
+
+  // Fallback regex detection for course code
+  if (!courseCode) {
+    for (const token of tokens) {
+      const match = token.match(/^[a-zA-Z]{2,5}\d{2,4}[a-zA-Z]?$/);
+      if (match) {
+        courseCode = match[0].toUpperCase();
+        break;
+      }
+    }
+  }
+
+  // 3. Semester detection
+  for (const token of tokens) {
+    const match = token.match(/^(SP|SU|FA|SPRING|SUMMER|FALL)(\d{2,4})$/i);
+    if (match?.[1] && match?.[2]) {
+      const semPrefix = match[1].slice(0, 2).toUpperCase();
+      const semYear = match[2].slice(-2);
+      semester = `${semPrefix}${semYear}`;
+      break;
+    }
+  }
+  if (!semester) {
+    const semMatch = baseName.match(/(?:^|[-_])(SP|SU|FA)(\d{2})(?:[-_]|$)/i);
+    if (semMatch?.[1] && semMatch?.[2]) {
+      semester = `${semMatch[1].toUpperCase()}${semMatch[2]}`;
+    }
+  }
+
+  // 4. Retake detection
+  const lowerName = baseName.toLowerCase();
+  if (
+    tokens.some((t) => ["re", "retake", "thilai"].includes(t.toLowerCase())) ||
+    lowerName.includes("-re") ||
+    lowerName.includes("_re")
+  ) {
+    isRetake = true;
+  }
+
+  // Set campus: explicit match first, or default HCM when exam course/semester is inferred
+  if (matchedCampusCode) {
+    campusCode = matchedCampusCode;
+  } else if (courseCode || semester) {
+    const hasHcm = availableCampuses?.find(
+      (c) => c.code.toUpperCase() === "HCM",
+    );
+    campusCode = hasHcm ? hasHcm.code : (availableCampuses?.[0]?.code ?? "HCM");
+  }
+
+  const durationMinutes = courseCode || semester ? 60 : 0;
+
+  return {
+    courseCode,
+    semester,
+    campusCode,
+    examType: "FE",
+    isRetake,
+    durationMinutes,
+    extractText,
+  };
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

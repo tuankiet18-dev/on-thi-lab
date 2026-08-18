@@ -1,0 +1,42 @@
+{
+  "$schema": "../schemas/task.schema.json",
+  "taskId": "TASK-PIPELINE-SMOKE",
+  "title": "Verify the real Antigravity delegation path",
+  "objective": "Add one short documentation file proving that a real L0 worker task can pass the complete pipeline. Do not change application code.",
+  "risk": "L0",
+  "baseSha": "85da220897b0a7da4b5acc9f4750c214efea9ef7",
+  "executor": {
+    "model": "gemini-3.7-flash-medium",
+    "effort": "medium",
+    "selectedBy": "codex",
+    "timeout": "10m",
+    "maxTotalTokens": 120000
+  },
+  "allowedPaths": ["docs/agent-pipeline-smoke.md"],
+  "forbiddenPaths": [
+    ".agent/**",
+    ".git/**",
+    "package.json",
+    "pnpm-lock.yaml",
+    "apps/**",
+    "packages/**",
+    "infra/**"
+  ],
+  "contextFiles": ["AGENTS.md", ".agent/project-context.md"],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "statement": "docs/agent-pipeline-smoke.md exists and states that the real L0 Antigravity pipeline smoke test passed.",
+      "verification": "Codex reviews the file content and pnpm format:check passes."
+    }
+  ],
+  "verification": [
+    {
+      "id": "format-check",
+      "argv": ["pnpm", "format:check"],
+      "required": true
+    }
+  ],
+  "rollback": "Revert the single smoke-task commit or delete the isolated worktree branch.",
+  "escalateIf": ["Any file outside docs/agent-pipeline-smoke.md must change."]
+}

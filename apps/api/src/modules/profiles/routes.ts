@@ -7,13 +7,29 @@ export function registerProfileRoutes(
   app: Hono<AppEnvironment>,
   dependencies: AppDependencies,
 ): void {
-  app.get("/v1/me", async (context) =>
-    context.json({
-      data: await dependencies.profiles.findBySubject(
+  app.get("/v1/me", async (context) => {
+    try {
+      const profile = await dependencies.profiles.findBySubject(
         context.get("identity").subject,
-      ),
-    }),
-  );
+      );
+      return context.json({ data: profile });
+    } catch (error) {
+      if (
+        error instanceof ProfileRepositoryError &&
+        error.code === "PROFILE_DISABLED"
+      ) {
+        return context.json(
+          {
+            error: "PROFILE_DISABLED",
+            message:
+              "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ.",
+          },
+          403,
+        );
+      }
+      throw error;
+    }
+  });
 
   app.put("/v1/me", async (context) => {
     let body: unknown;

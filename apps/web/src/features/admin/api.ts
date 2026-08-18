@@ -2,18 +2,47 @@ import {
   adminAttentionSummarySchema,
   adminCatalogSchema,
   adminExamSummarySchema,
+  adminUserListResponseSchema,
   studentProfileSchema,
   type AdminAttentionSummary,
   type AdminCatalog,
   type AdminExamSummary,
+  type AdminUserFilter,
+  type AdminUserListResponse,
   type CreateCourseInput,
   type CreateCurriculumInput,
   type CreateMajorInput,
   type StudentProfile,
   type UpdateCourseInput,
   type UpsertCurriculumCourseInput,
+  type UserRole,
 } from "@onthilab/contracts";
 import { apiRequest } from "../../api/http";
+
+export async function getAdminUsers(
+  filter: Partial<AdminUserFilter>,
+  token: string,
+  fetcher = fetch,
+): Promise<AdminUserListResponse> {
+  const params = new URLSearchParams();
+  if (filter.search) params.set("search", filter.search);
+  if (filter.role && filter.role !== "all") params.set("role", filter.role);
+  if (filter.campusCode && filter.campusCode !== "all")
+    params.set("campusCode", filter.campusCode);
+  if (filter.status && filter.status !== "all")
+    params.set("status", filter.status);
+  if (filter.page) params.set("page", String(filter.page));
+  if (filter.limit) params.set("limit", String(filter.limit));
+
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  const result = await apiRequest(
+    `/v1/admin/users${queryString}`,
+    token,
+    undefined,
+    fetcher,
+  );
+  return adminUserListResponseSchema.parse(result);
+}
 
 export async function searchUsers(
   query: string,
@@ -32,7 +61,7 @@ export async function searchUsers(
 
 export async function updateRole(
   userId: string,
-  role: "user" | "contributor" | "admin",
+  role: UserRole,
   token: string,
   fetcher = fetch,
 ): Promise<void> {
@@ -40,6 +69,20 @@ export async function updateRole(
     `/v1/admin/users/${encodeURIComponent(userId)}/role`,
     token,
     { method: "POST", body: JSON.stringify({ role }) },
+    fetcher,
+  );
+}
+
+export async function updateUserStatus(
+  userId: string,
+  isActive: boolean,
+  token: string,
+  fetcher = fetch,
+): Promise<void> {
+  await apiRequest(
+    `/v1/admin/users/${encodeURIComponent(userId)}/status`,
+    token,
+    { method: "POST", body: JSON.stringify({ isActive }) },
     fetcher,
   );
 }

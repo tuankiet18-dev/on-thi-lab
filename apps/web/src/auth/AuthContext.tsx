@@ -99,6 +99,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus("authenticated");
         })
         .catch((reason) => {
+          if (
+            reason instanceof ApiError &&
+            reason.code === "PROFILE_DISABLED"
+          ) {
+            storeSession(null);
+            setSession(null);
+            setStudentProfile(null);
+            setError(
+              "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ mở khóa.",
+            );
+            setStatus("error");
+            return;
+          }
           if (reason instanceof ApiError && reason.status === 401) {
             storeSession(null);
             setSession(null);
@@ -121,6 +134,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setStatus("authenticated");
           })
           .catch((reason) => {
+            if (
+              reason instanceof ApiError &&
+              reason.code === "PROFILE_DISABLED"
+            ) {
+              storeSession(null);
+              setSession(null);
+              setStudentProfile(null);
+              setError(
+                "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ mở khóa.",
+              );
+              setStatus("error");
+              return;
+            }
             if (reason instanceof ApiError && reason.status === 401) {
               storeSession(null);
               setSession(null);
@@ -202,7 +228,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setStudentProfile(await getMyProfile(nextSession.idToken));
       setStatus("authenticated");
-    } catch {
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "PROFILE_DISABLED") {
+        storeSession(null);
+        setSession(null);
+        setStudentProfile(null);
+        setError(
+          "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ mở khóa.",
+        );
+        setStatus("error");
+        throw new Error(
+          "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ mở khóa.",
+        );
+      }
       setError("Đăng nhập thành công nhưng chưa thể kết nối API để tải hồ sơ.");
       setStatus("error");
       throw new Error(

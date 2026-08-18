@@ -13,6 +13,7 @@ import type {
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
+  ProfileRepositoryError,
   type AdminCatalogRepository,
   type BookmarkRepository,
 } from "@onthilab/database";
@@ -47,7 +48,16 @@ class MemoryProfileRepository implements UserProfileRepository {
   };
 
   async findBySubject(subject: string) {
-    return subject === identity.subject ? this.profile : null;
+    if (subject === identity.subject && this.profile) {
+      if (!this.isActive) {
+        throw new ProfileRepositoryError(
+          "PROFILE_DISABLED",
+          "Tài khoản của bạn đã bị khóa bởi quản trị viên.",
+        );
+      }
+      return this.profile;
+    }
+    return null;
   }
 
   async listOptions() {
@@ -71,6 +81,12 @@ class MemoryProfileRepository implements UserProfileRepository {
     return this.profile;
   }
 
+  isActive = true;
+
+  async findById(userId: string): Promise<StudentProfile | null> {
+    return this.profile && this.profile.id === userId ? this.profile : null;
+  }
+
   async updateRole(
     userId: string,
     role: "user" | "contributor" | "admin",
@@ -78,6 +94,39 @@ class MemoryProfileRepository implements UserProfileRepository {
     if (this.profile && this.profile.id === userId) {
       this.profile = { ...this.profile, role };
     }
+  }
+
+  async updateStatus(userId: string, isActive: boolean): Promise<void> {
+    this.isActive = isActive;
+  }
+
+  async listUsersForAdmin(filter: any) {
+    const items = this.profile
+      ? [
+          {
+            ...this.profile,
+            isActive: this.isActive,
+            attemptsCount: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ]
+      : [];
+    return {
+      items,
+      pagination: {
+        page: filter.page ?? 1,
+        limit: filter.limit ?? 20,
+        total: items.length,
+        totalPages: 1,
+      },
+      stats: {
+        totalUsers: this.profile?.role === "user" ? 1 : 0,
+        totalContributors: this.profile?.role === "contributor" ? 1 : 0,
+        totalAdmins: this.profile?.role === "admin" ? 1 : 0,
+        totalDisabled: !this.isActive ? 1 : 0,
+      },
+    };
   }
 
   async searchUsers(query: string): Promise<StudentProfile[]> {
@@ -390,6 +439,104 @@ describe("attempt API", () => {
     await expect(response.json()).resolves.toEqual({
       error: "FORBIDDEN",
     });
+
+    const listRes = await isolatedApp.request("/v1/admin/users", {
+      headers: authorization,
+    });
+    expect(listRes.status).toBe(403);
+  });
+
+  it("lists users with pagination and stats for admin", async () => {
+    const adminProfiles = createOnboardedProfiles("admin");
+    const adminApp = createApp({
+      auth,
+      profiles: adminProfiles,
+    } as any);
+
+    const response = await adminApp.request("/v1/admin/users?page=1&limit=10", {
+      headers: authorization,
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.stats.totalAdmins).toBe(1);
+    expect(body.data.pagination.page).toBe(1);
+  });
+
+  it("updates user role and prevents admin from demoting themselves", async () => {
+    const adminProfiles = createOnboardedProfiles("admin");
+    const adminId = adminProfiles.profile!.id;
+    const adminApp = createApp({
+      auth,
+      profiles: adminProfiles,
+    } as any);
+
+    // Self-demote attempt
+    const selfDemoteRes = await adminApp.request(
+      `/v1/admin/users/${adminId}/role`,
+      {
+        method: "POST",
+        headers: authorization,
+        body: JSON.stringify({ role: "user" }),
+      },
+    );
+    expect(selfDemoteRes.status).toBe(400);
+    const selfDemoteBody = (await selfDemoteRes.json()) as any;
+    expect(selfDemoteBody.error).toBe("FORBIDDEN_SELF_ACTION");
+
+    // Other user update
+    const otherUserRes = await adminApp.request(
+      "/v1/admin/users/20000000-0000-4000-8000-000000000002/role",
+      {
+        method: "POST",
+        headers: authorization,
+        body: JSON.stringify({ role: "contributor" }),
+      },
+    );
+    expect(otherUserRes.status).toBe(200);
+  });
+
+  it("toggles user status and prevents admin from self-locking", async () => {
+    const adminProfiles = createOnboardedProfiles("admin");
+    const adminId = adminProfiles.profile!.id;
+    const adminApp = createApp({
+      auth,
+      profiles: adminProfiles,
+    } as any);
+
+    // Self-lock attempt
+    const selfLockRes = await adminApp.request(
+      `/v1/admin/users/${adminId}/status`,
+      {
+        method: "POST",
+        headers: authorization,
+        body: JSON.stringify({ isActive: false }),
+      },
+    );
+    expect(selfLockRes.status).toBe(400);
+    const selfLockBody = (await selfLockRes.json()) as any;
+    expect(selfLockBody.error).toBe("FORBIDDEN_SELF_ACTION");
+
+    // Lock other user
+    const lockOtherRes = await adminApp.request(
+      "/v1/admin/users/20000000-0000-4000-8000-000000000002/status",
+      {
+        method: "POST",
+        headers: authorization,
+        body: JSON.stringify({ isActive: false }),
+      },
+    );
+    expect(lockOtherRes.status).toBe(200);
+    expect(adminProfiles.isActive).toBe(false);
+
+    // Profile check for locked user
+    const meRes = await adminApp.request("/v1/me", {
+      headers: authorization,
+    });
+    expect(meRes.status).toBe(403);
+    const meBody = (await meRes.json()) as any;
+    expect(meBody.error).toBe("PROFILE_DISABLED");
   });
 
   it("returns published exams from the catalog", async () => {

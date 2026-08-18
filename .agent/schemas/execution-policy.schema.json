@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "defaultModel",
+    "defaultEffort",
+    "sameFamilyEscalation",
+    "sameFamilyEscalationEffort",
+    "defaultTokenBudgets",
+    "maxRemediationRounds",
+    "modelSelectionOwner",
+    "commitOwner",
+    "workerGitDenials"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "defaultModel": { "const": "gemini-3.7-flash-medium" },
+    "defaultEffort": { "const": "medium" },
+    "sameFamilyEscalation": { "const": "gemini-3.7-flash-high" },
+    "sameFamilyEscalationEffort": { "const": "high" },
+    "defaultTokenBudgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["L0", "L1", "L2", "L3"],
+      "properties": {
+        "L0": { "type": "integer", "minimum": 1000 },
+        "L1": { "type": "integer", "minimum": 1000 },
+        "L2": { "type": "integer", "minimum": 1000 },
+        "L3": { "type": "integer", "minimum": 1000 }
+      }
+    },
+    "maxRemediationRounds": { "const": 2 },
+    "modelSelectionOwner": { "const": "codex" },
+    "commitOwner": { "const": "codex" },
+    "workerGitDenials": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

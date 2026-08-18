@@ -6,7 +6,7 @@ export function Badge({
   tone = "blue",
 }: {
   children: ReactNode;
-  tone?: "blue" | "green" | "amber" | "slate" | "pink";
+  tone?: "blue" | "green" | "amber" | "slate" | "pink" | "red" | "purple";
 }) {
   const tones = {
     blue: "bg-blue-50 text-blue-700 ring-blue-600/10",
@@ -14,6 +14,8 @@ export function Badge({
     amber: "bg-amber-50 text-amber-800 ring-amber-600/10",
     slate: "bg-slate-100 text-slate-600 ring-slate-500/10",
     pink: "bg-pink-50 text-pink-700 ring-pink-600/10",
+    red: "bg-red-50 text-red-700 ring-red-600/10",
+    purple: "bg-purple-50 text-purple-700 ring-purple-600/10",
   };
 
   return (

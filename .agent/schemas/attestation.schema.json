@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sanitized Codex attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "risk",
+    "baseSha",
+    "patchSha256",
+    "changedFiles",
+    "checks",
+    "acceptanceStatus",
+    "reviewer",
+    "verdict",
+    "model",
+    "effort",
+    "usage",
+    "reviewedAt"
+  ],
+  "properties": {
+    "taskId": { "type": "string" },
+    "risk": { "enum": ["L0", "L1", "L2", "L3"] },
+    "baseSha": { "type": "string" },
+    "patchSha256": { "type": "string" },
+    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "exitCode"],
+        "properties": {
+          "id": { "type": "string" },
+          "exitCode": { "type": "integer" }
+        }
+      }
+    },
+    "acceptanceStatus": { "const": "PASS" },
+    "reviewer": { "const": "codex" },
+    "verdict": { "const": "PASS" },
+    "model": { "type": "string" },
+    "effort": { "type": "string" },
+    "usage": {
+      "type": "object",
+      "required": ["totalTokens"],
+      "properties": {
+        "totalTokens": { "type": "integer", "minimum": 0 },
+        "cacheReadTokens": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reviewedAt": { "type": "string" }
+  }
+}
