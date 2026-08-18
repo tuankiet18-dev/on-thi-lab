@@ -105,7 +105,7 @@ export function inferImportMetadataFromFileName(
   // 3. Semester detection (e.g. SP26, FA25, SU24)
   for (const token of tokens) {
     const match = token.match(/^(SP|SU|FA|SPRING|SUMMER|FALL)(\d{2,4})$/i);
-    if (match) {
+    if (match?.[1] && match?.[2]) {
       const semPrefix = match[1].slice(0, 2).toUpperCase();
       const semYear = match[2].slice(-2);
       semester = `${semPrefix}${semYear}`;
@@ -114,7 +114,7 @@ export function inferImportMetadataFromFileName(
   }
   if (!semester) {
     const semMatch = baseName.match(/(?:^|[-_])(SP|SU|FA)(\d{2})(?:[-_]|$)/i);
-    if (semMatch) {
+    if (semMatch?.[1] && semMatch?.[2]) {
       semester = `${semMatch[1].toUpperCase()}${semMatch[2]}`;
     }
   }
@@ -129,19 +129,11 @@ export function inferImportMetadataFromFileName(
     isRetake = true;
   }
 
-  // 5. Exam type detection (e.g. -pe, _pe, pe)
-  if (
-    tokens.some((t) => t.toLowerCase() === "pe") ||
-    lowerName.includes("-pe")
-  ) {
-    examType = "PE";
-  }
-
   return {
     courseCode,
     semester,
     campusCode,
-    examType,
+    examType: "FE",
     isRetake,
     durationMinutes,
     extractText,
