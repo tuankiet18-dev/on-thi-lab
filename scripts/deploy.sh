@@ -183,7 +183,8 @@ if [[ "$infra_only" != true ]]; then
     exit 1
   }
   echo "==> Uploading frontend assets"
-  aws s3 sync apps/web/dist "s3://${web_bucket_name}" --delete --only-show-errors
+  aws s3 sync apps/web/dist "s3://${web_bucket_name}" --delete --exclude "index.html" --cache-control "public, max-age=31536000, immutable" --only-show-errors
+  aws s3 cp apps/web/dist/index.html "s3://${web_bucket_name}/index.html" --cache-control "no-cache, no-store, must-revalidate"
 
   distribution_id="$(aws cloudfront list-distributions \
     --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, '${web_domain}')].Id | [0]" \
