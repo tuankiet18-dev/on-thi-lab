@@ -57,6 +57,13 @@
       "when": 1786633848275,
       "tag": "0007_parched_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787040797862,
+      "tag": "0008_greedy_bloodaxe",
+      "breakpoints": true
     }
   ]
 }

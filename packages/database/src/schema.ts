@@ -253,10 +253,7 @@ export const questions = pgTable(
       table.revisionId,
       table.order,
     ),
-    uniqueIndex("questions_revision_hash_idx").on(
-      table.revisionId,
-      table.imageHash,
-    ),
+    index("questions_revision_hash_idx").on(table.revisionId, table.imageHash),
   ],
 );
 
