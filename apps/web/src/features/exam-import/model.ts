@@ -23,15 +23,128 @@ export const fallbackCampuses = [
   { code: "QN", name: "Quy Nhơn" },
 ];
 
-export function emptyImportMetadata(): CreateDraftImportInput {
+export function emptyImportMetadata(
+  defaultCampusCode = "HCM",
+  defaultDuration = 60,
+): CreateDraftImportInput {
   return {
     courseCode: "",
     semester: "",
-    campusCode: "",
+    campusCode: defaultCampusCode,
     examType: "FE",
     isRetake: false,
-    durationMinutes: 0,
+    durationMinutes: defaultDuration,
     extractText: false,
+  };
+}
+
+export function inferImportMetadataFromFileName(
+  fileName: string,
+  availableCourses?: readonly { code: string }[],
+  availableCampuses?: readonly { code: string }[],
+): CreateDraftImportInput {
+  const baseName = fileName.replace(/\.zip$/i, "").replace(/_cropped$/i, "");
+  const tokens = baseName.split(/[-_.\s]+/);
+
+  let courseCode = "";
+  let semester = "";
+  let campusCode = "HCM";
+  let examType: "FE" | "PE" = "FE";
+  let isRetake = false;
+  const durationMinutes = 60;
+  const extractText = false;
+
+  // 1. Campus detection & default
+  if (availableCampuses && availableCampuses.length > 0) {
+    const matchedCampus = availableCampuses.find(
+      (c) =>
+        tokens.some((t) => t.toUpperCase() === c.code.toUpperCase()) ||
+        baseName.toUpperCase().includes(`_${c.code.toUpperCase()}_`) ||
+        baseName.toUpperCase().includes(`-${c.code.toUpperCase()}-`),
+    );
+    if (matchedCampus) {
+      campusCode = matchedCampus.code;
+    } else {
+      const hasHcm = availableCampuses.find(
+        (c) => c.code.toUpperCase() === "HCM",
+      );
+      campusCode = hasHcm ? hasHcm.code : (availableCampuses[0]?.code ?? "HCM");
+    }
+  }
+
+  // 2. Course detection
+  if (availableCourses && availableCourses.length > 0) {
+    // Exact token match first
+    const matchedTokenCourse = availableCourses.find((c) =>
+      tokens.some((t) => t.toUpperCase() === c.code.toUpperCase()),
+    );
+    if (matchedTokenCourse) {
+      courseCode = matchedTokenCourse.code;
+    } else {
+      // Substring match
+      const matchedSubstringCourse = availableCourses.find((c) =>
+        baseName.toUpperCase().includes(c.code.toUpperCase()),
+      );
+      if (matchedSubstringCourse) {
+        courseCode = matchedSubstringCourse.code;
+      }
+    }
+  }
+
+  // Fallback regex detection for course code (e.g. SWE201c, FER202, PRO192)
+  if (!courseCode) {
+    for (const token of tokens) {
+      const match = token.match(/^[a-zA-Z]{2,5}\d{2,4}[a-zA-Z]?$/);
+      if (match) {
+        courseCode = match[0].toUpperCase();
+        break;
+      }
+    }
+  }
+
+  // 3. Semester detection (e.g. SP26, FA25, SU24)
+  for (const token of tokens) {
+    const match = token.match(/^(SP|SU|FA|SPRING|SUMMER|FALL)(\d{2,4})$/i);
+    if (match) {
+      const semPrefix = match[1].slice(0, 2).toUpperCase();
+      const semYear = match[2].slice(-2);
+      semester = `${semPrefix}${semYear}`;
+      break;
+    }
+  }
+  if (!semester) {
+    const semMatch = baseName.match(/(?:^|[-_])(SP|SU|FA)(\d{2})(?:[-_]|$)/i);
+    if (semMatch) {
+      semester = `${semMatch[1].toUpperCase()}${semMatch[2]}`;
+    }
+  }
+
+  // 4. Retake detection (e.g. -re, _re, retake, thilai)
+  const lowerName = baseName.toLowerCase();
+  if (
+    tokens.some((t) => ["re", "retake", "thilai"].includes(t.toLowerCase())) ||
+    lowerName.includes("-re") ||
+    lowerName.includes("_re")
+  ) {
+    isRetake = true;
+  }
+
+  // 5. Exam type detection (e.g. -pe, _pe, pe)
+  if (
+    tokens.some((t) => t.toLowerCase() === "pe") ||
+    lowerName.includes("-pe")
+  ) {
+    examType = "PE";
+  }
+
+  return {
+    courseCode,
+    semester,
+    campusCode,
+    examType,
+    isRetake,
+    durationMinutes,
+    extractText,
   };
 }
 

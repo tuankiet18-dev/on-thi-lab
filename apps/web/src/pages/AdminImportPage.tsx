@@ -26,6 +26,7 @@ import {
   fallbackCampuses,
   formatFileSize,
   importErrorMessage,
+  inferImportMetadataFromFileName,
   isImportMetadataComplete,
   queueStatusLabel,
   type ImportQueueItem,
@@ -73,6 +74,27 @@ export function AdminImportPage() {
       .then(([nextCatalog, nextOptions]) => {
         setCatalog(nextCatalog);
         setProfileOptions(nextOptions);
+        const nextCampuses = nextOptions?.campuses ?? fallbackCampuses;
+        setImportQueue((items) =>
+          items.map((item) => {
+            if (item.status === "pending" && !item.metadata.courseCode) {
+              return {
+                ...item,
+                metadata: {
+                  ...inferImportMetadataFromFileName(
+                    item.archive.name,
+                    nextCatalog.courses,
+                    nextCampuses,
+                  ),
+                  ...(item.metadata.durationMinutes
+                    ? { durationMinutes: item.metadata.durationMinutes }
+                    : {}),
+                },
+              };
+            }
+            return item;
+          }),
+        );
       })
       .catch(() => {
         // Files can still be selected while the catalog is temporarily unavailable.
@@ -123,7 +145,11 @@ export function AdminImportPage() {
       ...archives.map((archive) => ({
         id: `import-${Date.now()}-${nextQueueItemId++}`,
         archive,
-        metadata: emptyImportMetadata(),
+        metadata: inferImportMetadataFromFileName(
+          archive.name,
+          catalog?.courses,
+          campuses,
+        ),
         status: "pending" as const,
       })),
     ]);
