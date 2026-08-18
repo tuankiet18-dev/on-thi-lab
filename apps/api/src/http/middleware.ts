@@ -35,13 +35,32 @@ export function authenticationMiddleware(
   };
 }
 
+import { ProfileRepositoryError } from "@onthilab/database";
+
 export function profileRequiredMiddleware(
   profiles: UserProfileRepository,
 ): MiddlewareHandler<AppEnvironment> {
   return async (context, next) => {
-    const profile = await profiles.findBySubject(
-      context.get("identity").subject,
-    );
+    let profile;
+    try {
+      profile = await profiles.findBySubject(context.get("identity").subject);
+    } catch (error) {
+      if (
+        error instanceof ProfileRepositoryError &&
+        error.code === "PROFILE_DISABLED"
+      ) {
+        return context.json(
+          {
+            error: "PROFILE_DISABLED",
+            message:
+              "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ.",
+          },
+          403,
+        );
+      }
+      throw error;
+    }
+
     if (!profile) return context.json({ error: "PROFILE_REQUIRED" }, 403);
 
     context.set("profile", profile);

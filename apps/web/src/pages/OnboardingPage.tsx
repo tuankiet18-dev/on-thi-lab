@@ -49,6 +49,13 @@ export function OnboardingPage() {
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "PROFILE_CONFLICT") {
         setError("Email hoặc mã số sinh viên này đã được sử dụng.");
+      } else if (
+        reason instanceof ApiError &&
+        reason.code === "PROFILE_DISABLED"
+      ) {
+        setError(
+          "Tài khoản của bạn đang bị khóa bởi quản trị viên. Vui lòng liên hệ ban quản trị để được hỗ trợ.",
+        );
       } else {
         setError("Không thể lưu hồ sơ. Vui lòng thử lại.");
       }

@@ -1,11 +1,15 @@
 import type {
+  AdminUserFilter,
+  AdminUserListResponse,
+  AdminUserSummary,
   ProfileOptions,
   StudentProfile,
   UpsertStudentProfileInput,
+  UserRole,
 } from "@onthilab/contracts";
-import { and, asc, eq, or, ilike, desc } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
-import { campuses, majors, users, curricula } from "./schema";
+import { attempts, campuses, curricula, majors, users } from "./schema";
 
 export interface ProfileIdentity {
   subject: string;
@@ -30,15 +34,15 @@ export class ProfileRepositoryError extends Error {
 
 export interface UserProfileRepository {
   findBySubject(subject: string): Promise<StudentProfile | null>;
+  findById(userId: string): Promise<StudentProfile | null>;
   listOptions(): Promise<ProfileOptions>;
   upsert(
     identity: ProfileIdentity,
     input: UpsertStudentProfileInput,
   ): Promise<StudentProfile>;
-  updateRole(
-    userId: string,
-    role: "user" | "contributor" | "admin",
-  ): Promise<void>;
+  updateRole(userId: string, role: UserRole): Promise<void>;
+  updateStatus(userId: string, isActive: boolean): Promise<void>;
+  listUsersForAdmin(filter: AdminUserFilter): Promise<AdminUserListResponse>;
   searchUsers(query: string): Promise<StudentProfile[]>;
 }
 
@@ -69,39 +73,50 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
         majorCode: majors.code,
         majorName: majors.name,
         curriculumId: curricula.id,
+        curriculumMajorId: curricula.majorId,
         curriculumCode: curricula.code,
         curriculumName: curricula.name,
         role: users.role,
+        isActive: users.isActive,
       })
       .from(users)
       .innerJoin(campuses, eq(users.campusId, campuses.id))
       .leftJoin(majors, eq(users.majorId, majors.id))
       .leftJoin(curricula, eq(users.curriculumId, curricula.id))
-      .where(and(eq(users.cognitoSubject, subject), eq(users.isActive, true)))
+      .where(eq(users.cognitoSubject, subject))
       .limit(1);
 
-    return row
-      ? {
-          id: row.id,
-          email: row.email,
-          fullName: row.fullName,
-          studentCode: row.studentCode,
-          campus: { code: row.campusCode, name: row.campusName },
-          major:
-            row.majorCode && row.majorName
-              ? { code: row.majorCode, name: row.majorName }
-              : null,
-          curriculum: row.curriculumId
-            ? {
-                id: row.curriculumId,
-                majorId: row.id, // Not exactly majorId but not used in frontend directly on curriculum object
-                code: row.curriculumCode!,
-                name: row.curriculumName!,
-              }
-            : null,
-          role: row.role,
-        }
-      : null;
+    if (!row) {
+      return null;
+    }
+
+    if (!row.isActive) {
+      throw new ProfileRepositoryError(
+        "PROFILE_DISABLED",
+        "Tài khoản của bạn đã bị khóa bởi quản trị viên.",
+      );
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      fullName: row.fullName,
+      studentCode: row.studentCode,
+      campus: { code: row.campusCode, name: row.campusName },
+      major:
+        row.majorCode && row.majorName
+          ? { code: row.majorCode, name: row.majorName }
+          : null,
+      curriculum: row.curriculumId
+        ? {
+            id: row.curriculumId,
+            majorId: row.curriculumMajorId!,
+            code: row.curriculumCode!,
+            name: row.curriculumName!,
+          }
+        : null,
+      role: row.role,
+    };
   }
 
   async listOptions(): Promise<ProfileOptions> {
@@ -221,11 +236,223 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
     return saved;
   }
 
-  async updateRole(
-    userId: string,
-    role: "user" | "contributor" | "admin",
-  ): Promise<void> {
-    await this.db.update(users).set({ role }).where(eq(users.id, userId));
+  async findById(userId: string): Promise<StudentProfile | null> {
+    const [row] = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        studentCode: users.studentCode,
+        campusCode: campuses.code,
+        campusName: campuses.name,
+        majorCode: majors.code,
+        majorName: majors.name,
+        curriculumId: curricula.id,
+        curriculumMajorId: curricula.majorId,
+        curriculumCode: curricula.code,
+        curriculumName: curricula.name,
+        role: users.role,
+      })
+      .from(users)
+      .leftJoin(campuses, eq(users.campusId, campuses.id))
+      .leftJoin(majors, eq(users.majorId, majors.id))
+      .leftJoin(curricula, eq(users.curriculumId, curricula.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return row && row.campusCode && row.campusName
+      ? {
+          id: row.id,
+          email: row.email,
+          fullName: row.fullName,
+          studentCode: row.studentCode,
+          campus: { code: row.campusCode, name: row.campusName },
+          major:
+            row.majorCode && row.majorName
+              ? { code: row.majorCode, name: row.majorName }
+              : null,
+          curriculum:
+            row.curriculumId &&
+            row.curriculumMajorId &&
+            row.curriculumCode &&
+            row.curriculumName
+              ? {
+                  id: row.curriculumId,
+                  majorId: row.curriculumMajorId,
+                  code: row.curriculumCode,
+                  name: row.curriculumName,
+                }
+              : null,
+          role: row.role,
+        }
+      : null;
+  }
+
+  async updateRole(userId: string, role: UserRole): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async updateStatus(userId: string, isActive: boolean): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async listUsersForAdmin(
+    filter: AdminUserFilter,
+  ): Promise<AdminUserListResponse> {
+    const conditions = [];
+
+    if (filter.search && filter.search.trim().length > 0) {
+      const term = `%${filter.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(users.fullName, term),
+          ilike(users.email, term),
+          ilike(users.studentCode, term),
+        ),
+      );
+    }
+
+    if (filter.role && filter.role !== "all") {
+      conditions.push(eq(users.role, filter.role));
+    }
+
+    if (filter.campusCode && filter.campusCode !== "all") {
+      conditions.push(eq(campuses.code, filter.campusCode));
+    }
+
+    if (filter.status === "active") {
+      conditions.push(eq(users.isActive, true));
+    } else if (filter.status === "disabled") {
+      conditions.push(eq(users.isActive, false));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const page = Math.max(1, filter.page ?? 1);
+    const limit = Math.min(100, Math.max(1, filter.limit ?? 20));
+    const offset = (page - 1) * limit;
+
+    const [statsRow, totalRow, rows] = await Promise.all([
+      this.db
+        .select({
+          totalUsers: count(sql`CASE WHEN ${users.role} = 'user' THEN 1 END`),
+          totalContributors: count(
+            sql`CASE WHEN ${users.role} = 'contributor' THEN 1 END`,
+          ),
+          totalAdmins: count(sql`CASE WHEN ${users.role} = 'admin' THEN 1 END`),
+          totalDisabled: count(
+            sql`CASE WHEN ${users.isActive} = false THEN 1 END`,
+          ),
+        })
+        .from(users)
+        .then(([r]) => r),
+      this.db
+        .select({ total: count(users.id) })
+        .from(users)
+        .leftJoin(campuses, eq(users.campusId, campuses.id))
+        .where(whereClause)
+        .then(([r]) => r),
+      this.db
+        .select({
+          id: users.id,
+          email: users.email,
+          fullName: users.fullName,
+          studentCode: users.studentCode,
+          campusCode: campuses.code,
+          campusName: campuses.name,
+          majorCode: majors.code,
+          majorName: majors.name,
+          curriculumId: curricula.id,
+          curriculumMajorId: curricula.majorId,
+          curriculumCode: curricula.code,
+          curriculumName: curricula.name,
+          role: users.role,
+          isActive: users.isActive,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+          attemptsCount: sql<number>`cast(count(${attempts.id}) as integer)`,
+        })
+        .from(users)
+        .leftJoin(campuses, eq(users.campusId, campuses.id))
+        .leftJoin(majors, eq(users.majorId, majors.id))
+        .leftJoin(curricula, eq(users.curriculumId, curricula.id))
+        .leftJoin(attempts, eq(attempts.userId, users.id))
+        .where(whereClause)
+        .groupBy(
+          users.id,
+          campuses.code,
+          campuses.name,
+          majors.code,
+          majors.name,
+          curricula.id,
+          curricula.majorId,
+          curricula.code,
+          curricula.name,
+        )
+        .orderBy(desc(users.createdAt))
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    const total = totalRow?.total ?? 0;
+
+    const items: AdminUserSummary[] = rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      fullName: row.fullName,
+      studentCode: row.studentCode,
+      campus:
+        row.campusCode && row.campusName
+          ? { code: row.campusCode, name: row.campusName }
+          : null,
+      major:
+        row.majorCode && row.majorName
+          ? { code: row.majorCode, name: row.majorName }
+          : null,
+      curriculum:
+        row.curriculumId &&
+        row.curriculumMajorId &&
+        row.curriculumCode &&
+        row.curriculumName
+          ? {
+              id: row.curriculumId,
+              majorId: row.curriculumMajorId,
+              code: row.curriculumCode,
+              name: row.curriculumName,
+            }
+          : null,
+      role: row.role,
+      isActive: row.isActive,
+      attemptsCount: Number(row.attemptsCount || 0),
+      createdAt: row.createdAt
+        ? new Date(row.createdAt).toISOString()
+        : new Date().toISOString(),
+      updatedAt: row.updatedAt
+        ? new Date(row.updatedAt).toISOString()
+        : new Date().toISOString(),
+    }));
+
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+      stats: {
+        totalUsers: Number(statsRow?.totalUsers ?? 0),
+        totalContributors: Number(statsRow?.totalContributors ?? 0),
+        totalAdmins: Number(statsRow?.totalAdmins ?? 0),
+        totalDisabled: Number(statsRow?.totalDisabled ?? 0),
+      },
+    };
   }
 
   async searchUsers(query: string): Promise<StudentProfile[]> {
@@ -241,6 +468,7 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
         majorCode: majors.code,
         majorName: majors.name,
         curriculumId: curricula.id,
+        curriculumMajorId: curricula.majorId,
         curriculumCode: curricula.code,
         curriculumName: curricula.name,
         role: users.role,
@@ -268,10 +496,13 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
             ? { code: row.majorCode, name: row.majorName }
             : null,
         curriculum:
-          row.curriculumId && row.curriculumCode && row.curriculumName
+          row.curriculumId &&
+          row.curriculumMajorId &&
+          row.curriculumCode &&
+          row.curriculumName
             ? {
                 id: row.curriculumId,
-                majorId: "", // Not fully needed here or we can query it
+                majorId: row.curriculumMajorId,
                 code: row.curriculumCode,
                 name: row.curriculumName,
               }
