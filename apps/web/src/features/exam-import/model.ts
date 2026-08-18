@@ -23,17 +23,14 @@ export const fallbackCampuses = [
   { code: "QN", name: "Quy Nhơn" },
 ];
 
-export function emptyImportMetadata(
-  defaultCampusCode = "HCM",
-  defaultDuration = 60,
-): CreateDraftImportInput {
+export function emptyImportMetadata(): CreateDraftImportInput {
   return {
     courseCode: "",
     semester: "",
-    campusCode: defaultCampusCode,
+    campusCode: "",
     examType: "FE",
     isRetake: false,
-    durationMinutes: defaultDuration,
+    durationMinutes: 0,
     extractText: false,
   };
 }
@@ -48,13 +45,13 @@ export function inferImportMetadataFromFileName(
 
   let courseCode = "";
   let semester = "";
-  let campusCode = "HCM";
+  let campusCode = "";
   let examType: "FE" | "PE" = "FE";
   let isRetake = false;
-  const durationMinutes = 60;
   const extractText = false;
 
-  // 1. Campus detection & default
+  // 1. Campus detection
+  let matchedCampusCode = "";
   if (availableCampuses && availableCampuses.length > 0) {
     const matchedCampus = availableCampuses.find(
       (c) =>
@@ -63,25 +60,18 @@ export function inferImportMetadataFromFileName(
         baseName.toUpperCase().includes(`-${c.code.toUpperCase()}-`),
     );
     if (matchedCampus) {
-      campusCode = matchedCampus.code;
-    } else {
-      const hasHcm = availableCampuses.find(
-        (c) => c.code.toUpperCase() === "HCM",
-      );
-      campusCode = hasHcm ? hasHcm.code : (availableCampuses[0]?.code ?? "HCM");
+      matchedCampusCode = matchedCampus.code;
     }
   }
 
   // 2. Course detection
   if (availableCourses && availableCourses.length > 0) {
-    // Exact token match first
     const matchedTokenCourse = availableCourses.find((c) =>
       tokens.some((t) => t.toUpperCase() === c.code.toUpperCase()),
     );
     if (matchedTokenCourse) {
       courseCode = matchedTokenCourse.code;
     } else {
-      // Substring match
       const matchedSubstringCourse = availableCourses.find((c) =>
         baseName.toUpperCase().includes(c.code.toUpperCase()),
       );
@@ -91,7 +81,7 @@ export function inferImportMetadataFromFileName(
     }
   }
 
-  // Fallback regex detection for course code (e.g. SWE201c, FER202, PRO192)
+  // Fallback regex detection for course code
   if (!courseCode) {
     for (const token of tokens) {
       const match = token.match(/^[a-zA-Z]{2,5}\d{2,4}[a-zA-Z]?$/);
@@ -102,7 +92,7 @@ export function inferImportMetadataFromFileName(
     }
   }
 
-  // 3. Semester detection (e.g. SP26, FA25, SU24)
+  // 3. Semester detection
   for (const token of tokens) {
     const match = token.match(/^(SP|SU|FA|SPRING|SUMMER|FALL)(\d{2,4})$/i);
     if (match?.[1] && match?.[2]) {
@@ -119,7 +109,7 @@ export function inferImportMetadataFromFileName(
     }
   }
 
-  // 4. Retake detection (e.g. -re, _re, retake, thilai)
+  // 4. Retake detection
   const lowerName = baseName.toLowerCase();
   if (
     tokens.some((t) => ["re", "retake", "thilai"].includes(t.toLowerCase())) ||
@@ -128,6 +118,18 @@ export function inferImportMetadataFromFileName(
   ) {
     isRetake = true;
   }
+
+  // Set campus: explicit match first, or default HCM when exam course/semester is inferred
+  if (matchedCampusCode) {
+    campusCode = matchedCampusCode;
+  } else if (courseCode || semester) {
+    const hasHcm = availableCampuses?.find(
+      (c) => c.code.toUpperCase() === "HCM",
+    );
+    campusCode = hasHcm ? hasHcm.code : (availableCampuses?.[0]?.code ?? "HCM");
+  }
+
+  const durationMinutes = courseCode || semester ? 60 : 0;
 
   return {
     courseCode,
