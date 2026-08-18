@@ -63,51 +63,51 @@ export class PostgresAdminCatalogRepository implements AdminCatalogRepository {
   constructor(private readonly db: OnThiLabDatabase) {}
 
   async getAdminCatalog(): Promise<AdminCatalog> {
-    const [majorRows, curriculumRows, courseRows] = await Promise.all([
-      this.db
-        .select({ id: majors.id, code: majors.code, name: majors.name })
-        .from(majors)
-        .orderBy(asc(majors.name)),
-      this.db
-        .select({
-          id: curricula.id,
-          majorId: curricula.majorId,
-          code: curricula.code,
-          name: curricula.name,
-          majorCode: majors.code,
-          majorName: majors.name,
-          courseCount: count(curriculumCourses.courseId),
-        })
-        .from(curricula)
-        .innerJoin(majors, eq(curricula.majorId, majors.id))
-        .leftJoin(
-          curriculumCourses,
-          eq(curriculumCourses.curriculumId, curricula.id),
-        )
-        .groupBy(curricula.id, majors.code, majors.name)
-        .orderBy(asc(majors.name), asc(curricula.code)),
-      this.db
-        .select({
-          id: courses.id,
-          code: courses.code,
-          name: courses.name,
-          description: courses.description,
-          priorityWave: courses.priorityWave,
-          examFormatStatus: courses.examFormatStatus,
-          curriculumId: curricula.id,
-          curriculumCode: curricula.code,
-          curriculumName: curricula.name,
-          majorCode: majors.code,
-          majorName: majors.name,
-          termNumber: curriculumCourses.termNumber,
-          isElective: curriculumCourses.isElective,
-        })
-        .from(courses)
-        .leftJoin(curriculumCourses, eq(curriculumCourses.courseId, courses.id))
-        .leftJoin(curricula, eq(curriculumCourses.curriculumId, curricula.id))
-        .leftJoin(majors, eq(curricula.majorId, majors.id))
-        .orderBy(asc(courses.code)),
-    ]);
+    const majorRows = await this.db
+      .select({ id: majors.id, code: majors.code, name: majors.name })
+      .from(majors)
+      .orderBy(asc(majors.name));
+
+    const curriculumRows = await this.db
+      .select({
+        id: curricula.id,
+        majorId: curricula.majorId,
+        code: curricula.code,
+        name: curricula.name,
+        majorCode: majors.code,
+        majorName: majors.name,
+        courseCount: count(curriculumCourses.courseId),
+      })
+      .from(curricula)
+      .innerJoin(majors, eq(curricula.majorId, majors.id))
+      .leftJoin(
+        curriculumCourses,
+        eq(curriculumCourses.curriculumId, curricula.id),
+      )
+      .groupBy(curricula.id, majors.code, majors.name)
+      .orderBy(asc(majors.name), asc(curricula.code));
+
+    const courseRows = await this.db
+      .select({
+        id: courses.id,
+        code: courses.code,
+        name: courses.name,
+        description: courses.description,
+        priorityWave: courses.priorityWave,
+        examFormatStatus: courses.examFormatStatus,
+        curriculumId: curricula.id,
+        curriculumCode: curricula.code,
+        curriculumName: curricula.name,
+        majorCode: majors.code,
+        majorName: majors.name,
+        termNumber: curriculumCourses.termNumber,
+        isElective: curriculumCourses.isElective,
+      })
+      .from(courses)
+      .leftJoin(curriculumCourses, eq(curriculumCourses.courseId, courses.id))
+      .leftJoin(curricula, eq(curriculumCourses.curriculumId, curricula.id))
+      .leftJoin(majors, eq(curricula.majorId, majors.id))
+      .orderBy(asc(courses.code));
 
     const courseMap = new Map<string, AdminCourse>();
     for (const row of courseRows) {

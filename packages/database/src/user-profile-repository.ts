@@ -152,27 +152,27 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
     identity: ProfileIdentity,
     input: UpsertStudentProfileInput,
   ): Promise<StudentProfile> {
-    const [[campus], majorRows, [existingUser]] = await Promise.all([
-      this.db
-        .select({ id: campuses.id })
-        .from(campuses)
-        .where(
-          and(eq(campuses.code, input.campusCode), eq(campuses.isActive, true)),
-        )
-        .limit(1),
-      input.majorCode
-        ? this.db
-            .select({ id: majors.id })
-            .from(majors)
-            .where(eq(majors.code, input.majorCode))
-            .limit(1)
-        : Promise.resolve([]),
-      this.db
-        .select({ isActive: users.isActive })
-        .from(users)
-        .where(eq(users.cognitoSubject, identity.subject))
-        .limit(1),
-    ]);
+    const [campus] = await this.db
+      .select({ id: campuses.id })
+      .from(campuses)
+      .where(
+        and(eq(campuses.code, input.campusCode), eq(campuses.isActive, true)),
+      )
+      .limit(1);
+
+    const majorRows = input.majorCode
+      ? await this.db
+          .select({ id: majors.id })
+          .from(majors)
+          .where(eq(majors.code, input.majorCode))
+          .limit(1)
+      : [];
+
+    const [existingUser] = await this.db
+      .select({ isActive: users.isActive })
+      .from(users)
+      .where(eq(users.cognitoSubject, identity.subject))
+      .limit(1);
 
     if (existingUser && !existingUser.isActive) {
       throw new ProfileRepositoryError(
@@ -338,67 +338,63 @@ export class PostgresUserProfileRepository implements UserProfileRepository {
     const limit = Math.min(100, Math.max(1, filter.limit ?? 20));
     const offset = (page - 1) * limit;
 
-    const [statsRow, totalRow, rows] = await Promise.all([
-      this.db
-        .select({
-          totalUsers: count(sql`CASE WHEN ${users.role} = 'user' THEN 1 END`),
-          totalContributors: count(
-            sql`CASE WHEN ${users.role} = 'contributor' THEN 1 END`,
-          ),
-          totalAdmins: count(sql`CASE WHEN ${users.role} = 'admin' THEN 1 END`),
-          totalDisabled: count(
-            sql`CASE WHEN ${users.isActive} = false THEN 1 END`,
-          ),
-        })
-        .from(users)
-        .then(([r]) => r),
-      this.db
-        .select({ total: count(users.id) })
-        .from(users)
-        .leftJoin(campuses, eq(users.campusId, campuses.id))
-        .where(whereClause)
-        .then(([r]) => r),
-      this.db
-        .select({
-          id: users.id,
-          email: users.email,
-          fullName: users.fullName,
-          studentCode: users.studentCode,
-          campusCode: campuses.code,
-          campusName: campuses.name,
-          majorCode: majors.code,
-          majorName: majors.name,
-          curriculumId: curricula.id,
-          curriculumMajorId: curricula.majorId,
-          curriculumCode: curricula.code,
-          curriculumName: curricula.name,
-          role: users.role,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          updatedAt: users.updatedAt,
-          attemptsCount: sql<number>`cast(count(${attempts.id}) as integer)`,
-        })
-        .from(users)
-        .leftJoin(campuses, eq(users.campusId, campuses.id))
-        .leftJoin(majors, eq(users.majorId, majors.id))
-        .leftJoin(curricula, eq(users.curriculumId, curricula.id))
-        .leftJoin(attempts, eq(attempts.userId, users.id))
-        .where(whereClause)
-        .groupBy(
-          users.id,
-          campuses.code,
-          campuses.name,
-          majors.code,
-          majors.name,
-          curricula.id,
-          curricula.majorId,
-          curricula.code,
-          curricula.name,
-        )
-        .orderBy(desc(users.createdAt))
-        .limit(limit)
-        .offset(offset),
-    ]);
+    const totalRow = await this.db
+      .select({ total: count() })
+      .from(users)
+      .leftJoin(campuses, eq(users.campusId, campuses.id))
+      .where(whereClause)
+      .then(([r]) => r);
+
+    const statsRow = await this.db
+      .select({
+        totalUsers: count(sql`CASE WHEN ${users.role} = 'user' THEN 1 END`),
+        totalContributors: sql<number>`count(*) filter (where ${users.role} = 'contributor')`,
+        totalAdmins: sql<number>`count(*) filter (where ${users.role} = 'admin')`,
+        totalDisabled: sql<number>`count(*) filter (where ${users.isActive} = false)`,
+      })
+      .from(users)
+      .then(([r]) => r);
+
+    const rows = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        studentCode: users.studentCode,
+        campusCode: campuses.code,
+        campusName: campuses.name,
+        majorCode: majors.code,
+        majorName: majors.name,
+        curriculumId: curricula.id,
+        curriculumMajorId: curricula.majorId,
+        curriculumCode: curricula.code,
+        curriculumName: curricula.name,
+        role: users.role,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+        attemptsCount: sql<number>`cast(count(${attempts.id}) as integer)`,
+      })
+      .from(users)
+      .leftJoin(campuses, eq(users.campusId, campuses.id))
+      .leftJoin(majors, eq(users.majorId, majors.id))
+      .leftJoin(curricula, eq(users.curriculumId, curricula.id))
+      .leftJoin(attempts, eq(attempts.userId, users.id))
+      .where(whereClause)
+      .groupBy(
+        users.id,
+        campuses.code,
+        campuses.name,
+        majors.code,
+        majors.name,
+        curricula.id,
+        curricula.majorId,
+        curricula.code,
+        curricula.name,
+      )
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     const total = totalRow?.total ?? 0;
 

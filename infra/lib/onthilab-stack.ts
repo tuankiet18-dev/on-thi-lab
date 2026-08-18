@@ -255,7 +255,7 @@ export class OnThiLabStack extends Stack {
           APP_ENV: props.stage === "prod" ? "production" : "staging",
           LOG_LEVEL: "info",
           DATABASE_PARAMETER_NAME: props.databaseParameterName,
-          DATABASE_MAX_CONNECTIONS: "1",
+          DATABASE_MAX_CONNECTIONS: "3",
           COGNITO_USER_POOL_ID: props.cognitoUserPoolId,
           COGNITO_CLIENT_ID: props.cognitoClientId,
           QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
