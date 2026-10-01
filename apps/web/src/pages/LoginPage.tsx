@@ -1,16 +1,9 @@
-import { Link, Navigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  BookOpenCheck,
-  Clock3,
-  GraduationCap,
-  LockKeyhole,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { webConfig } from "../lib/config";
+import { cn } from "../lib/cn";
 
 function GoogleIcon() {
   return (
@@ -35,30 +28,20 @@ function GoogleIcon() {
   );
 }
 
-const features = [
-  {
-    icon: Clock3,
-    title: "Mô phỏng đề thi thực tế",
-    description:
-      "Cấu trúc đề FE chuẩn form, bấm giờ thời gian thực như thi thật.",
-  },
-  {
-    icon: BookOpenCheck,
-    title: "Đáp án kiểm duyệt kỹ lưỡng",
-    description: "Được thẩm định học thuật và đối chiếu trước khi xuất bản.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Thống kê & theo dõi tiến độ",
-    description:
-      "Nhận diện điểm mạnh và các chủ đề cần củng cố sau mỗi lần thi.",
-  },
-];
+interface LoginPageProps {
+  initialMode?: "login" | "register";
+}
 
-export function LoginPage() {
+export function LoginPage({ initialMode = "login" }: LoginPageProps) {
+  const navigate = useNavigate();
   const { configured, status, signIn } = useAuth();
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState<"google" | "cognito">();
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     const resetPending = () => setPending(undefined);
@@ -66,9 +49,6 @@ export function LoginPage() {
       if (document.visibilityState === "visible") resetPending();
     };
 
-    // Cognito runs on another origin. When the user returns using Back or
-    // closes the hosted login page, the browser may restore this route from
-    // bfcache with the previous React state still intact.
     window.addEventListener("pageshow", resetPending);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -82,210 +62,213 @@ export function LoginPage() {
     return <Navigate to="/" replace />;
   }
 
+  const handleTabChange = (nextMode: "login" | "register") => {
+    setMode(nextMode);
+    setError(undefined);
+    void navigate({
+      to: nextMode === "login" ? "/login" : "/register",
+      replace: true,
+    });
+  };
+
   const beginSignIn = async (provider?: "Google") => {
     setError(undefined);
     setPending(provider ? "google" : "cognito");
     try {
-      await signIn(provider);
+      await signIn(provider, mode === "register" ? "signUp" : "signIn");
     } catch (reason) {
       setPending(undefined);
       setError(
         reason instanceof Error
           ? reason.message
-          : "Không thể bắt đầu đăng nhập.",
+          : "Không thể bắt đầu phiên xác thực.",
       );
     }
   };
 
   return (
-    <main className="grid min-h-screen bg-app lg:grid-cols-[1.1fr_0.9fr]">
-      {/* Left Brand Showcase Section (Soft UI Hero) */}
-      <section className="relative hidden overflow-hidden bg-linear-to-br from-[#0e214d] via-[#1d4ed8] to-[#2563eb] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
-        {/* Top Header Branding */}
-        <div className="relative z-10 flex items-center justify-between">
-          <Link
-            to="/"
-            className="flex cursor-pointer items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-300"
-          >
-            <img
-              src="/logo.png"
-              alt="OnThiLab Mascot"
-              className="size-11 object-contain drop-shadow-sm transition-transform hover:scale-105"
-            />
-            <span className="font-heading text-2xl font-bold tracking-tight">
-              OnThi<span className="text-blue-200">Lab</span>
-            </span>
-          </Link>
-
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-blue-100 backdrop-blur-md">
-            <Sparkles
-              size={13}
-              className="text-yellow-300"
-              aria-hidden="true"
-            />
-            Luyện thi FE FPT
+    <main className="min-h-screen bg-slate-50 flex flex-col justify-between px-4 py-8 sm:py-12">
+      {/* Top Brand Link */}
+      <div className="w-full max-w-md mx-auto flex items-center justify-between">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <img
+            src="/logo.png"
+            alt="OnThiLab Mascot"
+            className="size-9 object-contain"
+          />
+          <span className="font-heading text-xl font-bold tracking-tight text-slate-900">
+            OnThi<span className="text-primary">Lab</span>
           </span>
-        </div>
+        </Link>
 
-        {/* Center Content & Value Proposition */}
-        <div className="relative z-10 my-auto max-w-xl py-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/25 bg-blue-400/10 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-blue-200">
-            <span>Nền tảng luyện thi chuẩn đề</span>
-          </div>
+        <Link
+          to="/"
+          className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          ← Về trang chủ
+        </Link>
+      </div>
 
-          <h1 className="mt-4 font-heading text-3xl font-bold leading-tight text-white xl:text-4xl">
-            Bước vào phòng thi với sự chuẩn bị tốt nhất.
-          </h1>
-          <p className="mt-4 text-base leading-relaxed text-blue-100/90 xl:text-lg">
-            Luyện theo đề thật, đúng thời gian và xem lại lời giải chi tiết sau
-            khi nộp bài để bứt phá điểm số.
-          </p>
-
-          {/* Feature Showcase Cards (Soft UI Cards) */}
-          <div className="mt-8 space-y-3.5">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="flex items-start gap-3.5 rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md transition-all duration-200 hover:border-white/25 hover:bg-white/15"
-              >
-                <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/20 text-cyan-200">
-                  <feature.icon size={20} aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="font-heading text-sm font-bold text-white">
-                    {feature.title}
-                  </h2>
-                  <p className="mt-0.5 text-xs leading-relaxed text-blue-100/80">
-                    {feature.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer Meta */}
-        <div className="relative z-10 flex items-center justify-between text-xs text-blue-200/90">
-          <span className="flex items-center gap-1.5">
-            <GraduationCap size={15} aria-hidden="true" />
-            Học liệu dành cho sinh viên
-          </span>
-          <span>© 2026 OnThiLab</span>
-        </div>
-
-        {/* Ambient Decorative Gradient Orbs */}
-        <div
-          className="absolute -right-20 -top-20 size-80 rounded-full bg-cyan-400/20 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          className="absolute -bottom-24 -left-20 size-96 rounded-full bg-blue-900/40 blur-3xl"
-          aria-hidden="true"
-        />
-      </section>
-
-      {/* Right Authentication Panel */}
-      <section className="flex items-center justify-center p-5 sm:p-8 lg:p-12">
-        <div className="w-full max-w-md">
-          {/* Mobile Header Logo */}
-          <div className="mb-6 flex items-center justify-between lg:hidden">
-            <Link
-              to="/"
-              className="flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+      {/* Centered Auth Card */}
+      <div className="w-full max-w-md mx-auto my-auto py-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-7 sm:p-9 shadow-sm">
+          {/* Tab Switcher: Đăng nhập | Đăng ký */}
+          <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => handleTabChange("login")}
+              className={cn(
+                "cursor-pointer rounded-lg py-2 transition-all duration-150 text-center",
+                mode === "login"
+                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
             >
-              <img
-                src="/logo.png"
-                alt="OnThiLab Mascot"
-                className="size-10 object-contain drop-shadow-sm"
-              />
-              <span className="font-heading text-2xl font-bold text-foreground">
-                OnThi<span className="text-primary">Lab</span>
-              </span>
-            </Link>
+              Đăng nhập
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("register")}
+              className={cn(
+                "cursor-pointer rounded-lg py-2 transition-all duration-150 text-center",
+                mode === "register"
+                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              Đăng ký tài khoản
+            </button>
           </div>
 
-          {/* Main Auth Card */}
-          <div className="rounded-3xl border border-border bg-white p-7 shadow-panel sm:p-9">
-            {/* Header Icon */}
-            <div className="grid size-12 place-items-center rounded-2xl bg-primary-soft text-primary shadow-xs">
-              <BookOpenCheck size={24} aria-hidden="true" />
-            </div>
-
-            {/* Kicker & Title */}
-            <p className="section-kicker mt-5">Cổng đăng nhập</p>
-            <h2 className="mt-1.5 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Chào mừng bạn
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Đăng nhập để làm bài thi, xem phân tích kết quả và đồng bộ tiến độ
-              trên mọi thiết bị.
+          {/* Heading */}
+          <div className="mt-6 text-center sm:text-left">
+            <h1 className="font-heading text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              {mode === "login" ? "Chào mừng trở lại" : "Tạo tài khoản ôn thi"}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+              {mode === "login"
+                ? "Đăng nhập để làm bài thi, lưu đề yêu thích và xem phân tích kết quả."
+                : "Tạo tài khoản miễn phí để ôn luyện đề FE không giới hạn và đồng bộ tiến độ."}
             </p>
+          </div>
 
-            {!configured ? (
-              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                Chế độ đăng nhập chưa được cấu hình trong môi trường này.
-              </div>
-            ) : (
-              <div className="mt-7 space-y-3.5">
-                {/* Google Sign In Button */}
-                {webConfig.flags?.googleAuthEnabled && (
-                  <button
-                    type="button"
-                    disabled={Boolean(pending)}
-                    onClick={() => void beginSignIn("Google")}
-                    className="group flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-border-strong bg-white px-4 text-sm font-semibold text-slate-700 shadow-xs transition-all duration-200 hover:border-primary/40 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <GoogleIcon />
-                    <span>
-                      {pending === "google"
-                        ? "Đang chuyển hướng..."
-                        : "Tiếp tục với Google"}
-                    </span>
-                  </button>
-                )}
-
-                {/* Cognito Email Sign In Button */}
+          {!configured ? (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              Chế độ xác thực chưa được cấu hình trong môi trường này.
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {/* Google Sign In/Up Button */}
+              {webConfig.flags?.googleAuthEnabled && (
                 <button
                   type="button"
                   disabled={Boolean(pending)}
-                  onClick={() => void beginSignIn()}
-                  className="group flex min-h-12 w-full cursor-pointer items-center justify-center gap-3 rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-primary-strong hover:shadow-md hover:shadow-primary/20 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 disabled:cursor-wait disabled:opacity-60"
+                  onClick={() => void beginSignIn("Google")}
+                  className="group flex min-h-11 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:bg-slate-50 hover:border-slate-400 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-wait disabled:opacity-60"
                 >
-                  <LockKeyhole size={18} aria-hidden="true" />
+                  <GoogleIcon />
                   <span>
-                    {pending === "cognito"
+                    {pending === "google"
                       ? "Đang chuyển hướng..."
-                      : "Đăng nhập bằng email"}
+                      : mode === "login"
+                        ? "Tiếp tục với Google"
+                        : "Đăng ký với Google"}
                   </span>
-                  {!pending && (
-                    <ArrowRight
-                      size={18}
-                      aria-hidden="true"
-                      className="transition-transform duration-200 group-hover:translate-x-0.5"
-                    />
-                  )}
                 </button>
+              )}
+
+              {/* Divider */}
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="w-full border-t border-slate-200" />
+                <span className="absolute bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  hoặc với email
+                </span>
               </div>
-            )}
 
-            {/* Error Feedback */}
-            {error && (
-              <p
-                role="alert"
-                className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-danger shadow-xs"
+              {/* Cognito Email Sign In/Up Button */}
+              <button
+                type="button"
+                disabled={Boolean(pending)}
+                onClick={() => void beginSignIn()}
+                className="group flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-xs transition-all duration-150 hover:bg-primary-strong active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 disabled:cursor-wait disabled:opacity-60"
               >
-                {error}
-              </p>
-            )}
+                <LockKeyhole size={17} aria-hidden="true" />
+                <span>
+                  {pending === "cognito"
+                    ? "Đang chuyển hướng..."
+                    : mode === "login"
+                      ? "Đăng nhập bằng Email"
+                      : "Đăng ký bằng Email"}
+                </span>
+                {!pending && (
+                  <ArrowRight
+                    size={16}
+                    aria-hidden="true"
+                    className="transition-transform duration-150 group-hover:translate-x-0.5"
+                  />
+                )}
+              </button>
+            </div>
+          )}
 
-            {/* Terms Footnote */}
-            <p className="mt-6 text-center text-xs leading-5 text-slate-400">
-              Khi tiếp tục, bạn đồng ý với Điều khoản sử dụng của OnThiLab và
-              hiểu rằng điểm số chỉ mang tính tham khảo.
+          {/* Error Feedback */}
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-danger"
+            >
+              {error}
             </p>
+          )}
+
+          {/* Toggle Helper Link */}
+          <div className="mt-6 text-center text-xs text-slate-500">
+            {mode === "login" ? (
+              <>
+                Chưa có tài khoản?{" "}
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("register")}
+                  className="cursor-pointer font-bold text-primary hover:underline"
+                >
+                  Đăng ký miễn phí
+                </button>
+              </>
+            ) : (
+              <>
+                Đã có tài khoản?{" "}
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("login")}
+                  className="cursor-pointer font-bold text-primary hover:underline"
+                >
+                  Đăng nhập tại đây
+                </button>
+              </>
+            )}
           </div>
         </div>
-      </section>
+
+        {/* Footnote */}
+        <p className="mt-6 text-center text-xs text-slate-400 leading-relaxed">
+          Học liệu ôn thi Final Exam dành cho sinh viên FPT University
+          <br />
+          Hòa Lạc · TP.HCM · Đà Nẵng · Cần Thơ · Quy Nhơn
+        </p>
+      </div>
+
+      {/* Bottom Legal Notice */}
+      <footer className="w-full text-center text-[11px] text-slate-400">
+        © 2026 OnThiLab. Tất cả đáp án và điểm số phục vụ mục đích tham khảo học
+        tập.
+      </footer>
     </main>
   );
+}
+
+export function RegisterPage() {
+  return <LoginPage initialMode="register" />;
 }

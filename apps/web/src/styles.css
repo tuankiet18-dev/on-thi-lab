@@ -2,22 +2,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #2563eb;
-  --color-primary-strong: #1d4ed8;
-  --color-primary-soft: #eaf2ff;
-  --color-accent: #ec4899;
-  --color-secondary: #f59e0b;
-  --color-app: #f4f7fc;
+  --color-primary: #1d4ed8;
+  --color-primary-strong: #1e40af;
+  --color-primary-soft: #eff6ff;
+  --color-on-primary: #ffffff;
+  --color-accent: #f59e0b;
+  --color-secondary: #ea580c;
+  --color-background: #f8fafc;
+  --color-app: #f8fafc;
+  --color-muted: #f1f5f9;
   --color-foreground: #0f172a;
-  --color-border: #e4ecfc;
-  --color-border-strong: #d7e1f1;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
   --color-danger: #dc2626;
+  --color-ring: #1d4ed8;
   --font-heading: "Lexend", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
-  --shadow-card:
-    0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(37 99 235 / 0.04);
-  --shadow-panel: 0 18px 50px rgb(30 64 175 / 0.14);
-  --shadow-modal: 0 24px 64px rgb(15 23 42 / 0.22);
+  --shadow-card: 0 1px 3px rgb(15 23 42 / 0.05), 0 1px 2px rgb(15 23 42 / 0.03);
+  --shadow-panel: 0 10px 30px rgb(15 23 42 / 0.08);
+  --shadow-modal: 0 20px 50px rgb(15 23 42 / 0.16);
 }
 
 @layer base {

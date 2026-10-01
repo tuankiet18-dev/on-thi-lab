@@ -73,9 +73,14 @@ export function buildAuthorizationUrl(
     state: string;
     codeChallenge: string;
     provider?: "Google";
+    mode?: "signIn" | "signUp";
   },
 ): string {
-  const url = new URL("/oauth2/authorize", config.domain);
+  const path =
+    input.mode === "signUp" && !input.provider
+      ? "/signup"
+      : "/oauth2/authorize";
+  const url = new URL(path, config.domain);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);

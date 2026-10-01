@@ -30,15 +30,36 @@ export class MemoryAttemptRepository implements AttemptRepository {
         "Không tìm thấy đề đã xuất bản.",
       );
     }
-    const activeKey = `${input.userId}:${input.examId}:${input.deviceId}`;
-    const activeId = this.activeAttemptIds.get(activeKey);
-    const active = activeId ? this.attempts.get(activeId) : undefined;
-    if (
-      active &&
-      active.status === "in_progress" &&
-      Date.parse(active.expiresAt) > Date.now()
-    ) {
-      return { attempt: active, resumed: true };
+
+    // Find any active in-progress attempt for this user across all exams
+    const activeAttemptEntry = Array.from(this.attempts.entries()).find(
+      ([id, attempt]) =>
+        this.owners.get(id) === input.userId &&
+        attempt.status === "in_progress",
+    );
+
+    if (activeAttemptEntry) {
+      const [, active] = activeAttemptEntry;
+      if (Date.parse(active.expiresAt) <= Date.now()) {
+        await this.submit({
+          attemptId: active.id,
+          userId: input.userId,
+          reason: "timeout",
+        });
+      } else if (active.examId === input.examId) {
+        return { attempt: active, resumed: true };
+      } else {
+        throw new AttemptRepositoryError(
+          "ACTIVE_ATTEMPT_EXISTS",
+          "Bạn đang có một bài thi chưa nộp cho đề DEMO-FE. Vui lòng hoàn thành hoặc nộp bài trước khi bắt đầu bài thi mới.",
+          {
+            activeAttemptId: active.id,
+            activeExamId: active.examId,
+            activeExamCode: "DEMO-FE",
+            expiresAt: active.expiresAt,
+          },
+        );
+      }
     }
 
     const startedAt = new Date();
@@ -56,7 +77,6 @@ export class MemoryAttemptRepository implements AttemptRepository {
     };
     this.attempts.set(attempt.id, attempt);
     this.owners.set(attempt.id, input.userId);
-    this.activeAttemptIds.set(activeKey, attempt.id);
     return {
       attempt,
       resumed: false,

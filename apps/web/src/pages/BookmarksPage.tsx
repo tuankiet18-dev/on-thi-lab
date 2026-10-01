@@ -13,6 +13,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { QuestionContent } from "../components/QuestionContent";
 import { getBookmarks, setExamBookmark, setQuestionBookmark } from "../lib/api";
 import { questionImageUrl } from "../lib/question-image-url";
@@ -26,6 +27,9 @@ export function BookmarksPage() {
   const [loading, setLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [zoomedQuestion, setZoomedQuestion] = useState<
+    BookmarkCollection["questions"][number] | null
+  >(null);
 
   useEffect(() => {
     if (!configured || !session) {
@@ -219,6 +223,7 @@ export function BookmarksPage() {
                         imageAlt={question.imageAlt}
                         textContent={question.textContent}
                         options={question.options}
+                        onExpandImage={() => setZoomedQuestion(question)}
                         className="h-44 w-full border-b border-border bg-slate-50 p-2 sm:h-full sm:border-b-0 sm:border-r"
                       />
                       <div className="p-5">
@@ -268,6 +273,17 @@ export function BookmarksPage() {
         <p className="sr-only" aria-live="polite">
           Đang cập nhật mục đã lưu
         </p>
+      )}
+
+      {zoomedQuestion && (
+        <ImageViewerModal
+          isOpen={Boolean(zoomedQuestion)}
+          onClose={() => setZoomedQuestion(null)}
+          imageUrl={questionImageUrl(zoomedQuestion.imageUrl)}
+          imageAlt={zoomedQuestion.imageAlt}
+          title={`${zoomedQuestion.courseCode} · Câu ${zoomedQuestion.order}`}
+          subtitle={`Đề ${zoomedQuestion.examCode} · ${zoomedQuestion.semester}`}
+        />
       )}
     </div>
   );

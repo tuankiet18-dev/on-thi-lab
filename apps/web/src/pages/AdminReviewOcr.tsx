@@ -7,11 +7,13 @@ import {
   CircleAlert,
   ImageOff,
   LoaderCircle,
+  Maximize2,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -63,6 +65,7 @@ export function AdminReviewOcr({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("attention");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [imageExpanded, setImageExpanded] = useState(false);
 
   const loadStatus = useCallback(
     async (isRefresh = false) => {
@@ -422,11 +425,22 @@ export function AdminReviewOcr({
           </div>
 
           <div className="space-y-5 bg-slate-50 p-3 sm:p-5">
-            <img
-              src={questionImageUrl(activeQuestion.imageUrl)}
-              alt={`Ảnh gốc câu ${activeQuestion.order}`}
-              className="max-h-[430px] min-h-40 w-full rounded-xl border border-border bg-white object-contain"
-            />
+            <button
+              type="button"
+              onClick={() => setImageExpanded(true)}
+              className="group relative block w-full cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+              aria-label={`Mở rộng ảnh gốc câu ${activeQuestion.order}`}
+            >
+              <img
+                src={questionImageUrl(activeQuestion.imageUrl)}
+                alt={`Ảnh gốc câu ${activeQuestion.order}`}
+                className="max-h-[430px] min-h-40 w-full rounded-xl border border-border bg-white object-contain"
+              />
+              <span className="absolute bottom-2.5 right-2.5 inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-slate-950/80 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-all sm:opacity-85 sm:group-hover:opacity-100 sm:group-hover:scale-105 sm:group-focus-visible:opacity-100">
+                <Maximize2 size={14} aria-hidden="true" />
+                Phóng to
+              </span>
+            </button>
 
             {isProcessing ? (
               <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-white p-8 text-slate-500">
@@ -729,6 +743,17 @@ export function AdminReviewOcr({
           ))}
         </div>
       </Card>
+
+      {activeQuestion && (
+        <ImageViewerModal
+          isOpen={imageExpanded}
+          onClose={() => setImageExpanded(false)}
+          imageUrl={questionImageUrl(activeQuestion.imageUrl)}
+          imageAlt={`Ảnh gốc câu ${activeQuestion.order}`}
+          title={`Câu ${activeQuestion.order} · OCR ${activeQuestion.confidence !== null ? Math.round(activeQuestion.confidence * 100) + "%" : ""}`}
+          subtitle="Chế độ soi ảnh gốc để duyệt và chỉnh sửa OCR"
+        />
+      )}
     </div>
   );
 }

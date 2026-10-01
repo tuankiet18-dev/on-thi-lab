@@ -16,13 +16,23 @@ import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ExamDetailPage } from "./pages/ExamDetailPage";
 import { ExamPreviewPage } from "./pages/ExamPreviewPage";
-import { LoginPage } from "./pages/LoginPage";
+import { LoginPage, RegisterPage } from "./pages/LoginPage";
+import { LandingPage } from "./pages/LandingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ResultPage } from "./pages/ResultPage";
 import { StatisticsPage } from "./pages/StatisticsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { BookmarksPage } from "./pages/BookmarksPage";
+import { useAuth } from "./auth/AuthContext";
+
+function IndexRouteComponent() {
+  const { status } = useAuth();
+  if (status === "authenticated") {
+    return <DashboardPage />;
+  }
+  return <LandingPage />;
+}
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -34,13 +44,19 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: DashboardPage,
+  component: IndexRouteComponent,
 });
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/register",
+  component: RegisterPage,
 });
 
 const authCallbackRoute = createRoute({
@@ -171,6 +187,7 @@ const adminCatalogManagementRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registerRoute,
   authCallbackRoute,
   onboardingRoute,
   profileRoute,

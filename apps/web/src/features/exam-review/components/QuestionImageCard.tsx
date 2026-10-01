@@ -1,7 +1,8 @@
 import type { ReviewQuestion } from "@onthilab/contracts";
-import { Maximize2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Maximize2 } from "lucide-react";
+import { useState } from "react";
 import { Card } from "../../../components/ui/Card";
+import { ImageViewerModal } from "../../../components/ImageViewerModal";
 import { questionImageUrl } from "../../../lib/question-image-url";
 
 type QuestionImageCardProps = {
@@ -18,16 +19,6 @@ export function QuestionImageCard({
   questionCount,
 }: QuestionImageCardProps) {
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!expanded) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpanded(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [expanded]);
-
   const imageUrl = questionImageUrl(question.imageUrl);
 
   return (
@@ -63,43 +54,14 @@ export function QuestionImageCard({
         </div>
       </Card>
 
-      {expanded && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setExpanded(false);
-          }}
-        >
-          <div className="mb-3 flex items-center justify-between text-white">
-            <p className="font-heading font-bold">
-              Câu {question.order} · kéo ngang để xem toàn bộ
-            </p>
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              aria-label="Đóng ảnh phóng to"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </div>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Ảnh phóng to câu ${question.order}`}
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
-          >
-            <img
-              src={imageUrl}
-              alt={`Ảnh phóng to câu hỏi ${question.order}`}
-              width={1920}
-              height={620}
-              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
-            />
-          </section>
-        </div>
-      )}
+      <ImageViewerModal
+        isOpen={expanded}
+        onClose={() => setExpanded(false)}
+        imageUrl={imageUrl}
+        imageAlt={`Ảnh phóng to câu hỏi ${question.order}`}
+        title={`Câu ${question.order} / ${questionCount}`}
+        subtitle={`Đề ${examCode}`}
+      />
     </>
   );
 }

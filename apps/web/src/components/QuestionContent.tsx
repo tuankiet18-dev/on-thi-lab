@@ -58,8 +58,8 @@ export function QuestionContent({
         height="520"
       />
       {onExpandImage && (
-        <span className="absolute bottom-2 right-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950/75 px-3 text-xs font-semibold text-white backdrop-blur-sm sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
-          <Maximize2 size={15} aria-hidden="true" />
+        <span className="absolute bottom-2.5 right-2.5 inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-slate-950/80 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-all sm:opacity-85 sm:group-hover:opacity-100 sm:group-hover:scale-105 sm:group-focus-visible:opacity-100">
+          <Maximize2 size={14} aria-hidden="true" />
           Phóng to
         </span>
       )}
@@ -71,8 +71,9 @@ export function QuestionContent({
       <button
         type="button"
         onClick={onExpandImage}
-        className={`group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 ${className}`}
+        className={`group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:border-primary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20 ${className}`}
         aria-label={order ? `Phóng to ảnh câu ${order}` : "Phóng to ảnh"}
+        title="Nhấp để phóng to chi tiết"
       >
         {imgContent}
       </button>

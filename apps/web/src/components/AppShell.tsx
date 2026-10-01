@@ -42,8 +42,12 @@ export function AppShell() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const isLandingPage = pathname === "/" && status === "unauthenticated";
   const isPublicAuthPage =
-    pathname === "/login" || pathname === "/auth/callback";
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/auth/callback" ||
+    isLandingPage;
   const isFocusMode = pathname.startsWith("/attempts/");
   const isAdmin =
     !configured ||

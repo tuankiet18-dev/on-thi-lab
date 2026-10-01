@@ -1321,31 +1321,121 @@ describe("attempt API", () => {
     });
   });
 
-  it("allows a student to start more than two practice attempts", async () => {
+  it("resumes an in-progress attempt for the same exam and prevents concurrent attempts", async () => {
     const isolatedApp = createApp({
       auth,
       profiles: createOnboardedProfiles(),
     });
 
-    const responses = await Promise.all(
-      ["unlimited-device-1", "unlimited-device-2", "unlimited-device-3"].map(
-        (deviceId) =>
-          isolatedApp.request("/v1/attempts", {
-            method: "POST",
-            headers: {
-              ...authorization,
-              "content-type": "application/json",
-            },
-            body: JSON.stringify({
-              examId: "demo-swd392-sp26-fe",
-              deviceId,
-            }),
-          }),
-      ),
-    );
+    // 1. Create first attempt
+    const firstRes = await isolatedApp.request("/v1/attempts", {
+      method: "POST",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        examId: "demo-swd392-sp26-fe",
+        deviceId: "device-1",
+      }),
+    });
+    expect(firstRes.status).toBe(201);
+    const firstData = ((await firstRes.json()) as any).data;
+    expect(firstData.resumed).toBe(false);
 
-    expect(responses.map((response) => response.status)).toEqual([
-      201, 201, 201,
-    ]);
+    // 2. Requesting the same exam again resumes the active attempt
+    const resumeRes = await isolatedApp.request("/v1/attempts", {
+      method: "POST",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        examId: "demo-swd392-sp26-fe",
+        deviceId: "device-2",
+      }),
+    });
+    expect(resumeRes.status).toBe(200);
+    const resumeData = ((await resumeRes.json()) as any).data;
+    expect(resumeData.resumed).toBe(true);
+    expect(resumeData.attempt.id).toBe(firstData.attempt.id);
+
+    // 3. Submit first attempt
+    const submitRes = await isolatedApp.request(
+      `/v1/attempts/${firstData.attempt.id}/submit`,
+      {
+        method: "POST",
+        headers: {
+          ...authorization,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ reason: "user" }),
+      },
+    );
+    expect(submitRes.status).toBe(200);
+
+    // 4. After submission, a new attempt can be created (unlimited attempts)
+    const secondRes = await isolatedApp.request("/v1/attempts", {
+      method: "POST",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        examId: "demo-swd392-sp26-fe",
+        deviceId: "device-1",
+      }),
+    });
+    expect(secondRes.status).toBe(201);
+    const secondData = ((await secondRes.json()) as any).data;
+    expect(secondData.resumed).toBe(false);
+    expect(secondData.attempt.id).not.toBe(firstData.attempt.id);
+  });
+
+  it("returns 409 ACTIVE_ATTEMPT_EXISTS with details when user tries to start another exam while one is in progress", async () => {
+    const attempts = {
+      createOrResume: async () => {
+        throw new (await import("@onthilab/database")).AttemptRepositoryError(
+          "ACTIVE_ATTEMPT_EXISTS",
+          "Bạn đang có một bài thi chưa nộp cho đề SWD392-SP26-FE. Vui lòng hoàn thành hoặc nộp bài trước khi bắt đầu bài thi mới.",
+          {
+            activeAttemptId: "50000000-0000-4000-8000-000000000001",
+            activeExamId: "20000000-0000-4000-8000-000000000001",
+            activeExamCode: "SWD392-SP26-FE",
+            expiresAt: "2026-08-20T10:00:00.000Z",
+          },
+        );
+      },
+    };
+    const isolatedApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles(),
+      attempts: attempts as any,
+    });
+
+    const response = await isolatedApp.request("/v1/attempts", {
+      method: "POST",
+      headers: {
+        ...authorization,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        examId: "other-exam-id",
+        deviceId: "device-1",
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "ACTIVE_ATTEMPT_EXISTS",
+      message:
+        "Bạn đang có một bài thi chưa nộp cho đề SWD392-SP26-FE. Vui lòng hoàn thành hoặc nộp bài trước khi bắt đầu bài thi mới.",
+      details: {
+        activeAttemptId: "50000000-0000-4000-8000-000000000001",
+        activeExamId: "20000000-0000-4000-8000-000000000001",
+        activeExamCode: "SWD392-SP26-FE",
+        expiresAt: "2026-08-20T10:00:00.000Z",
+      },
+    });
   });
 });
