@@ -29,6 +29,7 @@ import type {
 } from "@onthilab/contracts";
 
 export type AttemptRepositoryErrorCode =
+  | "ACTIVE_ATTEMPT_EXISTS"
   | "ATTEMPT_CLOSED"
   | "ATTEMPT_EXPIRED"
   | "ATTEMPT_NOT_FOUND"
@@ -39,6 +40,7 @@ export class AttemptRepositoryError extends Error {
   constructor(
     readonly code: AttemptRepositoryErrorCode,
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = "AttemptRepositoryError";
@@ -102,22 +104,41 @@ export class PostgresAttemptRepository implements AttemptRepository {
     const now = new Date();
     const deviceIdHash = hashDeviceId(input.deviceId);
     const [active] = await this.db
-      .select({ id: attempts.id, expiresAt: attempts.expiresAt })
+      .select({
+        id: attempts.id,
+        examId: attempts.examId,
+        expiresAt: attempts.expiresAt,
+        examCode: exams.code,
+      })
       .from(attempts)
+      .innerJoin(exams, eq(attempts.examId, exams.id))
       .where(
         and(
           eq(attempts.userId, input.userId),
-          eq(attempts.examId, input.examId),
-          eq(attempts.deviceIdHash, deviceIdHash),
           eq(attempts.status, "in_progress"),
         ),
       )
       .orderBy(desc(attempts.startedAt))
       .limit(1);
+
     if (active && active.expiresAt.getTime() > now.getTime()) {
-      const attempt = await this.findForUser(active.id, input.userId);
-      if (attempt) return { attempt, resumed: true };
+      if (active.examId === input.examId) {
+        const attempt = await this.findForUser(active.id, input.userId);
+        if (attempt) return { attempt, resumed: true };
+      } else {
+        throw new AttemptRepositoryError(
+          "ACTIVE_ATTEMPT_EXISTS",
+          `Bạn đang có một bài thi chưa nộp cho đề ${active.examCode}. Vui lòng hoàn thành hoặc nộp bài trước khi bắt đầu bài thi mới.`,
+          {
+            activeAttemptId: active.id,
+            activeExamId: active.examId,
+            activeExamCode: active.examCode,
+            expiresAt: active.expiresAt.toISOString(),
+          },
+        );
+      }
     }
+
     if (active) {
       await this.submit({
         attemptId: active.id,

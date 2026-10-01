@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { QuestionContent } from "../components/QuestionContent";
 import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
@@ -611,43 +612,20 @@ export function AttemptPage() {
         </div>
       )}
 
-      {imageExpanded && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setImageExpanded(false);
-          }}
-        >
-          <div className="mb-3 flex items-center justify-between text-white">
-            <p className="font-heading font-bold">
-              Câu {currentIndex + 1} · kéo ngang để xem toàn bộ
-            </p>
-            <button
-              type="button"
-              onClick={() => setImageExpanded(false)}
-              className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              aria-label="Đóng ảnh phóng to"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </div>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white p-4"
-          >
-            <QuestionContent
-              presentationMode={question.contentMode}
-              textContent={question.textContent}
-              options={question.options}
-              imageUrl={questionImageUrl(question.imageUrl)}
-              imageAlt={`Chi tiết ${question.imageAlt}`}
-            />
-          </section>
-        </div>
-      )}
+      <ImageViewerModal
+        isOpen={imageExpanded}
+        onClose={() => setImageExpanded(false)}
+        imageUrl={questionImageUrl(question.imageUrl)}
+        imageAlt={question.imageAlt}
+        title={`Câu ${currentIndex + 1} / ${questions.length}`}
+        subtitle={`${exam.courseCode} · ${exam.semester}`}
+        hasPrevious={currentIndex > 0}
+        onPrevious={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+        hasNext={currentIndex < questions.length - 1}
+        onNext={() =>
+          setCurrentIndex((index) => Math.min(questions.length - 1, index + 1))
+        }
+      />
     </div>
   );
 }

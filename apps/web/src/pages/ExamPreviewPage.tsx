@@ -10,6 +10,7 @@ import {
   Play,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { useAuth } from "../auth/AuthContext";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -205,50 +206,22 @@ export function ExamPreviewPage() {
         </div>
       </Card>
 
-      {imageExpanded && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Ảnh phóng to câu ${currentIndex + 1}`}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 p-4 sm:p-8"
-          onClick={() => setImageExpanded(false)}
-        >
-          <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-6 py-2 text-sm sm:text-base font-bold tracking-widest text-white backdrop-blur-md">
-            Câu {currentIndex + 1} / {exam.questions.length}
-          </div>
-
-          <button
-            disabled={currentIndex === 0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCurrentIndex((index) => index - 1);
-            }}
-            className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 inline-flex size-12 sm:size-16 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition-all hover:bg-black/80 hover:scale-110 disabled:hidden focus-visible:outline-none"
-            aria-label="Câu trước"
-          >
-            <ChevronLeft size={36} aria-hidden="true" />
-          </button>
-
-          <button
-            disabled={currentIndex === exam.questions.length - 1}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCurrentIndex((index) => index + 1);
-            }}
-            className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 inline-flex size-12 sm:size-16 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition-all hover:bg-black/80 hover:scale-110 disabled:hidden focus-visible:outline-none"
-            aria-label="Câu sau"
-          >
-            <ChevronRight size={36} aria-hidden="true" />
-          </button>
-
-          <img
-            src={questionImageUrl(question.imageUrl)}
-            alt={question.imageAlt}
-            className="max-h-[90dvh] max-w-[90vw] rounded-xl bg-white object-contain shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          />
-        </div>
-      )}
+      <ImageViewerModal
+        isOpen={imageExpanded}
+        onClose={() => setImageExpanded(false)}
+        imageUrl={questionImageUrl(question.imageUrl)}
+        imageAlt={question.imageAlt}
+        title={`Câu ${currentIndex + 1} / ${exam.questions.length}`}
+        subtitle={exam.courseName}
+        hasPrevious={currentIndex > 0}
+        onPrevious={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+        hasNext={currentIndex < exam.questions.length - 1}
+        onNext={() =>
+          setCurrentIndex((index) =>
+            Math.min(exam.questions.length - 1, index + 1),
+          )
+        }
+      />
     </div>
   );
 }

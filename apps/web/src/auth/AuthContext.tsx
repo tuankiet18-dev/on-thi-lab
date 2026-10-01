@@ -40,7 +40,7 @@ interface AuthContextValue {
   studentProfile: StudentProfile | null;
   status: AuthStatus;
   error: string | null;
-  signIn: (provider?: "Google") => Promise<void>;
+  signIn: (provider?: "Google", mode?: "signIn" | "signUp") => Promise<void>;
   completeSignIn: (search: string) => Promise<void>;
   saveStudentProfile: (profile: UpsertStudentProfileInput) => Promise<void>;
   signOut: () => void;
@@ -165,25 +165,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  const signIn = useCallback(async (provider?: "Google") => {
-    if (!cognitoConfig) {
-      throw new Error("Cognito chưa được cấu hình.");
-    }
+  const signIn = useCallback(
+    async (provider?: "Google", mode?: "signIn" | "signUp") => {
+      if (!cognitoConfig) {
+        throw new Error("Cognito chưa được cấu hình.");
+      }
 
-    const verifier = createRandomBase64Url(64);
-    const state = createRandomBase64Url(32);
-    const codeChallenge = await createCodeChallenge(verifier);
-    const transaction: AuthTransaction = { state, verifier };
-    sessionStorage.setItem(transactionStorageKey, JSON.stringify(transaction));
+      const verifier = createRandomBase64Url(64);
+      const state = createRandomBase64Url(32);
+      const codeChallenge = await createCodeChallenge(verifier);
+      const transaction: AuthTransaction = { state, verifier };
+      sessionStorage.setItem(
+        transactionStorageKey,
+        JSON.stringify(transaction),
+      );
 
-    window.location.assign(
-      buildAuthorizationUrl(cognitoConfig, {
-        state,
-        codeChallenge,
-        provider,
-      }),
-    );
-  }, []);
+      window.location.assign(
+        buildAuthorizationUrl(cognitoConfig, {
+          state,
+          codeChallenge,
+          provider,
+          mode,
+        }),
+      );
+    },
+    [],
+  );
 
   const completeSignIn = useCallback(async (search: string) => {
     if (!cognitoConfig) {

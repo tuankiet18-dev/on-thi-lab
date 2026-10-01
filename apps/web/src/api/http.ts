@@ -5,6 +5,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -25,6 +26,8 @@ export class ApiResponseValidationError extends Error {
 interface ApiResponse {
   data?: unknown;
   error?: unknown;
+  message?: string;
+  details?: unknown;
 }
 
 function isFormDataBody(body: BodyInit | null | undefined): boolean {
@@ -55,7 +58,10 @@ export async function apiRequest(
     throw new ApiError(
       response.status,
       typeof body.error === "string" ? body.error : "API_ERROR",
-      `API request failed with status ${response.status}`,
+      typeof body.message === "string"
+        ? body.message
+        : `API request failed with status ${response.status}`,
+      body.details,
     );
   }
   return body.data;

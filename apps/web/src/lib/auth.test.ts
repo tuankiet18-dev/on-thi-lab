@@ -43,6 +43,21 @@ describe("Cognito browser authentication", () => {
     expect(url.searchParams.get("client_secret")).toBeNull();
   });
 
+  it("builds a Cognito signup URL when mode is signUp", () => {
+    const url = new URL(
+      buildAuthorizationUrl(config, {
+        state: "state-value",
+        codeChallenge: "challenge-value",
+        mode: "signUp",
+      }),
+    );
+
+    expect(url.origin).toBe("https://auth.example.com");
+    expect(url.pathname).toBe("/signup");
+    expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("client_id")).toBe("public-client");
+  });
+
   it("builds a Cognito logout URL", () => {
     const url = new URL(buildLogoutUrl(config));
 

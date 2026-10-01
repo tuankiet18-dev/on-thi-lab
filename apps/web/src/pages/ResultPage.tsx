@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { QuestionContent } from "../components/QuestionContent";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
@@ -54,6 +55,7 @@ export function ResultPage() {
     textContent?: string | null;
     options?: string[] | null;
     contentMode: "image" | "text";
+    title?: string;
   }>(null);
   const [bookmarkedExam, setBookmarkedExam] = useState(false);
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(
@@ -559,6 +561,7 @@ export function ResultPage() {
                             textContent: question.textContent,
                             options: question.options,
                             contentMode: question.contentMode,
+                            title: `Câu ${index + 1}`,
                           })
                         }
                       />
@@ -603,33 +606,13 @@ export function ResultPage() {
       </section>
 
       {zoomedImage && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Ảnh phóng to"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 sm:p-8"
-          onClick={() => setZoomedImage(null)}
-        >
-          <button
-            onClick={() => setZoomedImage(null)}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 inline-flex size-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-all hover:bg-black/80 hover:scale-110 focus-visible:outline-none"
-            aria-label="Đóng ảnh"
-          >
-            <X size={28} aria-hidden="true" />
-          </button>
-          <div
-            className="w-full max-w-5xl rounded-xl bg-white p-4 overflow-auto max-h-[90dvh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <QuestionContent
-              presentationMode={zoomedImage.contentMode}
-              imageUrl={zoomedImage.imageUrl}
-              imageAlt={zoomedImage.imageAlt}
-              textContent={zoomedImage.textContent}
-              options={zoomedImage.options}
-            />
-          </div>
-        </div>
+        <ImageViewerModal
+          isOpen={Boolean(zoomedImage)}
+          onClose={() => setZoomedImage(null)}
+          imageUrl={zoomedImage.imageUrl}
+          imageAlt={zoomedImage.imageAlt}
+          title={zoomedImage.title || "Chi tiết câu hỏi"}
+        />
       )}
     </div>
   );

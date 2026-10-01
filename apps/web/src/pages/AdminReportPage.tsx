@@ -8,6 +8,7 @@ import {
   MessageSquareWarning,
   X,
 } from "lucide-react";
+import { ImageViewerModal } from "../components/ImageViewerModal";
 import { useAuth } from "../auth/AuthContext";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -157,42 +158,15 @@ function ReportCard({
         </div>
       </Card>
 
-      {imageExpanded && report.question && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setImageExpanded(false);
-          }}
-        >
-          <div className="mb-3 flex items-center justify-between text-white">
-            <p className="font-heading font-bold">
-              Kéo ngang để xem toàn bộ ảnh
-            </p>
-            <button
-              type="button"
-              onClick={() => setImageExpanded(false)}
-              className="grid size-11 cursor-pointer place-items-center rounded-xl bg-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              aria-label="Đóng ảnh phóng to"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </div>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Ảnh phóng to"
-            className="min-h-0 flex-1 overflow-auto rounded-xl bg-white"
-          >
-            <img
-              src={questionImageUrl(report.question.imageUrl)}
-              alt="Ảnh phóng to"
-              width={1920}
-              height={620}
-              className="h-auto min-w-[1000px] max-w-none sm:min-w-full"
-            />
-          </section>
-        </div>
+      {report.question && (
+        <ImageViewerModal
+          isOpen={imageExpanded}
+          onClose={() => setImageExpanded(false)}
+          imageUrl={questionImageUrl(report.question.imageUrl)}
+          imageAlt="Ảnh câu hỏi báo lỗi"
+          title={`Câu hỏi: ${report.question.courseCode} · Đề ${report.question.examCode}`}
+          subtitle="Chế độ xem chi tiết câu hỏi báo lỗi"
+        />
       )}
     </>
   );

@@ -53,7 +53,11 @@ export function registerAttemptRoutes(
       if (error instanceof AttemptRepositoryError) {
         const status = error.code === "EXAM_NOT_FOUND" ? 404 : 409;
         return context.json(
-          { error: error.code, message: error.message },
+          {
+            error: error.code,
+            message: error.message,
+            ...(error.details ? { details: error.details } : {}),
+          },
           status,
         );
       }

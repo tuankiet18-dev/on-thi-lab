@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   Bookmark,
   BookOpenCheck,
@@ -18,10 +19,12 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { demoExam } from "../data/demo";
+import { ApiError } from "../api/http";
 import {
   createAttempt,
   getBookmarks,
   getPublishedExam,
+  listAttempts,
   setExamBookmark,
 } from "../lib/api";
 import { createOrResumeAttempt } from "../lib/attempt-storage";
@@ -39,6 +42,12 @@ export function ExamDetailPage() {
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [bookmarkError, setBookmarkError] = useState("");
+  const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
+  const [activeAttemptConflict, setActiveAttemptConflict] = useState<{
+    activeAttemptId: string;
+    activeExamId: string;
+    activeExamCode: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -47,13 +56,18 @@ export function ExamDetailPage() {
     void Promise.all([
       getPublishedExam(session.idToken, examId),
       getBookmarks(session.idToken),
+      listAttempts(session.idToken).catch(() => []),
     ])
-      .then(([result, bookmarks]) => {
-        if (active) setExam(result);
-        if (active) {
-          setBookmarked(
-            bookmarks.exams.some((saved) => saved.id === result.id),
-          );
+      .then(([result, bookmarks, attempts]) => {
+        if (!active) return;
+        setExam(result);
+        setBookmarked(bookmarks.exams.some((saved) => saved.id === result.id));
+        const inProgress = attempts.find(
+          (attempt) =>
+            attempt.examId === result.id && attempt.status === "in_progress",
+        );
+        if (inProgress) {
+          setActiveAttemptId(inProgress.id);
         }
       })
       .catch(() => {
@@ -93,6 +107,7 @@ export function ExamDetailPage() {
     if (!session || !exam) return;
     setStarting(true);
     setStartError("");
+    setActiveAttemptConflict(null);
     try {
       const launch = await createAttempt(
         session.idToken,
@@ -104,7 +119,29 @@ export function ExamDetailPage() {
         params: { attemptId: launch.attempt.id },
       });
     } catch (reason) {
-      setStartError("Chưa thể bắt đầu bài thi. Vui lòng thử lại.");
+      if (
+        reason instanceof ApiError &&
+        reason.code === "ACTIVE_ATTEMPT_EXISTS"
+      ) {
+        const details = reason.details as
+          | {
+              activeAttemptId?: string;
+              activeExamId?: string;
+              activeExamCode?: string;
+            }
+          | undefined;
+        setActiveAttemptConflict({
+          activeAttemptId: details?.activeAttemptId ?? "",
+          activeExamId: details?.activeExamId ?? "",
+          activeExamCode: details?.activeExamCode ?? "khác",
+        });
+      } else {
+        setStartError(
+          reason instanceof ApiError
+            ? reason.message
+            : "Chưa thể bắt đầu bài thi. Vui lòng thử lại.",
+        );
+      }
     } finally {
       setStarting(false);
     }
@@ -225,7 +262,11 @@ export function ExamDetailPage() {
                 className="w-full"
                 icon={<Play size={18} fill="currentColor" />}
               >
-                {starting ? "Đang tạo lượt thi..." : "Bắt đầu"}
+                {starting
+                  ? "Đang tải..."
+                  : activeAttemptId
+                    ? "Tiếp tục bài làm"
+                    : "Bắt đầu"}
               </Button>
               <Link
                 to="/exams/$examId/preview"
@@ -278,6 +319,54 @@ export function ExamDetailPage() {
           </Card>
         </aside>
       </div>
+
+      {activeAttemptConflict && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bài thi chưa hoàn thành"
+        >
+          <Card className="w-full max-w-md p-6 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-600">
+                <AlertTriangle size={24} aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-heading text-lg font-bold text-foreground">
+                  Bạn đang có bài thi chưa nộp
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Bạn đang làm dở bài thi cho đề{" "}
+                  <strong className="font-bold text-foreground">
+                    {activeAttemptConflict.activeExamCode}
+                  </strong>
+                  . Bạn phải hoàn thành hoặc nộp bài thi hiện tại trước khi bắt
+                  đầu một bài thi mới.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setActiveAttemptConflict(null)}
+              >
+                Đóng
+              </Button>
+              {activeAttemptConflict.activeAttemptId && (
+                <Link
+                  to="/attempts/$attemptId"
+                  params={{ attemptId: activeAttemptConflict.activeAttemptId }}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+                >
+                  Tiếp tục bài thi {activeAttemptConflict.activeExamCode}
+                </Link>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
