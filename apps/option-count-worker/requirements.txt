@@ -1,0 +1,5 @@
+rapidocr-onnxruntime==1.4.4
+numpy==1.26.4
+opencv-python==4.11.0.86
+Pillow==11.3.0
+psycopg[binary]==3.2.13

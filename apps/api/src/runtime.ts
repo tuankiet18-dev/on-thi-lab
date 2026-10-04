@@ -22,6 +22,7 @@ import { parseEnv, parseCorsOrigins } from "./env";
 import { LocalExamImportService, S3ExamImportService } from "./import-service";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SqsOcrService } from "./ocr-service.js";
+import { SqsOptionCountService } from "./option-count-service";
 import {
   LocalQuestionImageReader,
   S3QuestionImageReader,
@@ -151,5 +152,13 @@ export function createRuntimeApp(
     images: imageReader,
     ocrRepository,
     ...(ocrService ? { ocrService } : {}),
+    ...(env.OPTION_COUNT_QUEUE_URL
+      ? {
+          optionCountService: new SqsOptionCountService(
+            draftRepository,
+            env.OPTION_COUNT_QUEUE_URL,
+          ),
+        }
+      : {}),
   });
 }

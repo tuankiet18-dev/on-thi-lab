@@ -5,7 +5,7 @@ import type {
   ReviewReadinessResult,
   UpdateQuestionAnswerInput,
 } from "@onthilab/contracts";
-import { and, asc, desc, eq, ilike, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 import type { OnThiLabDatabase } from "./index";
 import {
   campuses,
@@ -29,6 +29,7 @@ import type {
 } from "./modules/exam-review/model";
 import { DraftImportRepositoryError } from "./modules/exam-review/model";
 import {
+  answerReviewReason,
   buildExamCode,
   isUniqueViolation,
   toAiSuggestion,
@@ -64,6 +65,73 @@ export class PostgresDraftImportRepository
   implements DraftImportRepository, ExamReviewRepository, AiSuggestionRepository
 {
   constructor(private readonly db: OnThiLabDatabase) {}
+
+  async queueOptionCountJobs(
+    revisionId: string,
+  ): Promise<{ id: string; imageKey: string; imageHash: string }[]> {
+    return this.db.transaction(async (transaction) => {
+      const rows = await transaction
+        .select({
+          id: questions.id,
+          imageKey: questions.imageKey,
+          imageHash: questions.imageHash,
+          examStatus: exams.status,
+        })
+        .from(questions)
+        .innerJoin(examRevisions, eq(questions.revisionId, examRevisions.id))
+        .innerJoin(exams, eq(examRevisions.examId, exams.id))
+        .where(eq(questions.revisionId, revisionId));
+      const jobs = rows.filter((row) => row.examStatus === "draft");
+      if (jobs.length === 0) return [];
+      await transaction
+        .update(questions)
+        .set({
+          optionCountCheck: {
+            status: "pending",
+            detectedCount: null,
+            labels: [],
+            confidence: null,
+            reason: null,
+            queuedAt: new Date().toISOString(),
+          },
+        })
+        .where(
+          inArray(
+            questions.id,
+            jobs.map((job) => job.id),
+          ),
+        );
+      return jobs.map(({ id, imageKey, imageHash }) => ({
+        id,
+        imageKey,
+        imageHash,
+      }));
+    });
+  }
+
+  async markOptionCountQueueFailed(
+    questionIds: string[],
+    reason: string,
+  ): Promise<void> {
+    if (questionIds.length === 0) return;
+    await this.db
+      .update(questions)
+      .set({
+        optionCountCheck: {
+          status: "failed",
+          detectedCount: null,
+          labels: [],
+          confidence: null,
+          reason,
+        },
+      })
+      .where(
+        and(
+          inArray(questions.id, questionIds),
+          sql`${questions.optionCountCheck}->>'status' = 'pending'`,
+        ),
+      );
+  }
 
   async createDraft(input: CreateDraftExamInput): Promise<DraftImportResult> {
     const examCode = buildExamCode(input);
@@ -293,6 +361,7 @@ export class PostgresDraftImportRepository
         options: questions.options,
         correctOptions: questions.correctOptions,
         aiMetadata: questions.aiMetadata,
+        optionCountCheck: questions.optionCountCheck,
       })
       .from(questions)
       .where(eq(questions.revisionId, exam.revisionId))
@@ -315,10 +384,33 @@ export class PostgresDraftImportRepository
         (question) => question.correctOptions.length > 0,
       ).length,
       questionCount: questionRows.length,
-      questions: questionRows.map(({ aiMetadata, ...question }) => ({
-        ...question,
-        aiSuggestion: toAiSuggestion(aiMetadata),
-      })),
+      questions: questionRows.map(({ aiMetadata, ...question }) => {
+        const canBulkConfirm =
+          question.correctOptions.length === 0 &&
+          trustedCommunitySuggestion(aiMetadata) !== null;
+        const optionCountCheck = question.optionCountCheck;
+        const optionCheckExpired =
+          optionCountCheck?.status === "pending" &&
+          optionCountCheck.queuedAt &&
+          Date.now() - Date.parse(optionCountCheck.queuedAt) > 15 * 60_000;
+        return {
+          ...question,
+          optionCountCheck: optionCheckExpired
+            ? {
+                ...optionCountCheck,
+                status: "failed" as const,
+                reason:
+                  "OCR chưa hoàn tất sau 15 phút; kiểm tra hàng đợi xử lý.",
+              }
+            : optionCountCheck,
+          aiSuggestion: toAiSuggestion(aiMetadata),
+          canBulkConfirm,
+          answerReviewReason:
+            question.correctOptions.length > 0 || canBulkConfirm
+              ? null
+              : answerReviewReason(aiMetadata),
+        };
+      }),
     };
   }
 
@@ -338,6 +430,7 @@ export class PostgresDraftImportRepository
           options: questions.options,
           correctOptions: questions.correctOptions,
           aiMetadata: questions.aiMetadata,
+          optionCountCheck: questions.optionCountCheck,
           examStatus: exams.status,
         })
         .from(questions)
@@ -389,13 +482,24 @@ export class PostgresDraftImportRepository
         });
       }
 
-      if (!unchanged || confirmsSuggestion) {
+      if (
+        !unchanged ||
+        confirmsSuggestion ||
+        current.optionCountCheck?.status !== "manual"
+      ) {
         await transaction
           .update(questions)
           .set({
             type: input.answer.type,
             options: nextOptions,
             correctOptions: nextCorrectOptions,
+            optionCountCheck: {
+              status: "manual",
+              detectedCount: current.optionCountCheck?.detectedCount ?? null,
+              labels: current.optionCountCheck?.labels ?? [],
+              confidence: current.optionCountCheck?.confidence ?? null,
+              reason: null,
+            },
             aiMetadata: confirmsSuggestion
               ? {
                   ...current.aiMetadata,
@@ -417,6 +521,15 @@ export class PostgresDraftImportRepository
         type: input.answer.type,
         options: nextOptions,
         correctOptions: nextCorrectOptions,
+        optionCountCheck: {
+          status: "manual",
+          detectedCount: current.optionCountCheck?.detectedCount ?? null,
+          labels: current.optionCountCheck?.labels ?? [],
+          confidence: current.optionCountCheck?.confidence ?? null,
+          reason: null,
+        },
+        canBulkConfirm: false,
+        answerReviewReason: null,
         aiSuggestion:
           current.aiMetadata?.status === "suggested"
             ? toAiSuggestion({
@@ -474,9 +587,11 @@ export class PostgresDraftImportRepository
           options: questions.options,
           correctOptions: questions.correctOptions,
           aiMetadata: questions.aiMetadata,
+          optionCountCheck: questions.optionCountCheck,
         })
         .from(questions)
-        .where(eq(questions.revisionId, revision.id));
+        .where(eq(questions.revisionId, revision.id))
+        .for("update");
       const updatedAt = new Date();
       const updatedAtIso = updatedAt.toISOString();
       let confirmedCount = 0;
@@ -486,9 +601,13 @@ export class PostgresDraftImportRepository
         const answer = trustedCommunitySuggestion(question.aiMetadata);
         if (!answer) continue;
 
-        const nextOptions = Array.from(
-          { length: answer.optionCount },
-          (_, index) => String.fromCharCode(65 + index),
+        const optionCount =
+          question.optionCountCheck?.status === "confirmed" &&
+          question.options.length > Math.max(...answer.correctOptions)
+            ? question.options.length
+            : answer.optionCount;
+        const nextOptions = Array.from({ length: optionCount }, (_, index) =>
+          String.fromCharCode(65 + index),
         );
         await transaction.insert(questionAnswerAudits).values({
           questionId: question.id,
@@ -738,6 +857,26 @@ export class PostgresDraftImportRepository
           `Cần duyệt đủ ${answers.length} câu trước khi hoàn tất.`,
         );
       }
+
+      // Pending option checks must not update a revision after answer review
+      // has been completed. Keep the current count and explain the skipped job.
+      await transaction
+        .update(questions)
+        .set({
+          optionCountCheck: sql`${questions.optionCountCheck} || ${JSON.stringify(
+            {
+              status: "failed",
+              reason:
+                "Đề đã hoàn tất trước khi OCR xong; giữ số lựa chọn hiện tại.",
+            },
+          )}::jsonb`,
+        })
+        .where(
+          and(
+            eq(questions.revisionId, revision.id),
+            sql`${questions.optionCountCheck}->>'status' = 'pending'`,
+          ),
+        );
 
       if (exam.status === "draft") {
         await transaction

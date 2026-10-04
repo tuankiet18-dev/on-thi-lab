@@ -39,7 +39,7 @@ describe("draftQuestionsFromImages", () => {
     });
   });
 
-  it("prefills but does not approve answers with uncertain OCR", () => {
+  it("saves a clear answer even when option OCR is uncertain", () => {
     const [question] = draftQuestionsFromImages([image], "drafts/example", {
       "question.webp": [
         {
@@ -56,15 +56,15 @@ describe("draftQuestionsFromImages", () => {
       type: "single",
       optionCount: 4,
       aiMetadata: {
-        status: "suggested",
+        status: "confirmed",
         proposedAnswers: [0],
-        requiresReview: true,
+        requiresReview: false,
       },
     });
-    expect(question?.correctOptions).toBeUndefined();
+    expect(question?.correctOptions).toEqual([0]);
   });
 
-  it("does not auto-save a consensus answer without OCR option metadata", () => {
+  it("saves a clear answer without OCR option metadata", () => {
     const [question] = draftQuestionsFromImages([image], "drafts/example", {
       "question.webp": [{ content: "A" }],
     });
@@ -72,11 +72,22 @@ describe("draftQuestionsFromImages", () => {
     expect(question).toMatchObject({
       optionCount: 4,
       aiMetadata: {
-        status: "suggested",
+        status: "confirmed",
         proposedAnswers: [0],
         requiresReview: false,
       },
     });
+    expect(question?.correctOptions).toEqual([0]);
+  });
+
+  it("leaves tied answers for manual confirmation", () => {
+    const [question] = draftQuestionsFromImages([image], "drafts/example", {
+      "question.webp": [{ content: "A" }, { content: "B" }],
+    });
     expect(question?.correctOptions).toBeUndefined();
+    expect(question?.aiMetadata).toMatchObject({
+      status: "suggested",
+      requiresReview: true,
+    });
   });
 });

@@ -5,9 +5,9 @@ Mỗi ZIP chứa từ 1 đến 120 ảnh câu hỏi (ví dụ 50 hoặc 60 ảnh
 chuỗi nào, miễn không trùng trong ZIP. Hệ thống tự gán thứ tự nội bộ theo thứ tự
 file trong manifest ZIP; thứ tự tên file không ảnh hưởng đến việc import.
 
-Có thể kèm đúng một `answers.json`. File này chỉ dùng trong lúc import để tạo
-gợi ý cho trang duyệt; hệ thống không lưu hoặc trả về tác giả hay nội dung
-comment.
+Có thể kèm đúng một `answers.json`. File này được đọc khi import để xác định
+đáp án; hệ thống không lưu hoặc trả về tác giả hay nội dung comment. Metadata
+`optionCount*` là tùy chọn.
 
 ```json
 {
@@ -32,14 +32,16 @@ comment.
   không suy diễn từ phần giải thích còn lại.
 - Khi một người có nhiều comment, chỉ vote có thể parse sau cùng được dùng để
   tổng hợp và định danh người đó bị loại bỏ ngay sau bước này.
-- `optionCount` nhận từ 2 đến 6. Hệ thống chỉ tự lưu đáp án khi comment có đồng
-  thuận rõ ràng và OCR nhận diện số lựa chọn với độ tin cậy từ 82%. Loại câu
-  một/nhiều đáp án, số lựa chọn và đáp án được ghi ngay khi tạo đề nháp.
-- Câu có đồng thuận dưới 75%, hòa phiếu, OCR không chắc chắn hoặc thiếu metadata
-  số lựa chọn được giữ ở trạng thái “Cần kiểm tra”. Trang duyệt mặc định chỉ
-  hiển thị các ngoại lệ này; quản trị viên không phải lưu lại toàn bộ đề.
-- Với đề nháp được tạo trước thay đổi này, trang duyệt tự áp dụng các gợi ý
-  cộng đồng đủ điều kiện khi mở đề.
+- Đáp án có một tổ hợp đứng đầu duy nhất được lưu ngay khi tạo đề nháp, kể cả
+  khi chỉ có một comment hoặc chưa có OCR. Câu không có đáp án hợp lệ hoặc hòa
+  phiếu cần xác nhận thủ công; trang duyệt hiển thị lý do của từng câu.
+- Với đề mới trên AWS, RapidOCR chạy nền để kiểm tra số lựa chọn A–F trên ảnh,
+  độc lập với OCR nội dung đề. Kết quả độ tin cậy thấp, lỗi hoặc mâu thuẫn với
+  chữ đáp án tạo cảnh báo riêng; không xóa đáp án đã xác định được. Số lựa chọn
+  không bao giờ bị hạ thấp hơn chữ đáp án đã lưu.
+- Bộ lọc “Cần xác nhận” hiển thị câu thiếu đáp án; bộ lọc “OCR cảnh báo” hiển
+  thị lỗi đếm lựa chọn. Các đề cũ không tự động chạy lại OCR. Đáp án gợi ý còn
+  lưu trong đề nháp cũ có thể được lưu hàng loạt theo quy tắc mới.
 
 Giới hạn bảo mật: ZIP tối đa 250 MB, ảnh tối đa 20 MB, `answers.json` tối đa
 1 MB, tổng dữ liệu giải nén tối đa 500 MB và tỷ lệ nén tối đa 100:1.

@@ -48,6 +48,7 @@ const envSchema = z.object({
   AI_API_KEY: z.string().optional(),
   AI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   OCR_QUEUE_URL: z.string().url().optional(),
+  OPTION_COUNT_QUEUE_URL: z.string().url().optional(),
   AI_LOCAL_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
 
   // ── payOS ────────────────────────────────────────────────────────────────

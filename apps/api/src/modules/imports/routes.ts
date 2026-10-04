@@ -94,6 +94,18 @@ export function registerImportRoutes(
       });
 
       let ocrQueueWarning: string | undefined;
+      let optionCountQueueWarning: string | undefined;
+      if (dependencies.optionCountService) {
+        try {
+          await dependencies.optionCountService.enqueueRevision(
+            result.revisionId,
+          );
+        } catch (error) {
+          console.error("Unable to queue option count jobs", error);
+          optionCountQueueWarning =
+            "Đề đã được tạo nhưng chưa thể kiểm tra số lựa chọn bằng OCR.";
+        }
+      }
       if (parsed.data.extractText) {
         try {
           await dependencies.ocrService.enqueueRevisionOcrJobs(
@@ -110,6 +122,7 @@ export function registerImportRoutes(
           data: {
             ...result,
             ...(ocrQueueWarning ? { ocrQueueWarning } : {}),
+            ...(optionCountQueueWarning ? { optionCountQueueWarning } : {}),
           },
         },
         201,

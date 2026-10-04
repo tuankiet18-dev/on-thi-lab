@@ -19,6 +19,7 @@ import type { AuthIdentity, TokenVerifier } from "./auth";
 import type { AnswerSuggestionService } from "./answer-suggestion-service";
 import type { ExamImportService } from "./import-service";
 import type { OcrService } from "./ocr-service.js";
+import type { OptionCountService } from "./option-count-service";
 import type { QuestionImageReader } from "./question-image-reader";
 
 export interface AppDependencies {
@@ -36,6 +37,7 @@ export interface AppDependencies {
   feedback: FeedbackRepository;
   ocrRepository?: PostgresOcrRepository;
   ocrService: OcrService;
+  optionCountService?: OptionCountService;
   attention: AdminAttentionRepository;
   adminDashboard: AdminDashboardRepository;
   questionImageBaseUrl?: string;

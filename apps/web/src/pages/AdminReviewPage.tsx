@@ -45,15 +45,12 @@ type UnsavedAnswer = {
 };
 
 function hasTrustedCommunityAnswer(question: ReviewQuestion): boolean {
-  const suggestion = question.aiSuggestion;
-  return (
-    question.correctOptions.length === 0 &&
-    suggestion?.status === "suggested" &&
-    suggestion.provider === "community-comments" &&
-    suggestion.requiresReview === false &&
-    typeof suggestion.optionCountConfidence === "number" &&
-    suggestion.optionCountConfidence >= 0.82 &&
-    Boolean(suggestion.optionCountSource)
+  return question.canBulkConfirm === true;
+}
+
+function hasOptionWarning(question: ReviewQuestion): boolean {
+  return ["uncertain", "conflict", "failed"].includes(
+    question.optionCountCheck?.status ?? "",
   );
 }
 
@@ -76,7 +73,9 @@ export function AdminReviewPage() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [aiError, setAiError] = useState("");
-  const [showOnlyPending, setShowOnlyPending] = useState(true);
+  const [questionFilter, setQuestionFilter] = useState<
+    "answers" | "options" | "all"
+  >("answers");
   const [activeTab, setActiveTab] = useState<"answers" | "ocr">("answers");
   const [feedback, setFeedback] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -159,7 +158,11 @@ export function AdminReviewPage() {
 
     if (shouldPrefillSuggestion) {
       setQuestionType(suggestion.proposedType!);
-      setOptionCount(suggestion.optionCount!);
+      setOptionCount(
+        currentQuestion.optionCountCheck?.status === "confirmed"
+          ? currentQuestion.options.length
+          : suggestion.optionCount!,
+      );
       setSelectedOptions(suggestion.proposedAnswers!);
     } else {
       setQuestionType(currentQuestion.type);
@@ -175,6 +178,7 @@ export function AdminReviewPage() {
     currentQuestion?.correctOptions.join(","),
     currentQuestion?.id,
     currentQuestion?.options.length,
+    currentQuestion?.optionCountCheck?.status,
     currentQuestion?.type,
   ]);
 
@@ -221,6 +225,17 @@ export function AdminReviewPage() {
     () => (review?.questions ?? []).filter(hasTrustedCommunityAnswer).length,
     [review],
   );
+  const optionWarningCount = useMemo(
+    () => (review?.questions ?? []).filter(hasOptionWarning).length,
+    [review],
+  );
+  const optionPendingCount = useMemo(
+    () =>
+      (review?.questions ?? []).filter(
+        (question) => question.optionCountCheck?.status === "pending",
+      ).length,
+    [review],
+  );
   const pendingQuestionIndexes = useMemo(
     () =>
       (review?.questions ?? []).flatMap((question, index) =>
@@ -240,14 +255,15 @@ export function AdminReviewPage() {
   );
 
   useEffect(() => {
-    if (!session || aiCounts.processing === 0) return;
+    if (!session || (aiCounts.processing === 0 && optionPendingCount === 0))
+      return;
     const interval = window.setInterval(() => {
       void getDraftExamReview(session.idToken, examId)
         .then((result) => setReview(result))
         .catch(() => undefined);
     }, 2_000);
     return () => window.clearInterval(interval);
-  }, [aiCounts.processing, examId, session]);
+  }, [aiCounts.processing, examId, optionPendingCount, session]);
 
   useEffect(() => {
     if (!currentQuestion || isReadOnly || saving) return;
@@ -581,7 +597,11 @@ export function AdminReviewPage() {
       return;
     }
     setQuestionType(suggestion.proposedType);
-    setOptionCount(suggestion.optionCount);
+    setOptionCount(
+      currentQuestion?.optionCountCheck?.status === "confirmed"
+        ? currentQuestion.options.length
+        : suggestion.optionCount,
+    );
     setSelectedOptions(suggestion.proposedAnswers);
     setError("");
     setFeedback("Đã điền gợi ý. Hãy kiểm tra ảnh rồi lưu để xác nhận.");
@@ -703,12 +723,12 @@ export function AdminReviewPage() {
                 <div>
                   <p className="font-heading font-bold text-emerald-950">
                     {confirmingTrusted
-                      ? `Đang tự lưu ${trustedSuggestionCount} đáp án tin cậy`
-                      : `Có ${trustedSuggestionCount} đáp án đủ tin cậy`}
+                      ? `Đang lưu ${trustedSuggestionCount} đáp án rõ ràng`
+                      : `Có ${trustedSuggestionCount} đáp án có thể lưu hàng loạt`}
                   </p>
                   <p className="mt-0.5 text-sm text-emerald-800">
-                    Chỉ các câu OCR mơ hồ hoặc comments chưa đồng thuận mới cần
-                    bạn kiểm tra.
+                    OCR chỉ kiểm tra số lựa chọn; kết quả OCR không chặn việc
+                    lưu đáp án rõ ràng.
                   </p>
                 </div>
               </div>
@@ -735,6 +755,34 @@ export function AdminReviewPage() {
               </Button>
             </Card>
           )}
+
+          {currentQuestion.correctOptions.length === 0 &&
+            !currentQuestion.canBulkConfirm &&
+            currentQuestion.answerReviewReason && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <strong>Lý do cần xác nhận đáp án:</strong>{" "}
+                {currentQuestion.answerReviewReason.message}
+              </div>
+            )}
+          {currentQuestion.optionCountCheck &&
+            currentQuestion.optionCountCheck.status !== "manual" && (
+              <div
+                className={cn(
+                  "mb-4 rounded-xl border p-4 text-sm",
+                  hasOptionWarning(currentQuestion)
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-blue-200 bg-blue-50 text-blue-900",
+                )}
+              >
+                <strong>Kiểm tra số lựa chọn:</strong>{" "}
+                {currentQuestion.optionCountCheck.status === "pending"
+                  ? "OCR đang xử lý ảnh."
+                  : currentQuestion.optionCountCheck.status === "confirmed"
+                    ? `OCR nhận diện ${currentQuestion.optionCountCheck.detectedCount} lựa chọn (${currentQuestion.optionCountCheck.labels.join(", ")}).`
+                    : (currentQuestion.optionCountCheck.reason ??
+                      "OCR chưa xác định được số lựa chọn.")}
+              </div>
+            )}
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <main className="contents">
@@ -903,17 +951,19 @@ export function AdminReviewPage() {
                                     )}% tin cậy`}
                                 </p>
                               )}
-                              {currentQuestion.aiSuggestion.requiresReview && (
-                                <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
-                                  <AlertTriangle
-                                    className="mt-0.5 shrink-0"
-                                    size={15}
-                                    aria-hidden="true"
-                                  />
-                                  {currentQuestion.aiSuggestion.disputeReason ??
-                                    "Gợi ý chưa đủ đồng thuận; cần kiểm tra ảnh trước khi lưu."}
-                                </p>
-                              )}
+                              {currentQuestion.aiSuggestion.requiresReview &&
+                                !currentQuestion.canBulkConfirm && (
+                                  <p className="mt-2 flex items-start gap-1.5 font-medium text-amber-800">
+                                    <AlertTriangle
+                                      className="mt-0.5 shrink-0"
+                                      size={15}
+                                      aria-hidden="true"
+                                    />
+                                    {currentQuestion.aiSuggestion
+                                      .disputeReason ??
+                                      "Gợi ý chưa đủ đồng thuận; cần kiểm tra ảnh trước khi lưu."}
+                                  </p>
+                                )}
                             </div>
                           )}
                         {currentQuestion.aiSuggestion.status === "failed" && (
@@ -1110,10 +1160,11 @@ export function AdminReviewPage() {
                 autoSavedCount={autoSavedCount}
                 currentIndex={currentIndex}
                 onQuestionChange={goToQuestion}
-                onShowOnlyPendingChange={setShowOnlyPending}
+                onFilterChange={setQuestionFilter}
                 pendingCount={pendingCount}
+                optionWarningCount={optionWarningCount}
                 questions={review.questions}
-                showOnlyPending={showOnlyPending}
+                filter={questionFilter}
               />
 
               <Card
@@ -1152,6 +1203,19 @@ export function AdminReviewPage() {
                               ? "Đang lưu tự động các đáp án đủ tin cậy."
                               : `Chỉ còn ${pendingCount} câu cần bạn kiểm tra.`}
                     </p>
+                    {optionPendingCount > 0 && review.status === "draft" && (
+                      <p className="mt-2 text-xs font-medium text-blue-800">
+                        OCR đang kiểm tra số lựa chọn của {optionPendingCount}{" "}
+                        câu. Hoàn tất đề trước khi OCR xong sẽ giữ số lựa chọn
+                        hiện tại.
+                      </p>
+                    )}
+                    {optionWarningCount > 0 && (
+                      <p className="mt-2 text-xs font-medium text-amber-800">
+                        Có {optionWarningCount} cảnh báo số lựa chọn. Xem bộ lọc
+                        “OCR cảnh báo” nếu bạn muốn kiểm tra lại ảnh.
+                      </p>
+                    )}
                   </div>
                 </div>
                 {review.status === "draft" && (

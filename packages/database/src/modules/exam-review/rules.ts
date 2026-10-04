@@ -7,7 +7,7 @@ import type { TrustedSuggestionAnswer } from "./model";
 
 type QuestionAiMetadata = typeof questions.$inferSelect.aiMetadata;
 
-/** Only unambiguous community consensus may be confirmed in bulk. */
+/** Explicit community answers can be confirmed independently of option OCR. */
 export function trustedCommunitySuggestion(
   metadata: QuestionAiMetadata,
 ): TrustedSuggestionAnswer | null {
@@ -15,10 +15,7 @@ export function trustedCommunitySuggestion(
   if (
     metadata?.status !== "suggested" ||
     metadata.provider !== "community-comments" ||
-    metadata.requiresReview !== false ||
-    typeof metadata.optionCountConfidence !== "number" ||
-    metadata.optionCountConfidence < 0.82 ||
-    !metadata.optionCountSource ||
+    !metadata.validVotes ||
     (metadata.proposedType !== "single" &&
       metadata.proposedType !== "multiple") ||
     typeof optionCount !== "number" ||
@@ -45,7 +42,47 @@ export function trustedCommunitySuggestion(
   ) {
     return null;
   }
+  const ranked = Object.entries(metadata.voteBreakdown ?? {}).sort(
+    ([, left], [, right]) => right - left,
+  );
+  const proposedKey = correctOptions
+    .map((option) => String.fromCharCode(97 + option))
+    .join("");
+  if (
+    ranked.length === 0 ||
+    ranked[0]?.[0] !== proposedKey ||
+    ranked[0][1] === ranked[1]?.[1]
+  ) {
+    return null;
+  }
   return { type: metadata.proposedType, optionCount, correctOptions };
+}
+
+export function answerReviewReason(metadata: QuestionAiMetadata): {
+  code: "missing_answer" | "conflicting_answers" | "invalid_answer";
+  message: string;
+} {
+  const counts = Object.values(metadata?.voteBreakdown ?? {}).sort(
+    (left, right) => right - left,
+  );
+  if (counts.length > 1 && counts[0] === counts[1]) {
+    return {
+      code: "conflicting_answers",
+      message: "Các đáp án trong comments có số phiếu ngang nhau.",
+    };
+  }
+  if (!metadata?.validVotes) {
+    return {
+      code: "missing_answer",
+      message: "Không có comment chứa đáp án A–F rõ ràng.",
+    };
+  }
+  return {
+    code: "invalid_answer",
+    message:
+      metadata.disputeReason ??
+      "Đáp án gợi ý chưa hợp lệ; hãy chọn đáp án trong ảnh.",
+  };
 }
 
 export function toAiSuggestion(
