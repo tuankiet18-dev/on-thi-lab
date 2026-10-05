@@ -25,6 +25,10 @@
   <img src="https://img.shields.io/badge/PostgreSQL-Drizzle_ORM-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
 </p>
 
+<p align="center">
+  <img src="docs/images/landing-page.png" alt="OnThiLab Landing Page" width="100%" />
+</p>
+
 ---
 
 ## 🌐 English Quick Overview
@@ -204,10 +208,3 @@ Dự án được thiết kế, phát triển và vận hành bởi:
 - 🐙 **GitHub:** [@tuankiet18-dev](https://github.com/tuankiet18-dev)
 - 💼 **Dự án:** [OnThiLab — onthilab.id.vn](https://onthilab.id.vn)
 - 📬 **Đóng góp & Feedback:** Mọi ý kiến đóng góp, mở Issue hoặc Pull Request đều được hoan nghênh nồng nhiệt!
-
----
-
-## 📄 Bản quyền & Tuyên bố miễn trừ
-
-- **Mục đích học tập:** OnThiLab là dự án cộng đồng phi lợi nhuận phục vụ sinh viên FPT ôn tập kiến thức. Mọi điểm số và kết quả thi thử chỉ mang tính chất tham khảo.
-- **Bản quyền nội dung:** Người đóng góp đề thi chịu trách nhiệm về tính hợp pháp của dữ liệu học liệu chia sẻ trên nền tảng.
