@@ -55,6 +55,22 @@ def detect_option_labels(
     if not ranked:
         return {"count": None, "labels": [], "confidence": 0.0, "complete": False}
     _, count, confidence, labels = max(ranked, key=lambda item: item[0])
+    # A second column may hold C/D while the first column holds A/B. The
+    # strongest aligned group alone would otherwise look like a complete
+    # two-choice question. Surface the extra labels as uncertain evidence.
+    outside_labels = {
+        label
+        for label, _, score in candidates
+        if score >= 0.82 and LABELS.index(label) >= count
+    }
+    if outside_labels:
+        all_labels = sorted(set(labels) | outside_labels, key=LABELS.index)
+        return {
+            "count": LABELS.index(all_labels[-1]) + 1,
+            "labels": all_labels,
+            "confidence": round(min(confidence, 0.5), 4),
+            "complete": False,
+        }
     return {
         "count": count,
         "labels": labels,

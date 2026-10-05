@@ -97,6 +97,11 @@ def _apply_result(connection, job, detection, error=None):
                 "conflict",
                 f"OCR thấy {count} lựa chọn nhưng đáp án là {chr(64 + answer_floor)}.",
             )
+        elif count < len(options):
+            status, reason = (
+                "conflict",
+                f"OCR thấy {count} lựa chọn, ít hơn {len(options)} lựa chọn đang lưu; giữ nguyên và cần kiểm tra ảnh.",
+            )
         elif confidence < 0.82 or not detection["complete"]:
             status, reason = (
                 "uncertain",

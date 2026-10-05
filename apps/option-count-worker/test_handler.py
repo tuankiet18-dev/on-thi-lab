@@ -79,6 +79,18 @@ class ApplyResultTests(unittest.TestCase):
         self.assertEqual(json.loads(connection.update[0]), list("ABCDE"))
         self.assertEqual(json.loads(connection.update[1])["status"], "conflict")
 
+    def test_ocr_never_silently_shrinks_the_saved_choices(self):
+        connection = FakeConnection(
+            (list("ABCD"), [0], {"status": "pending"}, "draft", None)
+        )
+        _apply_result(
+            connection,
+            JOB,
+            {"count": 2, "labels": list("AB"), "confidence": 0.98, "complete": True},
+        )
+        self.assertEqual(json.loads(connection.update[0]), list("ABCD"))
+        self.assertEqual(json.loads(connection.update[1])["status"], "conflict")
+
     def test_manual_or_published_question_is_untouched(self):
         for status, exam_status in [("manual", "draft"), ("pending", "published")]:
             with self.subTest(status=status, exam_status=exam_status):

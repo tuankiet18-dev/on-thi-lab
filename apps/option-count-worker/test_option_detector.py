@@ -24,6 +24,15 @@ class OptionDetectorTests(unittest.TestCase):
     def test_no_labels(self):
         self.assertIsNone(detect_option_labels([line("question text")], 1000)["count"])
 
+    def test_two_column_choices_are_uncertain(self):
+        result = detect_option_labels(
+            [line("A.", 20), line("B.", 20), line("C.", 250), line("D.", 250)],
+            1000,
+        )
+        self.assertEqual(result["count"], 4)
+        self.assertEqual(result["labels"], list("ABCD"))
+        self.assertFalse(result["complete"])
+
 
 if __name__ == "__main__":
     unittest.main()

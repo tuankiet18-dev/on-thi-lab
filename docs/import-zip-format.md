@@ -37,8 +37,9 @@ Có thể kèm đúng một `answers.json`. File này được đọc khi import
   phiếu cần xác nhận thủ công; trang duyệt hiển thị lý do của từng câu.
 - Với đề mới trên AWS, RapidOCR chạy nền để kiểm tra số lựa chọn A–F trên ảnh,
   độc lập với OCR nội dung đề. Kết quả độ tin cậy thấp, lỗi hoặc mâu thuẫn với
-  chữ đáp án tạo cảnh báo riêng; không xóa đáp án đã xác định được. Số lựa chọn
-  không bao giờ bị hạ thấp hơn chữ đáp án đã lưu.
+  chữ đáp án tạo cảnh báo riêng; không xóa đáp án đã xác định được. OCR không tự
+  giảm số lựa chọn đang lưu: nếu nhận diện ít hơn, hệ thống giữ nguyên và hiển
+  thị cảnh báo để kiểm tra ảnh (đặc biệt với đáp án dàn thành nhiều cột).
 - Bộ lọc “Cần xác nhận” hiển thị câu thiếu đáp án; bộ lọc “OCR cảnh báo” hiển
   thị lỗi đếm lựa chọn. Các đề cũ không tự động chạy lại OCR. Đáp án gợi ý còn
   lưu trong đề nháp cũ có thể được lưu hàng loạt theo quy tắc mới.
