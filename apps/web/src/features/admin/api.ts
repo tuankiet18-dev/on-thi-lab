@@ -1,11 +1,13 @@
 import {
   adminAttentionSummarySchema,
   adminCatalogSchema,
+  adminDashboardSchema,
   adminExamSummarySchema,
   adminUserListResponseSchema,
   studentProfileSchema,
   type AdminAttentionSummary,
   type AdminCatalog,
+  type AdminDashboard,
   type AdminExamSummary,
   type AdminUserFilter,
   type AdminUserListResponse,
@@ -221,4 +223,18 @@ export async function getAdminAttentionSummary(
     fetcher,
   );
   return adminAttentionSummarySchema.parse(result);
+}
+
+export async function getAdminDashboard(
+  idToken: string,
+  days: 7 | 30 | 90 = 30,
+  fetcher: typeof fetch = fetch,
+): Promise<AdminDashboard> {
+  const result = await apiRequest(
+    `/v1/admin/dashboard?days=${days}`,
+    idToken,
+    {},
+    fetcher,
+  );
+  return adminDashboardSchema.parse(result);
 }

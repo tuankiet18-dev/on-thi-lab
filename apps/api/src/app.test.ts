@@ -5,11 +5,13 @@ import type {
   StudentProfile,
   UpsertStudentProfileInput,
   Feedback,
+  AdminDashboard,
 } from "@onthilab/contracts";
 import type {
   ProfileIdentity,
   UserProfileRepository,
   AdminAttentionRepository,
+  AdminDashboardRepository,
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
@@ -1437,5 +1439,107 @@ describe("attempt API", () => {
         expiresAt: "2026-08-20T10:00:00.000Z",
       },
     });
+  });
+
+  it("restricts GET /v1/admin/dashboard to admins and returns structured stats", async () => {
+    const mockDashboardData: AdminDashboard = {
+      asOf: "2026-10-05T09:00:00.000Z",
+      days: 30,
+      quickStats: {
+        pendingReview: 2,
+        openReports: 1,
+        newFeedback: 3,
+        publishedExams: 10,
+        completedAttempts: 45,
+        activeUsers: 15,
+      },
+      actionItems: [
+        {
+          type: "pending_publish",
+          examId: "11111111-1111-4111-8111-111111111111",
+          examCode: "PRO192_FA24",
+          detail: "Đề PRO192_FA24 đang chờ xuất bản",
+        },
+      ],
+      usageTrend: [
+        {
+          date: "2026-10-04",
+          started: 5,
+          completed: 4,
+          newUsers: 2,
+        },
+      ],
+      contentQuality: {
+        reportsByCategory: [{ category: "wrong_answer", count: 1 }],
+        topExams: [
+          {
+            examId: "11111111-1111-4111-8111-111111111111",
+            examCode: "PRO192_FA24",
+            attempts: 12,
+          },
+        ],
+        unpopularExams: [],
+      },
+    };
+
+    let requestedDays: number | null = null;
+    const adminDashboard: AdminDashboardRepository = {
+      getDashboard: async (days) => {
+        requestedDays = days;
+        return { ...mockDashboardData, days };
+      },
+    };
+
+    const studentApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("user"),
+      adminDashboard,
+    });
+    const studentRes = await studentApp.request("/v1/admin/dashboard", {
+      headers: authorization,
+    });
+    expect(studentRes.status).toBe(403);
+
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      adminDashboard,
+    });
+    const contributorRes = await contributorApp.request("/v1/admin/dashboard", {
+      headers: authorization,
+    });
+    expect(contributorRes.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      adminDashboard,
+    });
+
+    // Default 30 days
+    const adminRes = await adminApp.request("/v1/admin/dashboard", {
+      headers: authorization,
+    });
+    expect(adminRes.status).toBe(200);
+    expect(requestedDays).toBe(30);
+    const json = await adminRes.json();
+    expect(json.data.quickStats.pendingReview).toBe(2);
+    expect(json.data.days).toBe(30);
+
+    // Filter ?days=7
+    const adminRes7 = await adminApp.request("/v1/admin/dashboard?days=7", {
+      headers: authorization,
+    });
+    expect(adminRes7.status).toBe(200);
+    expect(requestedDays).toBe(7);
+
+    // Invalid ?days=15 returns 400
+    const adminResInvalid = await adminApp.request(
+      "/v1/admin/dashboard?days=15",
+      {
+        headers: authorization,
+      },
+    );
+    expect(adminResInvalid.status).toBe(400);
   });
 });

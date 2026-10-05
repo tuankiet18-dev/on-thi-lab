@@ -7,6 +7,7 @@ import type {
 import type { AppDependencies } from "./app-context";
 import {
   UnconfiguredAdminAttentionRepository,
+  UnconfiguredAdminDashboardRepository,
   UnconfiguredBookmarkRepository,
   UnconfiguredFeedbackRepository,
   UnconfiguredReportRepository,
@@ -112,6 +113,7 @@ export function createDefaultDependencies(): AppDependencies {
     bookmarks: new UnconfiguredBookmarkRepository(),
     feedback: new UnconfiguredFeedbackRepository(),
     attention: new UnconfiguredAdminAttentionRepository(),
+    adminDashboard: new UnconfiguredAdminDashboardRepository(),
     ocrService: new UnconfiguredOcrService(),
     corsOrigins: ["http://localhost:5173"],
   };

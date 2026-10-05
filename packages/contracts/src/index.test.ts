@@ -10,6 +10,8 @@ import {
   updateOcrQuestionSchema,
   updateQuestionAnswerSchema,
   upsertStudentProfileSchema,
+  adminDashboardDaysSchema,
+  adminDashboardSchema,
 } from "./index";
 
 describe("exact-match scoring", () => {
@@ -246,6 +248,74 @@ describe("OCR review input", () => {
       updateOcrQuestionSchema.parse({
         textContent: "Question",
         options: ["A", ""],
+      }),
+    ).toThrow();
+  });
+});
+
+describe("admin dashboard schema", () => {
+  it("validates and coerces days query parameter", () => {
+    expect(adminDashboardDaysSchema.parse(undefined)).toBe(30);
+    expect(adminDashboardDaysSchema.parse("7")).toBe(7);
+    expect(adminDashboardDaysSchema.parse(30)).toBe(30);
+    expect(adminDashboardDaysSchema.parse("90")).toBe(90);
+    expect(() => adminDashboardDaysSchema.parse("15")).toThrow();
+    expect(() => adminDashboardDaysSchema.parse("invalid")).toThrow();
+  });
+
+  it("validates full admin dashboard data", () => {
+    const validData = {
+      asOf: "2026-10-05T09:00:00.000Z",
+      days: 30,
+      quickStats: {
+        pendingReview: 1,
+        openReports: 0,
+        newFeedback: 2,
+        publishedExams: 5,
+        completedAttempts: 20,
+        activeUsers: 8,
+      },
+      actionItems: [
+        {
+          type: "pending_publish" as const,
+          examId: "10000000-0000-4000-8000-000000000001",
+          examCode: "PRO192_FA24",
+          detail: "Đề PRO192_FA24 đang chờ xuất bản",
+        },
+      ],
+      usageTrend: [
+        {
+          date: "2026-10-04",
+          started: 3,
+          completed: 2,
+          newUsers: 1,
+        },
+      ],
+      contentQuality: {
+        reportsByCategory: [],
+        topExams: [
+          {
+            examId: "10000000-0000-4000-8000-000000000001",
+            examCode: "PRO192_FA24",
+            attempts: 5,
+          },
+        ],
+        unpopularExams: [],
+      },
+    };
+
+    expect(adminDashboardSchema.parse(validData)).toMatchObject(validData);
+
+    // Rejects more than 5 action items
+    expect(() =>
+      adminDashboardSchema.parse({
+        ...validData,
+        actionItems: Array.from({ length: 6 }).map((_, i) => ({
+          type: "pending_publish",
+          examId: `10000000-0000-4000-8000-00000000000${i}`,
+          examCode: `EXAM_${i}`,
+          detail: `Detail ${i}`,
+        })),
       }),
     ).toThrow();
   });

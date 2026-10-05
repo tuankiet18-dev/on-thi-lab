@@ -50,3 +50,4 @@ export * from "./bookmark-repository";
 export * from "./feedback-repository";
 export * from "./ocr-repository";
 export * from "./admin-attention-repository";
+export * from "./admin-dashboard-repository";
