@@ -28,11 +28,11 @@ import { BookmarksPage } from "./pages/BookmarksPage";
 import { useAuth } from "./auth/AuthContext";
 
 function IndexRouteComponent() {
-  const { status } = useAuth();
-  if (status === "authenticated") {
-    return <DashboardPage />;
+  const { configured, status } = useAuth();
+  if (configured && status !== "authenticated") {
+    return <LandingPage />;
   }
-  return <LandingPage />;
+  return <DashboardPage />;
 }
 
 const rootRoute = createRootRoute({
@@ -46,6 +46,18 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: IndexRouteComponent,
+});
+
+const landingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/landing",
+  component: LandingPage,
+});
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  component: DashboardPage,
 });
 
 const loginRoute = createRoute({
@@ -193,6 +205,8 @@ const adminDashboardRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  landingRoute,
+  dashboardRoute,
   loginRoute,
   registerRoute,
   authCallbackRoute,

@@ -42,7 +42,9 @@ export function AppShell() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
-  const isLandingPage = pathname === "/" && status === "unauthenticated";
+  const isLandingPage =
+    (pathname === "/" && configured && status !== "authenticated") ||
+    pathname === "/landing";
   const isPublicAuthPage =
     pathname === "/login" ||
     pathname === "/register" ||

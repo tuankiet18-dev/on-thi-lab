@@ -10,14 +10,41 @@ test("login route renders a safe unconfigured state in CI", async ({
 }) => {
   await page.goto("/login");
   await expect(
-    page.getByRole("heading", { name: "Chào mừng bạn" }),
+    page.getByRole("heading", { name: "Chào mừng trở lại" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Chế độ đăng nhập chưa được cấu hình trong môi trường này."),
+    page.getByText("Chế độ xác thực chưa được cấu hình trong môi trường này."),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Tiếp tục với Google" }),
   ).toHaveCount(0);
+});
+
+test("register route renders academic registration card in CI", async ({
+  page,
+}) => {
+  await page.goto("/register");
+  await expect(
+    page.getByRole("heading", { name: "Tạo tài khoản ôn thi" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Chế độ xác thực chưa được cấu hình trong môi trường này."),
+  ).toBeVisible();
+});
+
+test("landing page renders value propositions and course highlights", async ({
+  page,
+}) => {
+  await page.goto("/landing");
+  await expect(
+    page.getByRole("heading", {
+      name: "Ôn đúng môn. Vào đề đúng thời gian thi.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Học liệu mở · FPT University")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Khám phá kho 40+ môn thi" }),
+  ).toBeVisible();
 });
 
 test("short pages keep the footer at the viewport bottom", async ({ page }) => {

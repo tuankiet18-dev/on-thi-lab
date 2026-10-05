@@ -211,6 +211,7 @@ export function ExamPreviewPage() {
         onClose={() => setImageExpanded(false)}
         imageUrl={questionImageUrl(question.imageUrl)}
         imageAlt={question.imageAlt}
+        ariaLabel={`Ảnh phóng to câu ${currentIndex + 1}`}
         title={`Câu ${currentIndex + 1} / ${exam.questions.length}`}
         subtitle={exam.courseName}
         hasPrevious={currentIndex > 0}

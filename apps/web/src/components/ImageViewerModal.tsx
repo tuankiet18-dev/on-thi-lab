@@ -23,6 +23,7 @@ export interface ImageViewerModalProps {
   imageAlt: string;
   title?: string;
   subtitle?: string;
+  ariaLabel?: string;
   onPrevious?: () => void;
   hasPrevious?: boolean;
   onNext?: () => void;
@@ -39,6 +40,7 @@ export function ImageViewerModal({
   imageAlt,
   title,
   subtitle,
+  ariaLabel,
   onPrevious,
   hasPrevious = false,
   onNext,
@@ -325,7 +327,7 @@ export function ImageViewerModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={title || "Ảnh phóng to"}
+      aria-label={ariaLabel || title || "Ảnh phóng to"}
       className="fixed inset-0 z-50 flex flex-col bg-slate-950/92 backdrop-blur-md select-none touch-none animate-in fade-in duration-200"
     >
       {/* Top Bar */}
