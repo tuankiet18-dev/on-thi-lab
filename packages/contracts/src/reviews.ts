@@ -55,6 +55,13 @@ export const draftImportResultSchema = z.object({
   optionCountQueueWarning: z.string().optional(),
 });
 
+export const retryOptionCountResultSchema = z.object({
+  queuedCount: z.number().int().nonnegative(),
+});
+export type RetryOptionCountResult = z.infer<
+  typeof retryOptionCountResultSchema
+>;
+
 export const ocrStatuses = [
   "pending",
   "processing",

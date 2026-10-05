@@ -38,11 +38,14 @@ def _job(message):
     revision_id = str(uuid.UUID(value["revisionId"]))
     image_key = value["imageKey"]
     image_hash = value["imageHash"]
+    queued_at = value["queuedAt"]
     if not image_key.startswith("drafts/") or not isinstance(image_hash, str):
         raise ValueError("Invalid option-count job")
     if len(image_hash) != 64 or any(char not in "0123456789abcdef" for char in image_hash):
         raise ValueError("Invalid image hash")
-    return question_id, revision_id, image_key, image_hash
+    if not isinstance(queued_at, str) or len(queued_at) < 20:
+        raise ValueError("Invalid option-count job timestamp")
+    return question_id, revision_id, image_key, image_hash, queued_at
 
 
 def _detect(image_bytes):
@@ -57,7 +60,7 @@ def _detect(image_bytes):
 
 
 def _apply_result(connection, job, detection, error=None):
-    question_id, revision_id, image_key, image_hash = job
+    question_id, revision_id, image_key, image_hash, queued_at = job
     with connection.transaction():
         row = connection.execute(
             """
@@ -75,13 +78,16 @@ def _apply_result(connection, job, detection, error=None):
         if not row or row[3] != "draft":
             return
         options, answers, previous, _, answer_suggestion = row
-        if not isinstance(previous, dict) or previous.get("status") != "pending":
+        if (
+            not isinstance(previous, dict)
+            or previous.get("status") != "pending"
+            or previous.get("queuedAt") != queued_at
+        ):
             return
 
         count = detection["count"] if detection else None
         labels = detection["labels"] if detection else []
         confidence = detection["confidence"] if detection else None
-        next_options = options
         proposed_answers = (
             answer_suggestion.get("proposedAnswers", [])
             if isinstance(answer_suggestion, dict)
@@ -97,19 +103,18 @@ def _apply_result(connection, job, detection, error=None):
                 "conflict",
                 f"OCR thấy {count} lựa chọn nhưng đáp án là {chr(64 + answer_floor)}.",
             )
-        elif count < len(options):
-            status, reason = (
-                "conflict",
-                f"OCR thấy {count} lựa chọn, ít hơn {len(options)} lựa chọn đang lưu; giữ nguyên và cần kiểm tra ảnh.",
-            )
         elif confidence < 0.82 or not detection["complete"]:
             status, reason = (
                 "uncertain",
                 f"OCR thấy {', '.join(labels) or 'không có nhãn'}, độ tin cậy {round(confidence * 100)}%; cần kiểm tra số lựa chọn.",
             )
+        elif count != len(options):
+            status, reason = (
+                "conflict",
+                f"OCR thấy {count} lựa chọn, khác {len(options)} lựa chọn đang lưu; giữ nguyên và cần kiểm tra ảnh.",
+            )
         else:
             status, reason = "confirmed", None
-            next_options = list("ABCDEF"[:count])
 
         metadata = {
             "status": status,
@@ -126,17 +131,16 @@ def _apply_result(connection, job, detection, error=None):
         connection.execute(
             """
             UPDATE questions
-            SET options = %s::jsonb, option_count_check = %s::jsonb,
-                updated_at = now()
+            SET option_count_check = %s::jsonb, updated_at = now()
             WHERE id = %s
             """,
-            (json.dumps(next_options), json.dumps(metadata), question_id),
+            (json.dumps(metadata), question_id),
         )
 
 
 def _process(message):
     job = _job(message)
-    _, _, image_key, image_hash = job
+    _, _, image_key, image_hash, _ = job
     image = S3.get_object(Bucket=os.environ["QUESTION_IMAGE_BUCKET"], Key=image_key)[
         "Body"
     ].read()

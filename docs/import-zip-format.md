@@ -37,12 +37,16 @@ Có thể kèm đúng một `answers.json`. File này được đọc khi import
   phiếu cần xác nhận thủ công; trang duyệt hiển thị lý do của từng câu.
 - Với đề mới trên AWS, RapidOCR chạy nền để kiểm tra số lựa chọn A–F trên ảnh,
   độc lập với OCR nội dung đề. Kết quả độ tin cậy thấp, lỗi hoặc mâu thuẫn với
-  chữ đáp án tạo cảnh báo riêng; không xóa đáp án đã xác định được. OCR không tự
-  giảm số lựa chọn đang lưu: nếu nhận diện ít hơn, hệ thống giữ nguyên và hiển
-  thị cảnh báo để kiểm tra ảnh (đặc biệt với đáp án dàn thành nhiều cột).
+  chữ đáp án tạo cảnh báo riêng; không xóa đáp án đã xác định được. OCR chỉ đối
+  chiếu, không tự thay đổi số lựa chọn đang lưu: mọi chênh lệch đều giữ nguyên
+  dữ liệu và hiển thị cảnh báo để kiểm tra ảnh.
 - Bộ lọc “Cần xác nhận” hiển thị câu thiếu đáp án; bộ lọc “OCR cảnh báo” hiển
   thị lỗi đếm lựa chọn. Các đề cũ không tự động chạy lại OCR. Đáp án gợi ý còn
   lưu trong đề nháp cũ có thể được lưu hàng loạt theo quy tắc mới.
+- Admin có thể dùng “Thử lại OCR lỗi” khi job gửi hàng đợi bị lỗi hoặc quá 15
+  phút chưa hoàn tất. Chỉ những câu còn ở trạng thái lỗi/chờ quá hạn của đề
+  nháp được gửi lại. Kết quả từ lần chạy cũ sẽ bị bỏ qua nếu đến sau lần mới;
+  câu đã duyệt thủ công không được gửi lại.
 
 Giới hạn bảo mật: ZIP tối đa 250 MB, ảnh tối đa 20 MB, `answers.json` tối đa
 1 MB, tổng dữ liệu giải nén tối đa 500 MB và tỷ lệ nén tối đa 100:1.

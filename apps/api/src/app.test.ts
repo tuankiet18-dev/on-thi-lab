@@ -15,6 +15,7 @@ import type {
 } from "@onthilab/database";
 import {
   AdminCatalogRepositoryError,
+  DraftImportRepositoryError,
   ProfileRepositoryError,
   type AdminCatalogRepository,
   type BookmarkRepository,
@@ -1147,6 +1148,80 @@ describe("attempt API", () => {
     await expect(published.json()).resolves.toMatchObject({
       data: { status: "published" },
     });
+  });
+
+  it("allows admins to retry failed option checks without granting contributor access", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    let retried = "";
+    const optionCountService = {
+      enqueueRevision: async () => {},
+      retryFailed: async (id: string) => {
+        retried = id;
+        return 2;
+      },
+    };
+    const contributorApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("contributor"),
+      optionCountService,
+    });
+    const denied = await contributorApp.request(
+      `/v1/admin/exams/${examId}/option-count/retry`,
+      { method: "POST", headers: authorization },
+    );
+    expect(denied.status).toBe(403);
+
+    const adminApp = createApp({
+      auth,
+      profiles: createOnboardedProfiles("admin"),
+      optionCountService,
+    });
+    const accepted = await adminApp.request(
+      `/v1/admin/exams/${examId}/option-count/retry`,
+      { method: "POST", headers: authorization },
+    );
+    expect(accepted.status).toBe(202);
+    await expect(accepted.json()).resolves.toMatchObject({
+      data: { queuedCount: 2 },
+    });
+    expect(retried).toBe(examId);
+  });
+
+  it("returns retry errors for missing configuration, missing exams, and queue failures", async () => {
+    const examId = "20000000-0000-4000-8000-000000000001";
+    const requestPath = `/v1/admin/exams/${examId}/option-count/retry`;
+    const admin = createOnboardedProfiles("admin");
+    const unconfigured = createApp({ auth, profiles: admin });
+    expect(
+      (
+        await unconfigured.request(requestPath, {
+          method: "POST",
+          headers: authorization,
+        })
+      ).status,
+    ).toBe(503);
+
+    for (const [error, expectedStatus] of [
+      [new DraftImportRepositoryError("EXAM_NOT_FOUND", "Missing"), 404],
+      [new DraftImportRepositoryError("EXAM_NOT_EDITABLE", "Closed"), 409],
+      [new Error("SQS failed"), 502],
+    ] as const) {
+      const failingApp = createApp({
+        auth,
+        profiles: admin,
+        optionCountService: {
+          enqueueRevision: async () => {},
+          retryFailed: async () => {
+            throw error;
+          },
+        },
+      });
+      const response = await failingApp.request(requestPath, {
+        method: "POST",
+        headers: authorization,
+      });
+      expect(response.status).toBe(expectedStatus);
+    }
   });
 
   it("allows only admins to queue an AI suggestion for the current question", async () => {

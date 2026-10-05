@@ -1,8 +1,12 @@
 import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
-import type { PostgresDraftImportRepository } from "@onthilab/database";
+import {
+  DraftImportRepositoryError,
+  type PostgresDraftImportRepository,
+} from "@onthilab/database";
 
 export interface OptionCountService {
   enqueueRevision(revisionId: string): Promise<void>;
+  retryFailed(examId: string): Promise<number>;
 }
 
 export class SqsOptionCountService implements OptionCountService {
@@ -13,7 +17,34 @@ export class SqsOptionCountService implements OptionCountService {
   ) {}
 
   async enqueueRevision(revisionId: string): Promise<void> {
-    const jobs = await this.repository.queueOptionCountJobs(revisionId);
+    await this.sendJobs(revisionId, false);
+  }
+
+  async retryFailed(examId: string): Promise<number> {
+    const review = await this.repository.findReview(examId);
+    if (!review) {
+      throw new DraftImportRepositoryError(
+        "EXAM_NOT_FOUND",
+        "Không tìm thấy đề thi.",
+      );
+    }
+    if (review.status !== "draft") {
+      throw new DraftImportRepositoryError(
+        "EXAM_NOT_EDITABLE",
+        "Chỉ có thể thử lại OCR khi đề đang ở trạng thái nháp.",
+      );
+    }
+    return this.sendJobs(review.revisionId, true);
+  }
+
+  private async sendJobs(
+    revisionId: string,
+    retryFailed: boolean,
+  ): Promise<number> {
+    const jobs = await this.repository.queueOptionCountJobs(
+      revisionId,
+      retryFailed,
+    );
     let hadFailedEntries = false;
     for (let offset = 0; offset < jobs.length; offset += 10) {
       const batch = jobs.slice(offset, offset + 10);
@@ -29,6 +60,7 @@ export class SqsOptionCountService implements OptionCountService {
                 revisionId,
                 imageKey: job.imageKey,
                 imageHash: job.imageHash,
+                queuedAt: job.queuedAt,
               }),
             })),
           }),
@@ -37,6 +69,7 @@ export class SqsOptionCountService implements OptionCountService {
         await this.repository.markOptionCountQueueFailed(
           jobs.slice(offset).map((job) => job.id),
           "Không thể đưa ảnh vào hàng đợi kiểm tra số lựa chọn.",
+          batch[0]!.queuedAt,
         );
         throw error;
       }
@@ -48,6 +81,7 @@ export class SqsOptionCountService implements OptionCountService {
             .filter((_, index) => failed.has(String(index)))
             .map((job) => job.id),
           "Không thể đưa ảnh vào hàng đợi kiểm tra số lựa chọn.",
+          batch[0]!.queuedAt,
         );
       }
     }
@@ -56,5 +90,6 @@ export class SqsOptionCountService implements OptionCountService {
         "Một số ảnh không vào được hàng đợi kiểm tra số lựa chọn.",
       );
     }
+    return jobs.length;
   }
 }

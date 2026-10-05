@@ -33,6 +33,7 @@ import {
   markExamReviewReady,
   publishExam,
   queueAiAnswerSuggestion,
+  retryFailedOptionChecks,
   saveQuestionReviewAnswer,
 } from "../features/exam-review/api";
 import { ApiError } from "../api/http";
@@ -69,6 +70,8 @@ export function AdminReviewPage() {
   const [confirmingTrusted, setConfirmingTrusted] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [queuingAi, setQueuingAi] = useState(false);
+  const [retryingOptionChecks, setRetryingOptionChecks] = useState(false);
+  const [optionRetryError, setOptionRetryError] = useState("");
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -233,6 +236,13 @@ export function AdminReviewPage() {
     () =>
       (review?.questions ?? []).filter(
         (question) => question.optionCountCheck?.status === "pending",
+      ).length,
+    [review],
+  );
+  const optionFailedCount = useMemo(
+    () =>
+      (review?.questions ?? []).filter(
+        (question) => question.optionCountCheck?.status === "failed",
       ).length,
     [review],
   );
@@ -582,6 +592,30 @@ export function AdminReviewPage() {
       );
     } finally {
       setQueuingAi(false);
+    }
+  };
+
+  const retryOptionChecks = async () => {
+    if (!session || !review || !isAdmin || review.status !== "draft") return;
+    setRetryingOptionChecks(true);
+    setOptionRetryError("");
+    try {
+      const result = await retryFailedOptionChecks(
+        session.idToken,
+        review.examId,
+      );
+      await refreshReview();
+      setFeedback(
+        result.queuedCount > 0
+          ? `Đã đưa ${result.queuedCount} câu vào hàng đợi OCR để thử lại.`
+          : "Không còn câu OCR lỗi đủ điều kiện thử lại.",
+      );
+    } catch {
+      setOptionRetryError(
+        "Không thể thử lại OCR số lựa chọn. Vui lòng thử lại sau.",
+      );
+    } finally {
+      setRetryingOptionChecks(false);
     }
   };
 
@@ -1214,6 +1248,36 @@ export function AdminReviewPage() {
                       <p className="mt-2 text-xs font-medium text-amber-800">
                         Có {optionWarningCount} cảnh báo số lựa chọn. Xem bộ lọc
                         “OCR cảnh báo” nếu bạn muốn kiểm tra lại ảnh.
+                      </p>
+                    )}
+                    {optionFailedCount > 0 &&
+                      isAdmin &&
+                      review.status === "draft" && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-3"
+                          disabled={retryingOptionChecks}
+                          onClick={() => void retryOptionChecks()}
+                          icon={
+                            retryingOptionChecks ? (
+                              <LoaderCircle
+                                size={17}
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : undefined
+                          }
+                        >
+                          Thử lại OCR lỗi ({optionFailedCount})
+                        </Button>
+                      )}
+                    {optionRetryError && (
+                      <p
+                        className="mt-2 text-xs font-medium text-red-700"
+                        role="alert"
+                      >
+                        {optionRetryError}
                       </p>
                     )}
                   </div>

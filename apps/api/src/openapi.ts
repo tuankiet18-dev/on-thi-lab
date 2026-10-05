@@ -329,6 +329,31 @@ export const openApiDocument = {
         },
       },
     },
+    "/v1/admin/exams/{examId}/option-count/retry": {
+      post: {
+        operationId: "retryFailedOptionCountChecks",
+        tags: ["Admin review"],
+        security: [{ cognitoIdToken: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "examId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "202": {
+            description: "Failed or expired option checks queued again",
+          },
+          "403": { description: "Admin role required" },
+          "404": { description: "Exam not found" },
+          "409": { description: "Exam is no longer a draft" },
+          "502": { description: "SQS rejected the retry request" },
+          "503": { description: "Option count OCR is not configured" },
+        },
+      },
+    },
     "/v1/admin/exams/{examId}/questions/{questionId}/answer": {
       put: {
         operationId: "saveReviewedAnswer",

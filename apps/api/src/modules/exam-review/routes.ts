@@ -105,6 +105,31 @@ export function registerExamReviewRoutes(
     },
   );
 
+  app.post(
+    "/v1/admin/exams/:examId/option-count/retry",
+    requireAdmin,
+    async (context) => {
+      if (!dependencies.optionCountService) {
+        return context.json({ error: "OPTION_COUNT_NOT_CONFIGURED" }, 503);
+      }
+      try {
+        const queuedCount = await dependencies.optionCountService.retryFailed(
+          context.req.param("examId"),
+        );
+        return context.json({ data: { queuedCount } }, 202);
+      } catch (error) {
+        if (error instanceof DraftImportRepositoryError) {
+          return context.json(
+            { error: error.code, message: error.message },
+            error.code === "EXAM_NOT_FOUND" ? 404 : 409,
+          );
+        }
+        console.error("Unable to retry option-count OCR", error);
+        return context.json({ error: "OPTION_COUNT_QUEUE_FAILED" }, 502);
+      }
+    },
+  );
+
   app.post("/v1/admin/exams/:examId/ready", async (context) => {
     try {
       if (dependencies.ocrRepository) {

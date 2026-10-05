@@ -68,21 +68,51 @@ export class PostgresDraftImportRepository
 
   async queueOptionCountJobs(
     revisionId: string,
-  ): Promise<{ id: string; imageKey: string; imageHash: string }[]> {
+    retryFailed = false,
+  ): Promise<
+    { id: string; imageKey: string; imageHash: string; queuedAt: string }[]
+  > {
     return this.db.transaction(async (transaction) => {
+      const [exam] = await transaction
+        .select({ status: exams.status })
+        .from(exams)
+        .innerJoin(examRevisions, eq(examRevisions.examId, exams.id))
+        .where(eq(examRevisions.id, revisionId))
+        .limit(1)
+        .for("update", { of: exams });
+      if (exam?.status !== "draft") return [];
+
       const rows = await transaction
         .select({
           id: questions.id,
           imageKey: questions.imageKey,
           imageHash: questions.imageHash,
-          examStatus: exams.status,
+          optionCountCheck: questions.optionCountCheck,
         })
         .from(questions)
-        .innerJoin(examRevisions, eq(questions.revisionId, examRevisions.id))
-        .innerJoin(exams, eq(examRevisions.examId, exams.id))
-        .where(eq(questions.revisionId, revisionId));
-      const jobs = rows.filter((row) => row.examStatus === "draft");
+        .where(eq(questions.revisionId, revisionId))
+        .for("update", { of: questions });
+      const jobs = rows.filter(
+        (row) =>
+          !retryFailed ||
+          row.optionCountCheck?.status === "failed" ||
+          (row.optionCountCheck?.status === "pending" &&
+            typeof row.optionCountCheck.queuedAt === "string" &&
+            Date.now() - Date.parse(row.optionCountCheck.queuedAt) >
+              15 * 60_000),
+      );
       if (jobs.length === 0) return [];
+      const previousQueueTime = Math.max(
+        0,
+        ...jobs.map((job) =>
+          job.optionCountCheck?.queuedAt
+            ? Date.parse(job.optionCountCheck.queuedAt) || 0
+            : 0,
+        ),
+      );
+      const queuedAt = new Date(
+        Math.max(Date.now(), previousQueueTime + 1),
+      ).toISOString();
       await transaction
         .update(questions)
         .set({
@@ -92,7 +122,7 @@ export class PostgresDraftImportRepository
             labels: [],
             confidence: null,
             reason: null,
-            queuedAt: new Date().toISOString(),
+            queuedAt,
           },
         })
         .where(
@@ -105,6 +135,7 @@ export class PostgresDraftImportRepository
         id,
         imageKey,
         imageHash,
+        queuedAt,
       }));
     });
   }
@@ -112,6 +143,7 @@ export class PostgresDraftImportRepository
   async markOptionCountQueueFailed(
     questionIds: string[],
     reason: string,
+    queuedAt: string,
   ): Promise<void> {
     if (questionIds.length === 0) return;
     await this.db
@@ -129,6 +161,7 @@ export class PostgresDraftImportRepository
         and(
           inArray(questions.id, questionIds),
           sql`${questions.optionCountCheck}->>'status' = 'pending'`,
+          sql`${questions.optionCountCheck}->>'queuedAt' = ${queuedAt}`,
         ),
       );
   }
@@ -817,7 +850,8 @@ export class PostgresDraftImportRepository
         .select({ id: exams.id, status: exams.status })
         .from(exams)
         .where(eq(exams.id, examId))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (!exam) {
         throw new DraftImportRepositoryError(
           "EXAM_NOT_FOUND",
