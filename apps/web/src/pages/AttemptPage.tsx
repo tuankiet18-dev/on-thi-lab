@@ -617,6 +617,7 @@ export function AttemptPage() {
         onClose={() => setImageExpanded(false)}
         imageUrl={questionImageUrl(question.imageUrl)}
         imageAlt={question.imageAlt}
+        ariaLabel={`Ảnh phóng to câu ${currentIndex + 1}`}
         title={`Câu ${currentIndex + 1} / ${questions.length}`}
         subtitle={`${exam.courseCode} · ${exam.semester}`}
         hasPrevious={currentIndex > 0}
