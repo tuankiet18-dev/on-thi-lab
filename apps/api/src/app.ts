@@ -12,6 +12,7 @@ import {
 import { openApiDocument } from "./openapi";
 import { registerAdminCatalogRoutes } from "./modules/admin-catalog/routes";
 import { registerAdminUserRoutes } from "./modules/admin-users/routes";
+import { registerAdminDashboardRoutes } from "./modules/admin-dashboard/routes";
 import { registerAttemptRoutes } from "./modules/attempts/routes";
 import { registerBookmarkRoutes } from "./modules/bookmarks/routes";
 import { registerCatalogRoutes } from "./modules/catalog/routes";
@@ -125,6 +126,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use("/v1/admin/*", requireContributor);
 
   registerAdminUserRoutes(app, dependencies, requireAdmin, requireContributor);
+  registerAdminDashboardRoutes(app, dependencies, requireAdmin);
   registerAdminCatalogRoutes(app, dependencies, requireAdmin);
   registerImportRoutes(app, dependencies);
   registerExamReviewRoutes(app, dependencies, requireAdmin);

@@ -71,3 +71,104 @@ export const updateUserStatusInputSchema = z.object({
 });
 
 export type UpdateUserStatusInput = z.infer<typeof updateUserStatusInputSchema>;
+
+// ── Admin Dashboard ──────────────────────────────────────────────────────────
+
+export const adminDashboardDaysSchema = z.coerce
+  .number()
+  .int()
+  .refine((n) => [7, 30, 90].includes(n), {
+    message: "days must be 7, 30 or 90",
+  })
+  .default(30);
+
+export type AdminDashboardDays = z.infer<typeof adminDashboardDaysSchema>;
+
+/** Quick-stats row shown at the top of the dashboard */
+export const adminDashboardQuickStatsSchema = z.object({
+  /** Exams in "review" status (pending review/publish) */
+  pendingReview: z.number().int().nonnegative(),
+  /** Open (unresolved) error reports */
+  openReports: z.number().int().nonnegative(),
+  /** Feedback items still in "new" state */
+  newFeedback: z.number().int().nonnegative(),
+  /** Total published exams */
+  publishedExams: z.number().int().nonnegative(),
+  /** Completed attempts within the window (status submitted or auto_submitted) */
+  completedAttempts: z.number().int().nonnegative(),
+  /** Distinct users who started at least one attempt within the window */
+  activeUsers: z.number().int().nonnegative(),
+});
+
+export type AdminDashboardQuickStats = z.infer<
+  typeof adminDashboardQuickStatsSchema
+>;
+
+/** A single item in the "action required" list */
+export const adminDashboardActionItemSchema = z.object({
+  type: z.enum(["missing_answers", "ocr_warning", "pending_publish"]),
+  examId: z.string().uuid(),
+  examCode: z.string(),
+  /** Short human-readable description of the issue */
+  detail: z.string(),
+});
+
+export type AdminDashboardActionItem = z.infer<
+  typeof adminDashboardActionItemSchema
+>;
+
+/** One data-point in the daily usage chart */
+export const adminDashboardUsagePointSchema = z.object({
+  date: z.string(), // ISO date "YYYY-MM-DD"
+  started: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  newUsers: z.number().int().nonnegative(),
+});
+
+export type AdminDashboardUsagePoint = z.infer<
+  typeof adminDashboardUsagePointSchema
+>;
+
+/** Content-quality breakdown */
+export const adminDashboardContentQualitySchema = z.object({
+  /** Error-report counts grouped by category */
+  reportsByCategory: z.array(
+    z.object({
+      category: z.string(),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  /** Top exams by attempt count within the window (max 5) */
+  topExams: z.array(
+    z.object({
+      examId: z.string().uuid(),
+      examCode: z.string(),
+      attempts: z.number().int().nonnegative(),
+    }),
+  ),
+  /** Published exams that received zero attempts within the window */
+  unpopularExams: z.array(
+    z.object({
+      examId: z.string().uuid(),
+      examCode: z.string(),
+      publishedAt: z.string(),
+    }),
+  ),
+});
+
+export type AdminDashboardContentQuality = z.infer<
+  typeof adminDashboardContentQualitySchema
+>;
+
+/** Full dashboard response */
+export const adminDashboardSchema = z.object({
+  asOf: z.string(), // ISO datetime
+  days: adminDashboardDaysSchema,
+  quickStats: adminDashboardQuickStatsSchema,
+  /** Up to 5 action items sorted by priority */
+  actionItems: z.array(adminDashboardActionItemSchema).max(5),
+  usageTrend: z.array(adminDashboardUsagePointSchema),
+  contentQuality: adminDashboardContentQualitySchema,
+});
+
+export type AdminDashboard = z.infer<typeof adminDashboardSchema>;

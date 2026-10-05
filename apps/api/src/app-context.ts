@@ -5,6 +5,7 @@ import type {
 import type {
   AdminAttentionRepository,
   AdminCatalogRepository,
+  AdminDashboardRepository,
   AttemptRepository,
   BookmarkRepository,
   CatalogRepository,
@@ -36,6 +37,7 @@ export interface AppDependencies {
   ocrRepository?: PostgresOcrRepository;
   ocrService: OcrService;
   attention: AdminAttentionRepository;
+  adminDashboard: AdminDashboardRepository;
   questionImageBaseUrl?: string;
   corsOrigins: string[];
 }
@@ -92,5 +94,11 @@ export class UnconfiguredFeedbackRepository implements FeedbackRepository {
 export class UnconfiguredAdminAttentionRepository implements AdminAttentionRepository {
   async getSummary(): Promise<AdminAttentionSummary> {
     throw new Error("Admin attention repository not configured");
+  }
+}
+
+export class UnconfiguredAdminDashboardRepository implements AdminDashboardRepository {
+  async getDashboard(): Promise<never> {
+    throw new Error("Admin dashboard repository not configured");
   }
 }

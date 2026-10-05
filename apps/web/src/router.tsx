@@ -11,6 +11,7 @@ import { AdminFeedbackPage } from "./pages/AdminFeedbackPage";
 import { AdminReviewPage } from "./pages/AdminReviewPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminCatalogManagementPage } from "./pages/AdminCatalogManagementPage";
+import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AttemptPage } from "./pages/AttemptPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -168,6 +169,12 @@ const adminCatalogManagementRoute = createRoute({
   component: AdminCatalogManagementPage,
 });
 
+const adminDashboardRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "dashboard",
+  component: AdminDashboardPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -183,6 +190,7 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   statisticsRoute,
   adminRoute.addChildren([
+    adminDashboardRoute,
     adminImportRoute,
     adminReviewRoute,
     adminReportsRoute,

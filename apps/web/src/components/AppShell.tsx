@@ -218,6 +218,16 @@ export function AppShell() {
                         <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-400">
                           Quản trị
                         </p>
+                        {isAdmin && (
+                          <Link
+                            to="/admin/dashboard"
+                            onClick={() => setAccountOpen(false)}
+                            className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            <LayoutDashboard size={17} aria-hidden="true" />
+                            Tổng quan quản trị
+                          </Link>
+                        )}
                         <Link
                           to="/admin/import"
                           onClick={() => setAccountOpen(false)}
@@ -355,6 +365,16 @@ export function AppShell() {
                   <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-slate-400">
                     Quản trị
                   </p>
+                  {isAdmin && (
+                    <Link
+                      to="/admin/dashboard"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                    >
+                      <LayoutDashboard size={18} aria-hidden="true" />
+                      Tổng quan quản trị
+                    </Link>
+                  )}
                   <Link
                     to="/admin/import"
                     onClick={() => setMenuOpen(false)}

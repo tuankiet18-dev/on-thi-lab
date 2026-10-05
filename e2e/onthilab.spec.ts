@@ -165,6 +165,9 @@ test("mobile admin menu exposes all administration tools", async ({
   const navigation = page.getByRole("navigation", { name: "Di động" });
   await expect(navigation.getByText("Quản trị", { exact: true })).toBeVisible();
   await expect(
+    navigation.getByRole("link", { name: "Tổng quan quản trị" }),
+  ).toBeVisible();
+  await expect(
     navigation.getByRole("link", { name: "Phân quyền" }),
   ).toBeVisible();
   await expect(
@@ -245,6 +248,34 @@ test("answer review route has a safe unauthenticated state", async ({
   await expect(
     page.getByRole("heading", { name: "Cần đăng nhập" }),
   ).toBeVisible();
+  const measurements = await page.locator("body").evaluate((body) => ({
+    scrollWidth: body.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth,
+  );
+});
+
+test("admin dashboard route renders widget grid and allows filtering days", async ({
+  page,
+}) => {
+  await page.goto("/admin/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "Tổng quan quản trị" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "7 ngày" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "30 ngày" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "90 ngày" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Làm mới" })).toBeVisible();
+
+  // Test filter interaction
+  await page.getByRole("button", { name: "7 ngày" }).click();
+  await expect(page.getByRole("button", { name: "7 ngày" })).toHaveClass(
+    /bg-blue-600/,
+  );
+
+  // Measure responsiveness: no horizontal scroll
   const measurements = await page.locator("body").evaluate((body) => ({
     scrollWidth: body.scrollWidth,
     viewportWidth: window.innerWidth,

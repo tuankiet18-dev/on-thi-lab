@@ -10,6 +10,7 @@ import {
   PostgresFeedbackRepository,
   PostgresOcrRepository,
   PostgresAdminAttentionRepository,
+  PostgresAdminDashboardRepository,
   isSupabaseTransactionPoolerUrl,
 } from "@onthilab/database";
 import { OpenAiCompatibleVisionProvider } from "@onthilab/importer";
@@ -145,6 +146,7 @@ export function createRuntimeApp(
     }),
     feedback: new PostgresFeedbackRepository(database),
     attention: new PostgresAdminAttentionRepository(database),
+    adminDashboard: new PostgresAdminDashboardRepository(database),
     imports: s3Client
       ? new S3ExamImportService(
           draftRepository,
