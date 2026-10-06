@@ -39,11 +39,12 @@ tất.
 
 - React SPA trên S3 private và CloudFront.
 - API Gateway gọi Hono API trên Lambda Node.js 22.
-- Supabase PostgreSQL; Lambda dùng transaction pooler và tối đa một connection
-  trên mỗi container.
+- Supabase PostgreSQL (Singapore); Lambda dùng transaction pooler, tối đa 3
+  connection cho mỗi API container và 1 cho worker.
 - Ảnh câu hỏi đi qua CloudFront riêng, không đi qua API Lambda.
-- SQS + Lambda worker xử lý OCR/import; OCR worker có DLQ và concurrency giới
-  hạn.
+- SQS `OcrQueue` + Lambda worker (arm64) xử lý OCR bằng Textract, có DLQ và
+  concurrency tối đa 3. Giải nén ZIP và gợi ý AI Vision chạy trong API Lambda;
+  `ImportQueue` chưa có consumer.
 - Cognito quản lý đăng nhập; cấu hình server-side đọc từ SSM Parameter Store.
 - CloudWatch lưu access/application logs và theo dõi error, throttle,
   concurrency, latency.

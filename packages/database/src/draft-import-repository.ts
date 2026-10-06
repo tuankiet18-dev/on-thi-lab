@@ -37,6 +37,29 @@ import {
 
 export * from "./modules/exam-review";
 
+/**
+ * The API Lambda that runs an AI suggestion is killed after 29 s without
+ * running any error handler, which would leave the question `queued` or
+ * `processing` forever. Treat an in-flight marker older than this as abandoned
+ * so the reviewer can request the suggestion again.
+ */
+export const AI_SUGGESTION_STALE_MS = 120_000;
+
+/** Whether a live request may still be producing this question's suggestion. */
+export function isAiSuggestionInFlight(
+  aiMetadata: { status?: string; updatedAt?: string } | null | undefined,
+  now: Date = new Date(),
+  staleAfterMs: number = AI_SUGGESTION_STALE_MS,
+): boolean {
+  if (aiMetadata?.status !== "queued" && aiMetadata?.status !== "processing") {
+    return false;
+  }
+  const updatedAt = aiMetadata.updatedAt
+    ? Date.parse(aiMetadata.updatedAt)
+    : NaN;
+  return !Number.isNaN(updatedAt) && now.getTime() - updatedAt < staleAfterMs;
+}
+
 export class PostgresDraftImportRepository
   implements DraftImportRepository, ExamReviewRepository, AiSuggestionRepository
 {
@@ -562,10 +585,12 @@ export class PostgresDraftImportRepository
         .where(eq(questions.revisionId, revision.id))
         .orderBy(asc(questions.order));
 
+      const now = new Date();
       const candidates = questionRows.filter(
         (question) =>
           question.correctOptions.length === 0 &&
-          !["queued", "processing", "suggested", "confirmed"].includes(
+          !isAiSuggestionInFlight(question.aiMetadata, now) &&
+          !["suggested", "confirmed"].includes(
             question.aiMetadata?.status ?? "",
           ),
       );
@@ -662,9 +687,8 @@ export class PostgresDraftImportRepository
 
       const alreadyHandled =
         question.correctOptions.length > 0 ||
-        ["queued", "processing", "confirmed"].includes(
-          question.aiMetadata?.status ?? "",
-        );
+        question.aiMetadata?.status === "confirmed" ||
+        isAiSuggestionInFlight(question.aiMetadata);
       if (alreadyHandled) {
         return { jobs: [], skippedCount: 1 };
       }
@@ -714,11 +738,9 @@ export class PostgresDraftImportRepository
     const updatedAt = new Date();
     await this.db
       .update(questions)
+      // Only record the proposal. `type`, `options` and `correctOptions` change
+      // when a reviewer confirms it (saveAnswer), never from AI output alone.
       .set({
-        type: proposal.proposedType,
-        options: Array.from({ length: proposal.optionCount }, (_, index) =>
-          String.fromCharCode(65 + index),
-        ),
         aiMetadata: {
           status: "suggested",
           proposedType: proposal.proposedType,

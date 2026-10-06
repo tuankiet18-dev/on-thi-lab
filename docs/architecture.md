@@ -44,14 +44,20 @@ React SPA
 
 ```text
 React/Vite
-   ├── CloudFront ── S3 web
+   ├── Route 53 ── CloudFront ── S3 web
    ├── CloudFront ── S3 question images
+   ├── presigned PUT ── S3 (ZIP nhập đề)
+   ├── Cognito Managed Login (auth.onthilab.id.vn) ── Google
    │
    ▼
 API Gateway ── Lambda/Hono ── Supabase PostgreSQL qua transaction pooler
-                         ├── SQS import jobs ── AI Vision provider
-                         └── Cognito / payOS webhook
+                         ├── S3 (ảnh) và SSM Parameter Store
+                         ├── AI Vision provider (Groq), gọi trực tiếp
+                         └── SQS OcrQueue ── Lambda worker ── Textract
 ```
+
+Sơ đồ chi tiết, cấu hình từng tài nguyên và các khác biệt giữa repo và hạ tầng
+đang chạy nằm trong [AWS architecture](aws-architecture.md).
 
 ## Quy tắc bất biến
 
@@ -81,18 +87,18 @@ xóa. Các control vận hành bắt buộc gồm:
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
 - đặt Supabase ở region gần Singapore, dùng pooler connection string cho Lambda;
 - sao lưu PostgreSQL hằng ngày sang S3 và diễn tập restore;
-- thêm WAF/rate limit, log retention và cảnh báo lỗi;
+- thêm WAF, nối CloudWatch alarm với kênh thông báo (hiện có 11 alarm nhưng chưa có SNS);
 - giữ domain, ACM certificate và parameter tách biệt theo environment;
 - chạy smoke test và kiểm tra alarm sau mỗi production deploy.
 
-Trong giai đoạn 100–300 sinh viên đồng thời, mỗi API Lambda container chỉ mở một
-database connection, API Gateway có rate/burst guardrail và ảnh câu hỏi đi
+Trong giai đoạn 100–300 sinh viên đồng thời, mỗi API Lambda container mở tối đa
+3 database connection (worker OCR: 1), API Gateway có rate/burst guardrail và ảnh câu hỏi đi
 thẳng qua CloudFront. Không đặt reserved concurrency khi quota account còn thấp;
 mức 200 người đã được xác minh, còn mốc 300 cần tăng quota Lambda và test lại.
 Chi tiết nằm trong `docs/project-status.md`, `docs/load-testing.md` và
 `docs/capacity-runbook.md`.
 
-Trong development, pipeline AI dùng hàng đợi nền có giới hạn concurrency. Khi
-`AI_SUGGESTION_QUEUE_URL` được cấu hình, API chuyển sang producer SQS. Worker
-kiểm tra JSON có cấu trúc và lưu `suggested/failed`; browser không nhận khóa
-provider. Chi tiết vận hành nằm trong `docs/ai-answer-suggestions.md`.
+Pipeline AI chạy ngay trong API Lambda (local: hàng đợi nền trong process). Cơ
+chế producer SQS (`AI_SUGGESTION_QUEUE_URL`) tồn tại trong code nhưng **chưa có
+consumer** và production không đặt biến này. Browser không nhận khóa provider.
+Chi tiết nằm trong `docs/ai-answer-suggestions.md`.

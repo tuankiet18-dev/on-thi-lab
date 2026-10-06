@@ -10,6 +10,7 @@ việc đang làm thay vì đọc toàn bộ thư mục `docs`.
 | Hệ thống đang chạy đến đâu, còn rủi ro gì | [Project status](project-status.md)                     |
 | Phạm vi và quyết định nghiệp vụ           | [Product specification](../spec.md)                     |
 | Kiến trúc và các invariant                | [Architecture](architecture.md)                         |
+| Hạ tầng AWS, sơ đồ Mermaid                | [AWS architecture](aws-architecture.md)                 |
 | Tìm đúng module để sửa code               | [Source code map](code-map.md)                          |
 | Deploy, smoke test và rollback            | [Operations runbook](runbook.md)                        |
 | Cấu hình môi trường và nơi lưu credential | [Secrets and environments](secrets-and-environments.md) |
@@ -29,6 +30,7 @@ Khi nội dung xung đột, ưu tiên contract/code đang chạy cho chi tiết 
 ## Engineering
 
 - [Kiến trúc hệ thống](architecture.md)
+- [Kiến trúc hạ tầng AWS](aws-architecture.md)
 - [Source code map](code-map.md)
 - [ADR 0001 — Modular monolith](adr/0001-modular-monolith.md)
 - [ADR 0002 — Versioned exam attempts](adr/0002-versioned-exam-attempts.md)
