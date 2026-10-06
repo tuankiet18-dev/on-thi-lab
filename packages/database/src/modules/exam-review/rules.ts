@@ -7,7 +7,16 @@ import type { TrustedSuggestionAnswer } from "./model";
 
 type QuestionAiMetadata = typeof questions.$inferSelect.aiMetadata;
 
-/** Explicit community answers can be confirmed independently of option OCR. */
+/** Option count evidence (OCR) strong enough for bulk confirmation. */
+export function hasTrustedOptionCount(metadata: QuestionAiMetadata): boolean {
+  return (
+    typeof metadata?.optionCountConfidence === "number" &&
+    metadata.optionCountConfidence >= 0.82 &&
+    Boolean(metadata.optionCountSource)
+  );
+}
+
+/** Only unambiguous community consensus may be confirmed in bulk. */
 export function trustedCommunitySuggestion(
   metadata: QuestionAiMetadata,
 ): TrustedSuggestionAnswer | null {
@@ -15,7 +24,8 @@ export function trustedCommunitySuggestion(
   if (
     metadata?.status !== "suggested" ||
     metadata.provider !== "community-comments" ||
-    !metadata.validVotes ||
+    metadata.requiresReview !== false ||
+    !hasTrustedOptionCount(metadata) ||
     (metadata.proposedType !== "single" &&
       metadata.proposedType !== "multiple") ||
     typeof optionCount !== "number" ||
@@ -42,24 +52,15 @@ export function trustedCommunitySuggestion(
   ) {
     return null;
   }
-  const ranked = Object.entries(metadata.voteBreakdown ?? {}).sort(
-    ([, left], [, right]) => right - left,
-  );
-  const proposedKey = correctOptions
-    .map((option) => String.fromCharCode(97 + option))
-    .join("");
-  if (
-    ranked.length === 0 ||
-    ranked[0]?.[0] !== proposedKey ||
-    ranked[0][1] === ranked[1]?.[1]
-  ) {
-    return null;
-  }
   return { type: metadata.proposedType, optionCount, correctOptions };
 }
 
 export function answerReviewReason(metadata: QuestionAiMetadata): {
-  code: "missing_answer" | "conflicting_answers" | "invalid_answer";
+  code:
+    | "missing_answer"
+    | "conflicting_answers"
+    | "invalid_answer"
+    | "option_count_unverified";
   message: string;
 } {
   const counts = Object.values(metadata?.voteBreakdown ?? {}).sort(
@@ -75,6 +76,13 @@ export function answerReviewReason(metadata: QuestionAiMetadata): {
     return {
       code: "missing_answer",
       message: "Không có comment chứa đáp án A–F rõ ràng.",
+    };
+  }
+  if (metadata.requiresReview === false && !hasTrustedOptionCount(metadata)) {
+    return {
+      code: "option_count_unverified",
+      message:
+        "Đáp án cộng đồng rõ ràng nhưng chưa xác minh được số lựa chọn bằng OCR.",
     };
   }
   return {

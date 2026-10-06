@@ -28,6 +28,7 @@ export interface RawVote {
 }
 
 const answerLetters: readonly AnswerLetter[] = ["a", "b", "c", "d", "e", "f"];
+const minConfidence = 0.75;
 const minOptionCountConfidence = 0.82;
 
 interface OptionCountEvidence {
@@ -167,11 +168,22 @@ export function computeAnswer(
   const optionCount = detectedOptions
     ? Math.max(detectedOptions.count, answerLowerBound)
     : Math.max(4, answerLowerBound);
-  // Option detection is diagnostic. A clear answer can be accepted even when
-  // OCR is unavailable or cannot count the choices confidently.
-  const disputed = tied;
+  const optionCountConflict =
+    Boolean(detectedOptions) && answerLowerBound > detectedOptions!.count;
+  const optionCountDisputed =
+    detectedOptions?.needsReview === true || optionCountConflict;
+  const disputed = tied || confidence < minConfidence || optionCountDisputed;
   const reasons = [
-    tied ? "Các tổ hợp đáp án có số phiếu ngang nhau." : undefined,
+    tied
+      ? "Các tổ hợp đáp án có số phiếu ngang nhau."
+      : confidence < minConfidence
+        ? `Đồng thuận ${Math.round(confidence * 100)}% thấp hơn ${minConfidence * 100}%.`
+        : undefined,
+    optionCountConflict
+      ? "Đáp án cộng đồng vượt quá số lựa chọn OCR nhận diện."
+      : detectedOptions?.needsReview
+        ? "Số lựa chọn chưa được nhận diện đủ tin cậy."
+        : undefined,
   ].filter((reason): reason is string => Boolean(reason));
 
   return {

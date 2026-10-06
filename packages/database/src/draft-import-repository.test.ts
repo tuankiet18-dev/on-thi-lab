@@ -44,7 +44,7 @@ describe("isUniqueViolation", () => {
 });
 
 describe("trustedCommunitySuggestion", () => {
-  it("accepts unambiguous community answers without relying on OCR", () => {
+  it("accepts only unambiguous community answers with a trusted option count", () => {
     expect(
       trustedCommunitySuggestion({
         status: "suggested",
@@ -55,8 +55,6 @@ describe("trustedCommunitySuggestion", () => {
         optionCountSource: "ocr",
         proposedAnswers: [4, 1],
         confidence: 0.9,
-        validVotes: 1,
-        voteBreakdown: { be: 1 },
         requiresReview: false,
         updatedAt: "2026-07-29T00:00:00.000Z",
       }),
@@ -77,8 +75,6 @@ describe("trustedCommunitySuggestion", () => {
       optionCountSource: "ocr",
       proposedAnswers: [1],
       confidence: 0.9,
-      validVotes: 1,
-      voteBreakdown: { b: 1 },
       requiresReview: false,
       updatedAt: "2026-07-29T00:00:00.000Z",
     };
@@ -87,19 +83,15 @@ describe("trustedCommunitySuggestion", () => {
     ).toBeNull();
     expect(
       trustedCommunitySuggestion({ ...base, requiresReview: true }),
-    ).toEqual({
-      type: "single",
-      optionCount: 4,
-      correctOptions: [1],
-    });
+    ).toBeNull();
     expect(
-      trustedCommunitySuggestion({ ...base, optionCountConfidence: undefined }),
-    ).not.toBeNull();
+      trustedCommunitySuggestion({
+        ...base,
+        optionCountConfidence: undefined,
+      }),
+    ).toBeNull();
     expect(
       trustedCommunitySuggestion({ ...base, optionCountConfidence: 0.6 }),
-    ).not.toBeNull();
-    expect(
-      trustedCommunitySuggestion({ ...base, voteBreakdown: { a: 1, b: 1 } }),
     ).toBeNull();
     expect(
       trustedCommunitySuggestion({ ...base, proposedAnswers: [4] }),

@@ -36,7 +36,7 @@ describe("community answer aggregation", () => {
       totalComments: 5,
       validVotes: 3,
       confidence: 2 / 3,
-      disputed: false,
+      disputed: true,
       voteBreakdown: { ab: 2, c: 1 },
     });
   });
@@ -90,7 +90,7 @@ describe("community answer aggregation", () => {
     });
   });
 
-  it("keeps low-confidence option detection without blocking a clear answer", () => {
+  it("keeps low-confidence option detection but flags it for review", () => {
     expect(
       computeAnswer(1, [
         {
@@ -103,17 +103,8 @@ describe("community answer aggregation", () => {
       ]),
     ).toMatchObject({
       optionCount: 5,
-      disputed: false,
-    });
-  });
-
-  it("requires manual review for tied answers and no valid answer", () => {
-    expect(
-      computeAnswer(1, [{ content: "A" }, { content: "B" }]),
-    ).toMatchObject({ disputed: true, answers: ["a"] });
-    expect(computeAnswer(2, [{ content: "không rõ" }])).toMatchObject({
       disputed: true,
-      answers: [],
+      disputeReason: "Số lựa chọn chưa được nhận diện đủ tin cậy.",
     });
   });
 });

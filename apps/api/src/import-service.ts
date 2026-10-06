@@ -173,10 +173,15 @@ export function draftQuestionsFromImages(
     const suggestion = suggestions.get(image.order);
     const proposedAnswers =
       suggestion?.answers.map((answer) => "abcdef".indexOf(answer)) ?? [];
+    const hasTrustedOptionCount =
+      typeof suggestion?.optionCountConfidence === "number" &&
+      suggestion.optionCountConfidence >= 0.82 &&
+      Boolean(suggestion.optionCountSource);
     const canAutoSave =
       suggestion !== undefined &&
       suggestion.validVotes > 0 &&
       suggestion.disputed === false &&
+      hasTrustedOptionCount &&
       proposedAnswers.length > 0;
     const aiMetadata = suggestion
       ? suggestion.validVotes > 0

@@ -163,7 +163,12 @@ export const reviewQuestionSchema = z.object({
   canBulkConfirm: z.boolean().optional(),
   answerReviewReason: z
     .object({
-      code: z.enum(["missing_answer", "conflicting_answers", "invalid_answer"]),
+      code: z.enum([
+        "missing_answer",
+        "conflicting_answers",
+        "invalid_answer",
+        "option_count_unverified",
+      ]),
       message: z.string(),
     })
     .nullable()

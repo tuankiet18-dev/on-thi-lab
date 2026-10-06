@@ -31,6 +31,7 @@ import { DraftImportRepositoryError } from "./modules/exam-review/model";
 import {
   answerReviewReason,
   buildExamCode,
+  hasTrustedOptionCount,
   isUniqueViolation,
   toAiSuggestion,
   trustedCommunitySuggestion,
@@ -88,18 +89,21 @@ export class PostgresDraftImportRepository
           imageKey: questions.imageKey,
           imageHash: questions.imageHash,
           optionCountCheck: questions.optionCountCheck,
+          aiMetadata: questions.aiMetadata,
         })
         .from(questions)
         .where(eq(questions.revisionId, revisionId))
         .for("update", { of: questions });
       const jobs = rows.filter(
         (row) =>
-          !retryFailed ||
-          row.optionCountCheck?.status === "failed" ||
-          (row.optionCountCheck?.status === "pending" &&
-            typeof row.optionCountCheck.queuedAt === "string" &&
-            Date.now() - Date.parse(row.optionCountCheck.queuedAt) >
-              15 * 60_000),
+          // The crawler-side packager may already have counted the choices.
+          (retryFailed || !hasTrustedOptionCount(row.aiMetadata)) &&
+          (!retryFailed ||
+            row.optionCountCheck?.status === "failed" ||
+            (row.optionCountCheck?.status === "pending" &&
+              typeof row.optionCountCheck.queuedAt === "string" &&
+              Date.now() - Date.parse(row.optionCountCheck.queuedAt) >
+                15 * 60_000)),
       );
       if (jobs.length === 0) return [];
       const previousQueueTime = Math.max(
