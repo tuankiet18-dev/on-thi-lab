@@ -32,6 +32,28 @@ type OcrQuestionRow = {
   ocrMetadata: OcrMetadata | null;
 };
 
+/**
+ * A worker that times out (Lambda limit 120 s) never reaches its error handler,
+ * so the question stays `processing`. SQS redelivers the message after the
+ * 180 s visibility timeout; the claim must succeed by then, but must not steal
+ * a job a live worker could still be running. Keep this above the worker
+ * timeout and below the queue visibility timeout.
+ */
+export const OCR_STALE_PROCESSING_MS = 150_000;
+
+/** Whether a question's OCR state may be claimed by a worker right now. */
+export function isOcrClaimable(
+  metadata: Pick<OcrMetadata, "status" | "startedAt"> | null | undefined,
+  now: Date = new Date(),
+  staleAfterMs: number = OCR_STALE_PROCESSING_MS,
+): boolean {
+  if (metadata?.status === "pending") return true;
+  if (metadata?.status !== "processing") return false;
+  const startedAt = metadata.startedAt ? Date.parse(metadata.startedAt) : NaN;
+  // A missing or unreadable start time cannot be proven live; treat as stale.
+  return Number.isNaN(startedAt) || now.getTime() - startedAt >= staleAfterMs;
+}
+
 function optionLabels(count: number): string[] {
   return Array.from({ length: count }, (_, index) =>
     String.fromCharCode(65 + index),
@@ -148,17 +170,22 @@ export class PostgresOcrRepository {
     ) {
       return false;
     }
-    if (question.ocrMetadata?.status !== "pending") return false;
+    const now = new Date();
+    if (!isOcrClaimable(question.ocrMetadata, now)) return false;
+    const staleBefore = new Date(
+      now.getTime() - OCR_STALE_PROCESSING_MS,
+    ).toISOString();
 
     // Claim atomically. Standard SQS is at-least-once delivery, so duplicate
-    // messages must never result in duplicate Textract calls.
+    // messages must never result in duplicate Textract calls. The WHERE clause
+    // repeats the claimable check so two concurrent receivers cannot both win.
     const [claimedQuestion] = await this.db
       .update(questions)
       .set({
         ocrMetadata: {
           ...question.ocrMetadata,
           status: "processing",
-          startedAt: new Date().toISOString(),
+          startedAt: now.toISOString(),
           attemptCount: (question.ocrMetadata?.attemptCount ?? 0) + 1,
           error: undefined,
         },
@@ -167,7 +194,17 @@ export class PostgresOcrRepository {
         and(
           eq(questions.id, questionId),
           eq(questions.revisionId, revisionId),
-          sql`(${questions.ocrMetadata}->>'status') = 'pending'`,
+          sql`(
+            (${questions.ocrMetadata}->>'status') = 'pending'
+            OR (
+              (${questions.ocrMetadata}->>'status') = 'processing'
+              AND (
+                (${questions.ocrMetadata}->>'startedAt') IS NULL
+                OR (${questions.ocrMetadata}->>'startedAt')::timestamptz
+                  <= ${staleBefore}::timestamptz
+              )
+            )
+          )`,
         ),
       )
       .returning({ id: questions.id });
