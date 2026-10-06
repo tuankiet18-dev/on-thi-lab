@@ -201,28 +201,68 @@ export class PostgresDraftImportRepository
           );
         }
 
-        const [exam] = await transaction
-          .insert(exams)
-          .values({
-            code: examCode,
-            courseId: course.id,
-            campusId: campus.id,
-            semester: input.semester,
-            examType: input.examType,
-            isRetake: input.isRetake,
-            durationMinutes: input.durationMinutes,
-            shuffleQuestions: true,
-            status: "draft",
-            createdBy: input.createdBy,
-          })
-          .returning({ id: exams.id });
-        if (!exam) throw new Error("Không thể tạo đề thi nháp.");
+        // Deleting a published exam only cancels it (students may already have
+        // attempts on its revisions), so its unique code stays taken. Importing
+        // the same exam again revives it with a new revision instead of
+        // failing; earlier revisions and their attempts are left untouched.
+        const [existing] = await transaction
+          .select({ id: exams.id, status: exams.status })
+          .from(exams)
+          .where(eq(exams.code, examCode))
+          .limit(1)
+          .for("update");
+        if (existing && existing.status !== "cancelled") {
+          throw new DraftImportRepositoryError(
+            "EXAM_ALREADY_EXISTS",
+            `Đề ${examCode} đã tồn tại.`,
+          );
+        }
+
+        let examId: string;
+        let revisionNumber = 1;
+        if (existing) {
+          examId = existing.id;
+          const [latest] = await transaction
+            .select({ revision: sql<number>`max(${examRevisions.revision})` })
+            .from(examRevisions)
+            .where(eq(examRevisions.examId, examId));
+          revisionNumber = (latest?.revision ?? 0) + 1;
+          await transaction
+            .update(exams)
+            .set({
+              courseId: course.id,
+              campusId: campus.id,
+              durationMinutes: input.durationMinutes,
+              status: "draft",
+              publishedAt: null,
+              createdBy: input.createdBy,
+            })
+            .where(eq(exams.id, examId));
+        } else {
+          const [exam] = await transaction
+            .insert(exams)
+            .values({
+              code: examCode,
+              courseId: course.id,
+              campusId: campus.id,
+              semester: input.semester,
+              examType: input.examType,
+              isRetake: input.isRetake,
+              durationMinutes: input.durationMinutes,
+              shuffleQuestions: true,
+              status: "draft",
+              createdBy: input.createdBy,
+            })
+            .returning({ id: exams.id });
+          if (!exam) throw new Error("Không thể tạo đề thi nháp.");
+          examId = exam.id;
+        }
 
         const [revision] = await transaction
           .insert(examRevisions)
           .values({
-            examId: exam.id,
-            revision: 1,
+            examId,
+            revision: revisionNumber,
             // OCR imports default to hybrid: clean questions render as text,
             // while formulas, charts, and low-confidence OCR safely retain
             // their original image without blocking the entire revision.
@@ -249,7 +289,7 @@ export class PostgresDraftImportRepository
         );
 
         return {
-          examId: exam.id,
+          examId,
           revisionId: revision.id,
           examCode,
           questionCount: input.questions.length,
