@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  AI_SUGGESTION_STALE_MS,
+  PostgresDraftImportRepository,
   buildExamCode,
+  isAiSuggestionInFlight,
   isUniqueViolation,
   trustedCommunitySuggestion,
 } from "./draft-import-repository";
+import type { OnThiLabDatabase } from "./index";
 
 describe("buildExamCode", () => {
   it("builds the agreed FE identifiers", () => {
@@ -92,5 +96,76 @@ describe("trustedCommunitySuggestion", () => {
     expect(
       trustedCommunitySuggestion({ ...base, proposedAnswers: [4] }),
     ).toBeNull();
+  });
+});
+
+describe("isAiSuggestionInFlight", () => {
+  const now = new Date("2026-10-06T12:00:00.000Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+
+  it("blocks a fresh queued or processing request", () => {
+    for (const status of ["queued", "processing"]) {
+      expect(
+        isAiSuggestionInFlight({ status, updatedAt: ago(1_000) }, now),
+      ).toBe(true);
+    }
+  });
+
+  it("allows a retry once the request is older than the Lambda lifetime", () => {
+    expect(
+      isAiSuggestionInFlight(
+        { status: "processing", updatedAt: ago(AI_SUGGESTION_STALE_MS) },
+        now,
+      ),
+    ).toBe(false);
+    expect(AI_SUGGESTION_STALE_MS).toBeGreaterThan(29_000);
+  });
+
+  it("does not treat finished or missing state as in flight", () => {
+    for (const status of ["suggested", "confirmed", "failed"]) {
+      expect(
+        isAiSuggestionInFlight({ status, updatedAt: ago(1_000) }, now),
+      ).toBe(false);
+    }
+    expect(isAiSuggestionInFlight(null, now)).toBe(false);
+    expect(isAiSuggestionInFlight(undefined, now)).toBe(false);
+  });
+
+  it("treats an unreadable timestamp as abandoned", () => {
+    expect(isAiSuggestionInFlight({ status: "queued" }, now)).toBe(false);
+  });
+});
+
+describe("saveSuggestion", () => {
+  it("stores the proposal without changing the question's options or type", async () => {
+    let updated: Record<string, unknown> | undefined;
+    const db = {
+      update: () => ({
+        set: (values: Record<string, unknown>) => {
+          updated = values;
+          return { where: async () => undefined };
+        },
+      }),
+    } as unknown as OnThiLabDatabase;
+
+    await new PostgresDraftImportRepository(db).saveSuggestion("question-id", {
+      proposedType: "multiple",
+      optionCount: 5,
+      proposedAnswers: [1, 3],
+      confidence: 0.9,
+      provider: "groq",
+      model: "qwen",
+    });
+
+    expect(updated).toBeDefined();
+    expect(updated).not.toHaveProperty("options");
+    expect(updated).not.toHaveProperty("type");
+    expect(updated).not.toHaveProperty("correctOptions");
+    expect(updated?.aiMetadata).toMatchObject({
+      status: "suggested",
+      proposedType: "multiple",
+      optionCount: 5,
+      proposedAnswers: [1, 3],
+    });
   });
 });
