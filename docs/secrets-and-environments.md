@@ -42,6 +42,30 @@ Authorized redirect URI:
 https://onthilab-dev-563702590722.auth.ap-southeast-1.amazoncognito.com/oauth2/idpresponse
 ```
 
+### Custom domain cho Cognito (tùy chọn)
+
+Mặc định Google hiện "Tiếp tục tới `<prefix>.auth.<region>.amazoncognito.com`".
+Để hiện domain thương hiệu (ví dụ `auth.onthilab.id.vn`):
+
+1. Tạo ACM certificate cho `auth.onthilab.id.vn` ở **us-east-1** (bắt buộc,
+   Cognito phục vụ qua CloudFront) và validate bằng DNS.
+2. Domain gốc `onthilab.id.vn` phải có bản ghi A resolve được.
+3. Deploy với context:
+
+   ```bash
+   pnpm --filter @onthilab/infra exec cdk deploy OnThiLabAuth-prod \
+     -c stage=prod \
+     -c cognitoCustomDomainName=auth.onthilab.id.vn \
+     -c cognitoCustomDomainCertificateArn=arn:aws:acm:us-east-1:<account>:certificate/<id>
+   ```
+
+4. Tạo CNAME `auth.onthilab.id.vn` trỏ tới output `CustomDomainCloudFrontTarget`.
+5. Thêm output `GoogleRedirectUri` vào Google OAuth client (giữ
+   `LegacyGoogleRedirectUri` đến khi chuyển xong), rồi đổi `VITE_COGNITO_DOMAIN`
+   sang output `CognitoDomain` và deploy lại web.
+
+Domain prefix cũ vẫn được giữ song song nên việc chuyển không gây gián đoạn.
+
 Google provider đã được cấu hình riêng cho development, staging và production.
 Khi thay callback/logout URL phải kiểm tra cả Cognito app client, Google OAuth
 client và biến public trong đúng `.env.<mode>`; không dùng URL localhost trong

@@ -6,6 +6,7 @@ import {
   Stack,
   type StackProps,
 } from "aws-cdk-lib";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import type { Construct } from "constructs";
@@ -13,6 +14,14 @@ import type { Construct } from "constructs";
 interface OnThiLabAuthStackProps extends StackProps {
   stage: string;
   domainPrefix: string;
+  /**
+   * Optional branded domain such as `auth.onthilab.id.vn`. Cognito serves it
+   * through CloudFront, so the certificate must live in us-east-1.
+   */
+  customDomain?: {
+    domainName: string;
+    certificateArn: string;
+  };
   callbackUrls: string[];
   logoutUrls: string[];
   googleClientIdParameterName: string;
@@ -55,12 +64,29 @@ export class OnThiLabAuthStack extends Stack {
       removalPolicy,
     });
 
-    const domain = userPool.addDomain("Domain", {
+    userPool.addDomain("Domain", {
       cognitoDomain: {
         domainPrefix: props.domainPrefix,
       },
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
     });
+
+    // A user pool can host one prefix domain and one custom domain at once.
+    // Keep the prefix domain alive so existing clients and the Google redirect
+    // URI keep working while traffic moves to the branded domain.
+    const customDomain = props.customDomain
+      ? userPool.addDomain("CustomDomain", {
+          customDomain: {
+            domainName: props.customDomain.domainName,
+            certificate: acm.Certificate.fromCertificateArn(
+              this,
+              "CustomDomainCertificate",
+              props.customDomain.certificateArn,
+            ),
+          },
+          managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
+        })
+      : undefined;
 
     // Cognito's CloudFormation resource does not support ssm-secure dynamic
     // references. These parameters are therefore standard String parameters;
@@ -130,7 +156,10 @@ export class OnThiLabAuthStack extends Stack {
       useCognitoProvidedValues: true,
     });
 
-    const domainBaseUrl = `https://${props.domainPrefix}.auth.${this.region}.amazoncognito.com`;
+    const prefixDomainBaseUrl = `https://${props.domainPrefix}.auth.${this.region}.amazoncognito.com`;
+    const domainBaseUrl = props.customDomain
+      ? `https://${props.customDomain.domainName}`
+      : prefixDomainBaseUrl;
     this.userPool = userPool;
     this.userPoolClient = userPoolClient;
     this.cognitoDomainBaseUrl = domainBaseUrl;
@@ -157,6 +186,16 @@ export class OnThiLabAuthStack extends Stack {
       value: `${domainBaseUrl}/oauth2/idpresponse`,
       description: "Exact redirect URI for the Google OAuth web client",
     });
+    if (customDomain) {
+      new CfnOutput(this, "CustomDomainCloudFrontTarget", {
+        value: customDomain.cloudFrontEndpoint,
+        description: "CNAME target for the Cognito custom domain DNS record",
+      });
+      new CfnOutput(this, "LegacyGoogleRedirectUri", {
+        value: `${prefixDomainBaseUrl}/oauth2/idpresponse`,
+        description: "Keep in the Google OAuth client until migration finishes",
+      });
+    }
     new CfnOutput(this, "ManagedLoginUrl", {
       value: managedLoginUrl,
       description: "Development managed login test URL",

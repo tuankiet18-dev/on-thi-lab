@@ -11,6 +11,12 @@ const region = process.env.CDK_DEFAULT_REGION ?? "ap-southeast-1";
 const domainPrefix =
   app.node.tryGetContext("cognitoDomainPrefix") ??
   `onthilab-${stage}-${account ?? "local"}`;
+const cognitoCustomDomainName = app.node.tryGetContext(
+  "cognitoCustomDomainName",
+);
+const cognitoCustomDomainCertificateArn = app.node.tryGetContext(
+  "cognitoCustomDomainCertificateArn",
+);
 const databaseParameterName = app.node.tryGetContext("databaseParameterName");
 const webDomainName = app.node.tryGetContext("webDomainName");
 const webCertificateArn = app.node.tryGetContext("webCertificateArn");
@@ -39,6 +45,24 @@ if (
     "Production requires databaseParameterName, webDomainName and webCertificateArn CDK context values.",
   );
 }
+if (
+  Boolean(cognitoCustomDomainName) !==
+  Boolean(cognitoCustomDomainCertificateArn)
+) {
+  throw new Error(
+    "cognitoCustomDomainName and cognitoCustomDomainCertificateArn must be set together.",
+  );
+}
+if (
+  cognitoCustomDomainCertificateArn &&
+  !String(cognitoCustomDomainCertificateArn).startsWith(
+    "arn:aws:acm:us-east-1:",
+  )
+) {
+  throw new Error(
+    "cognitoCustomDomainCertificateArn must be an ACM certificate in us-east-1.",
+  );
+}
 if (!webBaseUrl) {
   throw new Error("Non-development stages require webBaseUrl CDK context.");
 }
@@ -55,6 +79,12 @@ const authStack = new OnThiLabAuthStack(app, `OnThiLabAuth-${stage}`, {
   env: environment,
   stage,
   domainPrefix,
+  customDomain: cognitoCustomDomainName
+    ? {
+        domainName: cognitoCustomDomainName,
+        certificateArn: cognitoCustomDomainCertificateArn,
+      }
+    : undefined,
   callbackUrls,
   logoutUrls,
   googleClientIdParameterName: `/onthilab/${stage}/google/client-id`,
