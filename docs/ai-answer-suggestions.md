@@ -17,12 +17,12 @@ Admin yêu cầu gợi ý cho câu đang mở
   → browser chỉ gửi examId và questionId
   → API xác nhận câu thuộc phiên bản hiện tại và chưa có đáp án
   → đánh dấu đúng một câu là queued trong PostgreSQL
-  → local: hàng đợi nền, số ảnh đồng thời theo AI_LOCAL_CONCURRENCY
-     AWS: một message SQS cho câu đã chọn
-  → worker đọc đúng ảnh của câu đó ở server-side
+  → xử lý ngay trong API (local và production hiện tại):
+     đọc đúng ảnh của câu đó từ storage ở server-side
+     (nhánh SQS chỉ dùng khi đặt AI_SUGGESTION_QUEUE_URL, hiện chưa có consumer)
   → provider Vision trả JSON có cấu trúc
-  → worker tự nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
-  → worker kiểm tra loại câu, số lựa chọn, chỉ số và confidence
+  → hệ thống nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
+  → kiểm tra loại câu, số lựa chọn, chỉ số và confidence
   → cập nhật số lựa chọn của câu nếu AI phát hiện cấu trúc khác
   → lưu suggested hoặc failed vào ai_metadata
   → UI polling trong khi còn queued/processing
@@ -51,14 +51,23 @@ phù hợp để duyệt đề SWD392 hiện tại.
 
 ## Cấu hình AWS
 
-CDK xuất `AiSuggestionQueueUrl`. Đặt output này vào
-`AI_SUGGESTION_QUEUE_URL`; API sẽ gửi message theo batch SQS thay vì tự gọi
-provider. Queue đã có DLQ, mã hóa do SQS quản lý, visibility timeout 5 phút và
-retry tối đa 3 lần.
+Production hiện chạy AI **trong API Lambda**: stack đặt `AI_PROVIDER=groq`,
+`AI_MODEL`, `AI_BASE_URL` và `FEATURE_AI_IMPORT_ENABLED=true`, key đọc từ SSM
+`/onthilab/prod/ai/api-key` lúc cold start. Không đặt `AI_SUGGESTION_QUEUE_URL`.
+Ở production, timeout provider là 20 giây và không retry; thao tác một câu chờ
+kết quả rồi mới trả `202`, còn gợi ý cả đề (`queueExam`) không được `await` nên
+có thể bị dừng khi Lambda bị đóng băng.
 
-Trước khi bật trên production cần deploy consumer worker có quyền đọc bucket
-ảnh, đọc parameter AI và ghi Supabase PostgreSQL. Không bật flag nếu consumer chưa hoạt động,
-vì message sẽ chỉ nằm trong queue.
+CDK có `ImportQueue` (DLQ, visibility 5 phút, retry 3 lần) và xuất
+`AiSuggestionQueueUrl`, nhưng **chưa có consumer nào**. Chỉ đặt
+`AI_SUGGESTION_QUEUE_URL` sau khi triển khai worker có quyền đọc bucket ảnh, đọc
+parameter AI và ghi Supabase PostgreSQL; nếu không, message sẽ chỉ nằm trong
+queue.
+
+Gợi ý chỉ được ghi vào `ai_metadata` (kể cả `optionCount` và `proposedType`).
+`type`, `options` và `correct_options` của câu chỉ đổi khi người duyệt lưu và
+xác nhận. Một yêu cầu `queued/processing` quá 120 giây (ví dụ Lambda bị timeout)
+được coi là bị bỏ dở và có thể yêu cầu lại.
 
 ## Vận hành và chi phí
 
