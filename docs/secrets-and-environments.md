@@ -50,7 +50,10 @@ Mặc định Google hiện "Tiếp tục tới `<prefix>.auth.<region>.amazonco
 1. Tạo ACM certificate cho `auth.onthilab.id.vn` ở **us-east-1** (bắt buộc,
    Cognito phục vụ qua CloudFront) và validate bằng DNS.
 2. Domain gốc `onthilab.id.vn` phải có bản ghi A resolve được.
-3. Deploy với context:
+3. Production đã được cấu hình sẵn trong `scripts/deploy.sh`
+   (`auth.onthilab.id.vn`, dùng chung certificate wildcard của web), nên
+   `pnpm deploy:prod` luôn giữ custom domain. Khi deploy riêng stack auth phải
+   truyền đủ context:
 
    ```bash
    pnpm --filter @onthilab/infra exec cdk deploy OnThiLabAuth-prod \
@@ -59,7 +62,8 @@ Mặc định Google hiện "Tiếp tục tới `<prefix>.auth.<region>.amazonco
      -c cognitoCustomDomainCertificateArn=arn:aws:acm:us-east-1:<account>:certificate/<id>
    ```
 
-4. Tạo CNAME `auth.onthilab.id.vn` trỏ tới output `CustomDomainCloudFrontTarget`.
+4. Tạo bản ghi alias A (Route 53, hosted zone CloudFront `Z2FDTNDATAQYW2`) hoặc
+   CNAME `auth.onthilab.id.vn` trỏ tới output `CustomDomainCloudFrontTarget`.
 5. Thêm output `GoogleRedirectUri` vào Google OAuth client (giữ
    `LegacyGoogleRedirectUri` đến khi chuyển xong), rồi đổi `VITE_COGNITO_DOMAIN`
    sang output `CognitoDomain` và deploy lại web.
