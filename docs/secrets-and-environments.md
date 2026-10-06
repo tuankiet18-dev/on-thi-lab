@@ -83,8 +83,7 @@ Kiểm tra trước khi bật flag:
 
 - `FEATURE_GOOGLE_AUTH_ENABLED=true` yêu cầu Cognito IDs.
 - `FEATURE_AI_IMPORT_ENABLED=true` yêu cầu `AI_PROVIDER`, `AI_MODEL`,
-  `AI_API_KEY` và tùy chọn `AI_BASE_URL`. `AI_SUGGESTION_QUEUE_URL` chuyển API
-  từ hàng đợi local sang SQS; chỉ bật khi consumer AWS đã được deploy.
+  `AI_API_KEY` và tùy chọn `AI_BASE_URL`.
 - `FEATURE_MONETIZATION_ENABLED=true` yêu cầu đủ ba payOS key và webhook HTTPS.
 
 ## AWS staging/production

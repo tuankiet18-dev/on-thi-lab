@@ -46,13 +46,9 @@ flowchart TB
             Textract["Amazon Textract<br/>DetectDocumentText"]
         end
 
-        subgraph UNUSED["Đã tạo nhưng chưa có consumer"]
-            ImpQ["SQS ImportQueue<br/>visibility 300 s"]
-            ImpDlq["SQS ImportDeadLetterQueue"]
-        end
 
         SSM["SSM Parameter Store<br/>/onthilab/prod/database (SecureString)<br/>/onthilab/prod/ai/api-key (SecureString)"]
-        CW["CloudWatch - 11 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR + Import queue age và DLQ<br/>(chưa có action/SNS)"]
+        CW["CloudWatch - 9 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR queue age và DLQ<br/>(chưa có action/SNS)"]
     end
 
     SSMG["SSM Parameter Store<br/>/onthilab/prod/google/client-id<br/>/onthilab/prod/google/client-secret<br/>(String thường)"]
@@ -100,7 +96,6 @@ flowchart TB
     SSM -. "cold start (chỉ DB)" .-> WorkerFn
 
 
-    ImpQ -. "redrive sau 3 lần" .-> ImpDlq
 ```
 
 ## Thành phần và cấu hình
@@ -114,10 +109,10 @@ flowchart TB
 | API Gateway   | REST API, stage `prod`, throttle 80/160, tracing X-Ray, access log, binary media cho ảnh.                                                                                                    |
 | API Lambda    | Node.js 22, **x86_64**, 1024 MB, timeout 29 giây, `DATABASE_MAX_CONNECTIONS=3`. Không đặt reserved concurrency.                                                                              |
 | Worker Lambda | Node.js 22, **arm64**, 512 MB, timeout 120 giây, 1 DB connection, bundle `sharp` cho linux/arm64. Quyền: SSM (DB), S3, SQS (nhận/xóa), `textract:DetectDocumentText`.                        |
-| SQS           | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`). `ImportQueue` và `ImportDeadLetterQueue` tồn tại nhưng không có consumer.                                       |
+| SQS           | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`).                                                                                                                 |
 | Secrets       | `DATABASE_URL` và AI key: SSM SecureString (`alias/aws/ssm`), đọc khi cold start. Google client ID/secret: SSM **String thường** do giới hạn của CloudFormation Cognito.                     |
 | Database      | Supabase PostgreSQL (Singapore) qua transaction pooler, ngoài AWS, không có VPC/RDS.                                                                                                         |
-| Quan sát      | 11 CloudWatch alarm prod (4 queue Import/OCR + 2 worker + 5 API/APIGW) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.**                                          |
+| Quan sát      | 9 CloudWatch alarm prod (2 queue OCR + 2 worker + 3 API Lambda + 2 API Gateway) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.**                                 |
 
 ## Luồng xử lý
 
@@ -177,22 +172,18 @@ Textract chỉ dùng `LINE.Text` và `Confidence`; toạ độ không được d
    thao tác lưu của người duyệt mới đổi các trường này và tạo đáp án chính thức.
    Yêu cầu `queued/processing` quá 120 giây được coi là bị bỏ dở và có thể gọi
    lại.
-5. Gợi ý cho cả đề (`queueExam`) cũng chạy trong API Lambda nhưng không được
-   `await`, nên Lambda có thể bị đóng băng trước khi xử lý xong; ưu tiên thao
-   tác từng câu.
 
 ## Khác biệt giữa repo và hạ tầng đang chạy
 
-- **Cognito custom domain:** prod đang dùng `auth.onthilab.id.vn` (chứng chỉ
-  ACM ở `us-east-1`, record alias trong Route 53). `infra/lib/auth-stack.ts`
-  hiện chỉ có domain prefix; cần đưa cấu hình này vào CDK.
+- **Cognito custom domain** (`auth.onthilab.id.vn`) có trong repo nhưng chỉ
+  được bật khi truyền `-c cognitoCustomDomainName` và
+  `-c cognitoCustomDomainCertificateArn`; `scripts/deploy.sh` luôn truyền cho
+  prod. Chạy `cdk deploy`/`cdk diff` thủ công thiếu hai context này sẽ xoá
+  custom domain.
 - **Log group thừa:** còn log group `OptionCountWorkerLogGroup` từ một worker
   đã gỡ. Log group `/aws/lambda/<function>` của hai Lambda không có retention.
 - **Stack dev lệch repo:** queue OCR của `dev` là FIFO, khác code hiện tại
   (standard queue). Không dùng dev làm nguồn tham chiếu.
-- **ImportQueue / AiSuggestionQueueUrl:** CDK vẫn xuất `AiSuggestionQueueUrl`
-  trỏ vào `ImportQueue`, nhưng không có consumer; không đặt
-  `AI_SUGGESTION_QUEUE_URL` cho tới khi có worker.
 
 ## Rủi ro đã biết
 

@@ -43,8 +43,7 @@ tất.
   connection cho mỗi API container và 1 cho worker.
 - Ảnh câu hỏi đi qua CloudFront riêng, không đi qua API Lambda.
 - SQS `OcrQueue` + Lambda worker (arm64) xử lý OCR bằng Textract, có DLQ và
-  concurrency tối đa 3. Giải nén ZIP và gợi ý AI Vision chạy trong API Lambda;
-  `ImportQueue` chưa có consumer.
+  concurrency tối đa 3. Giải nén ZIP và gợi ý AI Vision chạy trong API Lambda.
 - Cognito quản lý đăng nhập; cấu hình server-side đọc từ SSM Parameter Store.
 - CloudWatch lưu access/application logs và theo dõi error, throttle,
   concurrency, latency.

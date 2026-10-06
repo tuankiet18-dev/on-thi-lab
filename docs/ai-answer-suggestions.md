@@ -17,9 +17,8 @@ Admin yêu cầu gợi ý cho câu đang mở
   → browser chỉ gửi examId và questionId
   → API xác nhận câu thuộc phiên bản hiện tại và chưa có đáp án
   → đánh dấu đúng một câu là queued trong PostgreSQL
-  → xử lý ngay trong API (local và production hiện tại):
+  → xử lý ngay trong API (local và production):
      đọc đúng ảnh của câu đó từ storage ở server-side
-     (nhánh SQS chỉ dùng khi đặt AI_SUGGESTION_QUEUE_URL, hiện chưa có consumer)
   → provider Vision trả JSON có cấu trúc
   → hệ thống nhận diện lại loại câu, số lựa chọn và đáp án từ ảnh
   → kiểm tra loại câu, số lựa chọn, chỉ số và confidence
@@ -45,24 +44,15 @@ AI_API_KEY=<server-only-key>
 AI_LOCAL_CONCURRENCY=1
 ```
 
-Không đặt tên biến khóa AI với tiền tố `VITE_`. Khi
-`AI_SUGGESTION_QUEUE_URL` để trống, API chạy hàng đợi nền local. Đây là chế độ
-phù hợp để duyệt đề SWD392 hiện tại.
+Không đặt tên biến khóa AI với tiền tố `VITE_`.
 
 ## Cấu hình AWS
 
-Production hiện chạy AI **trong API Lambda**: stack đặt `AI_PROVIDER=groq`,
+Production chạy AI **trong API Lambda**: stack đặt `AI_PROVIDER=groq`,
 `AI_MODEL`, `AI_BASE_URL` và `FEATURE_AI_IMPORT_ENABLED=true`, key đọc từ SSM
-`/onthilab/prod/ai/api-key` lúc cold start. Không đặt `AI_SUGGESTION_QUEUE_URL`.
+`/onthilab/prod/ai/api-key` lúc cold start. Không có hàng đợi hay worker AI.
 Ở production, timeout provider là 20 giây và không retry; thao tác một câu chờ
-kết quả rồi mới trả `202`, còn gợi ý cả đề (`queueExam`) không được `await` nên
-có thể bị dừng khi Lambda bị đóng băng.
-
-CDK có `ImportQueue` (DLQ, visibility 5 phút, retry 3 lần) và xuất
-`AiSuggestionQueueUrl`, nhưng **chưa có consumer nào**. Chỉ đặt
-`AI_SUGGESTION_QUEUE_URL` sau khi triển khai worker có quyền đọc bucket ảnh, đọc
-parameter AI và ghi Supabase PostgreSQL; nếu không, message sẽ chỉ nằm trong
-queue.
+kết quả rồi mới trả `202` và bị giới hạn bởi timeout 29 giây của Lambda.
 
 Gợi ý chỉ được ghi vào `ai_metadata` (kể cả `optionCount` và `proposedType`).
 `type`, `options` và `correct_options` của câu chỉ đổi khi người duyệt lưu và

@@ -87,7 +87,7 @@ xóa. Các control vận hành bắt buộc gồm:
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
 - đặt Supabase ở region gần Singapore, dùng pooler connection string cho Lambda;
 - sao lưu PostgreSQL hằng ngày sang S3 và diễn tập restore;
-- thêm WAF, nối CloudWatch alarm với kênh thông báo (hiện có 11 alarm nhưng chưa có SNS);
+- thêm WAF, nối CloudWatch alarm với kênh thông báo (hiện có 9 alarm nhưng chưa có SNS);
 - giữ domain, ACM certificate và parameter tách biệt theo environment;
 - chạy smoke test và kiểm tra alarm sau mỗi production deploy.
 
@@ -98,7 +98,6 @@ mức 200 người đã được xác minh, còn mốc 300 cần tăng quota Lam
 Chi tiết nằm trong `docs/project-status.md`, `docs/load-testing.md` và
 `docs/capacity-runbook.md`.
 
-Pipeline AI chạy ngay trong API Lambda (local: hàng đợi nền trong process). Cơ
-chế producer SQS (`AI_SUGGESTION_QUEUE_URL`) tồn tại trong code nhưng **chưa có
-consumer** và production không đặt biến này. Browser không nhận khóa provider.
-Chi tiết nằm trong `docs/ai-answer-suggestions.md`.
+Pipeline AI chạy ngay trong API Lambda (local: trong process API); không có
+hàng đợi hay worker AI riêng. Browser không nhận khóa provider. Chi tiết nằm
+trong `docs/ai-answer-suggestions.md`.
