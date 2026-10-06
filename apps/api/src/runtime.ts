@@ -16,10 +16,7 @@ import {
 import { OpenAiCompatibleVisionProvider } from "@onthilab/importer";
 import { resolve } from "node:path";
 import { createApp } from "./app";
-import {
-  LocalAsyncAnswerSuggestionService,
-  SqsAnswerSuggestionService,
-} from "./answer-suggestion-service";
+import { LocalAsyncAnswerSuggestionService } from "./answer-suggestion-service";
 import { CognitoIdTokenVerifier } from "./auth";
 import { parseEnv, parseCorsOrigins } from "./env";
 import { LocalExamImportService, S3ExamImportService } from "./import-service";
@@ -79,35 +76,32 @@ export function createRuntimeApp(
   const providerName =
     env.AI_PROVIDER !== "disabled" ? env.AI_PROVIDER : undefined;
 
+  // The vision provider is called from this process (the API Lambda in AWS);
+  // there is no queue-backed suggestion worker.
   const suggestions =
-    env.FEATURE_AI_IMPORT_ENABLED && providerName && env.AI_SUGGESTION_QUEUE_URL
-      ? new SqsAnswerSuggestionService(
+    env.FEATURE_AI_IMPORT_ENABLED &&
+    providerName &&
+    env.AI_API_KEY &&
+    env.AI_MODEL
+      ? new LocalAsyncAnswerSuggestionService(
           draftRepository,
-          env.AI_SUGGESTION_QUEUE_URL,
+          imageReader,
+          new OpenAiCompatibleVisionProvider({
+            apiKey: env.AI_API_KEY,
+            model: env.AI_MODEL,
+            baseUrl: env.AI_BASE_URL,
+            providerName,
+            ...(env.APP_ENV === "production"
+              ? { timeoutMs: 20_000, maxRetries: 0 }
+              : {}),
+            reasoningEffort:
+              providerName === "groq" && env.AI_MODEL === "qwen/qwen3.6-27b"
+                ? "none"
+                : undefined,
+          }),
+          Math.min(5, Math.max(1, env.AI_LOCAL_CONCURRENCY)),
         )
-      : env.FEATURE_AI_IMPORT_ENABLED &&
-          providerName &&
-          env.AI_API_KEY &&
-          env.AI_MODEL
-        ? new LocalAsyncAnswerSuggestionService(
-            draftRepository,
-            imageReader,
-            new OpenAiCompatibleVisionProvider({
-              apiKey: env.AI_API_KEY,
-              model: env.AI_MODEL,
-              baseUrl: env.AI_BASE_URL,
-              providerName,
-              ...(env.APP_ENV === "production"
-                ? { timeoutMs: 20_000, maxRetries: 0 }
-                : {}),
-              reasoningEffort:
-                providerName === "groq" && env.AI_MODEL === "qwen/qwen3.6-27b"
-                  ? "none"
-                  : undefined,
-            }),
-            Math.min(5, Math.max(1, env.AI_LOCAL_CONCURRENCY)),
-          )
-        : undefined;
+      : undefined;
 
   const catalogRepository = new PostgresCatalogRepository(database, {
     imageUrlForKey: imageBaseUrl

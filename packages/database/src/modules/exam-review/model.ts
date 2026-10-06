@@ -106,10 +106,6 @@ export interface AiAnswerProposalInput {
 }
 
 export interface AiSuggestionRepository {
-  queueUnanswered(examId: string): Promise<{
-    jobs: AiSuggestionJob[];
-    skippedCount: number;
-  }>;
   queueQuestion(
     examId: string,
     questionId: string,

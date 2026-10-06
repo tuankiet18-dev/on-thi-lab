@@ -138,20 +138,6 @@ export class OnThiLabStack extends Stack {
       },
     );
 
-    const deadLetterQueue = new sqs.Queue(this, "ImportDeadLetterQueue", {
-      encryption: sqs.QueueEncryption.SQS_MANAGED,
-      retentionPeriod: Duration.days(14),
-    });
-
-    const importQueue = new sqs.Queue(this, "ImportQueue", {
-      encryption: sqs.QueueEncryption.SQS_MANAGED,
-      visibilityTimeout: Duration.minutes(5),
-      deadLetterQueue: {
-        queue: deadLetterQueue,
-        maxReceiveCount: 3,
-      },
-    });
-
     const ocrDlq = new sqs.Queue(this, "OcrDlq", {
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: Duration.days(14),
@@ -167,24 +153,6 @@ export class OnThiLabStack extends Stack {
         queue: ocrDlq,
         maxReceiveCount: 3,
       },
-    });
-
-    new cloudwatch.Alarm(this, "ImportDeadLetterQueueAlarm", {
-      metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible(),
-      threshold: 1,
-      evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-      alarmDescription: "Alert when there are messages in the DLQ.",
-    });
-
-    new cloudwatch.Alarm(this, "ImportQueueOldMessageAlarm", {
-      metric: importQueue.metricApproximateAgeOfOldestMessage(),
-      threshold: Duration.hours(1).toSeconds(),
-      evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-      alarmDescription: "Alert when messages are stuck in the queue for >1hr.",
     });
 
     new cloudwatch.Alarm(this, "OcrDeadLetterQueueAlarm", {
@@ -283,7 +251,6 @@ export class OnThiLabStack extends Stack {
       databaseParameter.grantRead(apiHandler);
       aiApiKeyParameter?.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
-      importQueue.grantSendMessages(apiHandler);
       ocrQueue.grantSendMessages(apiHandler);
 
       const workerLogGroup = new logs.LogGroup(this, "WorkerLogGroup", {
@@ -496,12 +463,7 @@ export class OnThiLabStack extends Stack {
       value: questionImageDistribution.distributionDomainName,
       description: "Private S3 image origin served through CloudFront.",
     });
-    new CfnOutput(this, "ImportQueueUrl", { value: importQueue.queueUrl });
     new CfnOutput(this, "OcrQueueUrl", { value: ocrQueue.queueUrl });
-    new CfnOutput(this, "AiSuggestionQueueUrl", {
-      value: importQueue.queueUrl,
-      description: "Set this value as AI_SUGGESTION_QUEUE_URL.",
-    });
     new CfnOutput(this, "WebBucketName", {
       value: webBucket.bucketName,
       description: "Deploy the built SPA assets to this private bucket.",
