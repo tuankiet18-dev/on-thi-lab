@@ -118,6 +118,18 @@ fi
   exit 1
 }
 
+# The auth stack deploys as a dependency of the app stack, so the Cognito
+# custom domain context must be passed on every deploy or CDK removes it.
+# Only production uses it: the wildcard certificate covers auth.onthilab.id.vn
+# but not a second-level name such as auth.staging.onthilab.id.vn.
+auth_domain_context=()
+if [[ "$stage" == "prod" ]]; then
+  auth_domain_context=(
+    -c "cognitoCustomDomainName=auth.${web_domain}"
+    -c "cognitoCustomDomainCertificateArn=${certificate_arn}"
+  )
+fi
+
 if [[ "$skip_validate" != true ]]; then
   echo "==> Validating workspace"
   pnpm validate
@@ -161,6 +173,7 @@ if [[ "$web_only" != true ]]; then
       -c "webBaseUrl=https://${web_domain}" \
       -c "webDomainName=${web_domain}" \
       -c "webCertificateArn=${certificate_arn}" \
+      "${auth_domain_context[@]}" \
       --require-approval never
   )
 
