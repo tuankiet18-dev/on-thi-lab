@@ -155,6 +155,25 @@ export class OnThiLabStack extends Stack {
       },
     });
 
+    const optionCountDlq = new sqs.Queue(this, "OptionCountDlq", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: Duration.days(14),
+    });
+    const optionCountQueue = new sqs.Queue(this, "OptionCountQueue", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      visibilityTimeout: Duration.minutes(3),
+      deadLetterQueue: { queue: optionCountDlq, maxReceiveCount: 3 },
+    });
+
+    new cloudwatch.Alarm(this, "OptionCountDlqAlarm", {
+      metric: optionCountDlq.metricApproximateNumberOfMessagesVisible(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator:
+        cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: "Option-count OCR jobs reached the dead-letter queue.",
+    });
+
     new cloudwatch.Alarm(this, "OcrDeadLetterQueueAlarm", {
       metric: ocrDlq.metricApproximateNumberOfMessagesVisible(),
       threshold: 1,
@@ -246,12 +265,58 @@ export class OnThiLabStack extends Stack {
             : "false",
           FEATURE_MONETIZATION_ENABLED: "false",
           OCR_QUEUE_URL: ocrQueue.queueUrl,
+          OPTION_COUNT_QUEUE_URL: optionCountQueue.queueUrl,
         },
       });
       databaseParameter.grantRead(apiHandler);
       aiApiKeyParameter?.grantRead(apiHandler);
       questionImageBucket.grantReadWrite(apiHandler);
       ocrQueue.grantSendMessages(apiHandler);
+      optionCountQueue.grantSendMessages(apiHandler);
+
+      const optionCountLogGroup = new logs.LogGroup(
+        this,
+        "OptionCountWorkerLogGroup",
+        {
+          retention: isProduction
+            ? logs.RetentionDays.ONE_MONTH
+            : logs.RetentionDays.TWO_WEEKS,
+          removalPolicy: dataRemovalPolicy,
+        },
+      );
+      const optionCountWorker = new lambda.DockerImageFunction(
+        this,
+        "OptionCountWorker",
+        {
+          code: lambda.DockerImageCode.fromImageAsset(
+            join(projectRoot, "apps/option-count-worker"),
+          ),
+          architecture: lambda.Architecture.X86_64,
+          memorySize: 2048,
+          timeout: Duration.minutes(2),
+          logGroup: optionCountLogGroup,
+          environment: {
+            DATABASE_PARAMETER_NAME: props.databaseParameterName,
+            QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+          },
+        },
+      );
+      databaseParameter.grantRead(optionCountWorker);
+      questionImageBucket.grantRead(optionCountWorker);
+      optionCountWorker.addEventSource(
+        new SqsEventSource(optionCountQueue, {
+          batchSize: 1,
+          maxConcurrency: 3,
+        }),
+      );
+      new cloudwatch.Alarm(this, "OptionCountWorkerErrorAlarm", {
+        metric: optionCountWorker.metricErrors({ period: Duration.minutes(5) }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "Option-count OCR worker failed.",
+      });
 
       const workerLogGroup = new logs.LogGroup(this, "WorkerLogGroup", {
         retention: isProduction
@@ -464,6 +529,9 @@ export class OnThiLabStack extends Stack {
       description: "Private S3 image origin served through CloudFront.",
     });
     new CfnOutput(this, "OcrQueueUrl", { value: ocrQueue.queueUrl });
+    new CfnOutput(this, "OptionCountQueueUrl", {
+      value: optionCountQueue.queueUrl,
+    });
     new CfnOutput(this, "WebBucketName", {
       value: webBucket.bucketName,
       description: "Deploy the built SPA assets to this private bucket.",

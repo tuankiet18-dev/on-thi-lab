@@ -38,6 +38,16 @@ comment.
 - Câu có đồng thuận dưới 75%, hòa phiếu, OCR không chắc chắn hoặc thiếu metadata
   số lựa chọn được giữ ở trạng thái “Cần kiểm tra”. Trang duyệt mặc định chỉ
   hiển thị các ngoại lệ này; quản trị viên không phải lưu lại toàn bộ đề.
+- Câu chưa có metadata số lựa chọn (ví dụ ZIP không đi qua `exam_packager.py`)
+  được kiểm tra trên AWS: một Lambda Python chạy RapidOCR với cùng thuật toán
+  của `exam_packager.py` (nhóm nhãn `A.`/`B)` theo toạ độ x, độ tin cậy từ 82% và
+  đủ nhãn mới tin). Khi OCR chắc chắn và câu chưa có đáp án được lưu, hệ thống tự
+  cập nhật số lựa chọn và ghi bằng chứng OCR vào gợi ý cộng đồng, nên các câu đủ
+  điều kiện được lưu hàng loạt như khi ZIP đã có `optionCount*`. Câu đã có metadata
+  tin cậy trong ZIP không bị OCR lại.
+- OCR không chắc chắn, lỗi, hoặc đáp án nằm ngoài số lựa chọn OCR thấy chỉ tạo cảnh
+  báo (“OCR cảnh báo”); số lựa chọn và đáp án đã được người duyệt lưu không bị đổi.
+  Admin có thể dùng “Thử lại OCR lỗi” khi job lỗi hoặc quá 15 phút chưa hoàn tất.
 - Với đề nháp được tạo trước thay đổi này, trang duyệt tự áp dụng các gợi ý
   cộng đồng đủ điều kiện khi mở đề.
 

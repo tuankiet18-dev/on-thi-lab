@@ -208,6 +208,20 @@ export const questions = pgTable(
     type: questionTypeEnum("question_type").notNull(),
     options: jsonb("options").$type<string[]>().notNull(),
     correctOptions: jsonb("correct_options").$type<number[]>().notNull(),
+    optionCountCheck: jsonb("option_count_check").$type<{
+      status:
+        | "pending"
+        | "confirmed"
+        | "uncertain"
+        | "conflict"
+        | "failed"
+        | "manual";
+      detectedCount: number | null;
+      labels: ("A" | "B" | "C" | "D" | "E" | "F")[];
+      confidence: number | null;
+      reason: string | null;
+      queuedAt?: string;
+    }>(),
     aiMetadata: jsonb("ai_metadata").$type<{
       status?: "queued" | "processing" | "suggested" | "failed" | "confirmed";
       provider?: string;

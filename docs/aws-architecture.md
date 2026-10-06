@@ -46,9 +46,15 @@ flowchart TB
             Textract["Amazon Textract<br/>DetectDocumentText"]
         end
 
+        subgraph OPT["Đếm số lựa chọn trên ảnh (RapidOCR)"]
+            OptQ["SQS OptionCountQueue<br/>visibility 180 s"]
+            OptDlq["SQS OptionCountDlq<br/>giữ 14 ngày"]
+            OptFn["Lambda OptionCountWorker<br/>Python 3.11 container, x86_64<br/>2048 MB, 120 s, max concurrency 3<br/>RapidOCR trong Lambda"]
+        end
+
 
         SSM["SSM Parameter Store<br/>/onthilab/prod/database (SecureString)<br/>/onthilab/prod/ai/api-key (SecureString)"]
-        CW["CloudWatch - 9 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR queue age và DLQ<br/>(chưa có action/SNS)"]
+        CW["CloudWatch - 11 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR queue age và DLQ<br/>OptionCount DLQ + worker error<br/>(chưa có action/SNS)"]
     end
 
     SSMG["SSM Parameter Store<br/>/onthilab/prod/google/client-id<br/>/onthilab/prod/google/client-secret<br/>(String thường)"]
@@ -83,6 +89,13 @@ flowchart TB
     ApiFn -->|"SendMessageBatch (10/batch)"| OcrQ
     OcrQ -->|"event source mapping"| WorkerFn
     OcrQ -. "sau 3 lần nhận" .-> OcrDlq
+
+    %% Option count OCR
+    ApiFn -->|"SendMessageBatch (10/batch)"| OptQ
+    OptQ -->|"event source mapping"| OptFn
+    OptQ -. "sau 3 lần nhận" .-> OptDlq
+    OptFn -->|"GetObject"| S3Img
+    OptFn -->|"cập nhật số lựa chọn (SQL)"| Supabase
     WorkerFn -->|"claim + lưu kết quả (SQL)"| Supabase
     WorkerFn -->|"GetObject"| S3Img
     WorkerFn -->|"ảnh đã xử lý bằng sharp"| Textract
@@ -94,25 +107,26 @@ flowchart TB
     %% Secrets
     SSM -. "cold start" .-> ApiFn
     SSM -. "cold start (chỉ DB)" .-> WorkerFn
+    SSM -. "cold start (chỉ DB)" .-> OptFn
 
 
 ```
 
 ## Thành phần và cấu hình
 
-| Thành phần    | Cấu hình đã xác nhận                                                                                                                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Web SPA       | S3 private + CloudFront OAC; `index.html` không cache, asset cache 1 năm (`scripts/deploy.sh`); không có WAF.                                                                                |
-| Ảnh câu hỏi   | Bucket riêng, versioned, CloudFront riêng (không alias). Ảnh ghi với `Cache-Control: public, max-age=31536000, immutable`. Route ảnh qua API vẫn còn cho local/client cũ.                    |
-| Upload ZIP    | Browser gọi `GET /v1/admin/imports/presign`, PUT thẳng lên S3 (URL hiệu lực 600 giây), rồi gọi `POST /v1/admin/imports` với `archiveKey`. API đọc ZIP, kiểm tra, giải nén và ghi ảnh lên S3. |
-| Xác thực      | Cognito ở stack riêng `OnThiLabAuth-<stage>`. SPA dùng Authorization Code + PKCE (S256). API xác thực **ID token** (`tokenUse: "id"`, client ID) bằng `aws-jwt-verify`. Role lấy từ server.  |
-| API Gateway   | REST API, stage `prod`, throttle 80/160, tracing X-Ray, access log, binary media cho ảnh.                                                                                                    |
-| API Lambda    | Node.js 22, **x86_64**, 1024 MB, timeout 29 giây, `DATABASE_MAX_CONNECTIONS=3`. Không đặt reserved concurrency.                                                                              |
-| Worker Lambda | Node.js 22, **arm64**, 512 MB, timeout 120 giây, 1 DB connection, bundle `sharp` cho linux/arm64. Quyền: SSM (DB), S3, SQS (nhận/xóa), `textract:DetectDocumentText`.                        |
-| SQS           | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`).                                                                                                                 |
-| Secrets       | `DATABASE_URL` và AI key: SSM SecureString (`alias/aws/ssm`), đọc khi cold start. Google client ID/secret: SSM **String thường** do giới hạn của CloudFormation Cognito.                     |
-| Database      | Supabase PostgreSQL (Singapore) qua transaction pooler, ngoài AWS, không có VPC/RDS.                                                                                                         |
-| Quan sát      | 9 CloudWatch alarm prod (2 queue OCR + 2 worker + 3 API Lambda + 2 API Gateway) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.**                                 |
+| Thành phần    | Cấu hình đã xác nhận                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Web SPA       | S3 private + CloudFront OAC; `index.html` không cache, asset cache 1 năm (`scripts/deploy.sh`); không có WAF.                                                                                                |
+| Ảnh câu hỏi   | Bucket riêng, versioned, CloudFront riêng (không alias). Ảnh ghi với `Cache-Control: public, max-age=31536000, immutable`. Route ảnh qua API vẫn còn cho local/client cũ.                                    |
+| Upload ZIP    | Browser gọi `GET /v1/admin/imports/presign`, PUT thẳng lên S3 (URL hiệu lực 600 giây), rồi gọi `POST /v1/admin/imports` với `archiveKey`. API đọc ZIP, kiểm tra, giải nén và ghi ảnh lên S3.                 |
+| Xác thực      | Cognito ở stack riêng `OnThiLabAuth-<stage>`. SPA dùng Authorization Code + PKCE (S256). API xác thực **ID token** (`tokenUse: "id"`, client ID) bằng `aws-jwt-verify`. Role lấy từ server.                  |
+| API Gateway   | REST API, stage `prod`, throttle 80/160, tracing X-Ray, access log, binary media cho ảnh.                                                                                                                    |
+| API Lambda    | Node.js 22, **x86_64**, 1024 MB, timeout 29 giây, `DATABASE_MAX_CONNECTIONS=3`. Không đặt reserved concurrency.                                                                                              |
+| Worker Lambda | Node.js 22, **arm64**, 512 MB, timeout 120 giây, 1 DB connection, bundle `sharp` cho linux/arm64. Quyền: SSM (DB), S3, SQS (nhận/xóa), `textract:DetectDocumentText`.                                        |
+| SQS           | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`). `OptionCountQueue` (visibility 180 giây, `maxReceiveCount` 3 -> `OptionCountDlq`).                                              |
+| Secrets       | `DATABASE_URL` và AI key: SSM SecureString (`alias/aws/ssm`), đọc khi cold start. Google client ID/secret: SSM **String thường** do giới hạn của CloudFormation Cognito.                                     |
+| Database      | Supabase PostgreSQL (Singapore) qua transaction pooler, ngoài AWS, không có VPC/RDS.                                                                                                                         |
+| Quan sát      | 11 CloudWatch alarm prod (2 queue OCR + 2 worker OCR + 1 DLQ OptionCount + 1 worker OptionCount + 3 API Lambda + 2 API Gateway) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.** |
 
 ## Luồng xử lý
 
@@ -157,6 +171,27 @@ idempotent; attempt gắn với `exam_revision` bất biến.
    120 giây của Lambda và visibility 180 giây của queue).
 
 Textract chỉ dùng `LINE.Text` và `Confidence`; toạ độ không được dùng.
+
+### 4b. Đếm số lựa chọn trên ảnh (RapidOCR)
+
+Thay cho bước `exam_packager.py` chạy ở máy local:
+
+1. Sau khi tạo draft, API gửi mỗi câu vào `OptionCountQueue` (gom 10 message/batch).
+   Câu đã có metadata số lựa chọn tin cậy trong `answers.json` (độ tin cậy từ 82%)
+   được bỏ qua.
+2. `OptionCountWorker` (Lambda Python container, `rapidocr-onnxruntime`) tải ảnh
+   từ S3, kiểm tra SHA-256, chạy OCR và nhóm các nhãn `A.`/`B)` theo toạ độ x để
+   suy ra số lựa chọn, độ tin cậy và độ đầy đủ (cùng thuật toán với
+   `exam_packager.py`).
+3. Kết quả ghi vào `questions.option_count_check` (`confirmed`, `uncertain`,
+   `conflict`, `failed`). Khi OCR chắc chắn (tin cậy từ 82% và đủ nhãn) và câu
+   chưa có đáp án được lưu, worker tự cập nhật `options` theo số nhãn và ghi bằng
+   chứng (`optionCount`, `optionCountConfidence`, `optionCountSource: "ocr"`)
+   vào gợi ý cộng đồng để luật lưu hàng loạt hiện có tin được. OCR không chắc
+   chắn chỉ tạo cảnh báo; đáp án đã lưu không bị đổi; đáp án gợi ý vượt số
+   lựa chọn OCR thấy thì gợi ý bị đánh dấu cần duyệt.
+4. Job cũ hơn job mới (đã thử lại) bị bỏ qua nhờ `queuedAt`. Kết quả gợi ý AI
+   (Groq) vẫn chỉ dùng cho câu tranh luận do admin yêu cầu.
 
 ### 5. Gợi ý đáp án AI Vision
 

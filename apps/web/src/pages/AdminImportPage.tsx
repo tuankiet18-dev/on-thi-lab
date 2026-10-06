@@ -567,6 +567,11 @@ export function AdminImportPage() {
                                 {item.result.ocrQueueWarning}
                               </p>
                             )}
+                            {item.result.optionCountQueueWarning && (
+                              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                                {item.result.optionCountQueueWarning}
+                              </p>
+                            )}
                           </div>
                         )}
                       </article>

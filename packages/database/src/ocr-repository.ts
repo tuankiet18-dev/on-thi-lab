@@ -5,7 +5,7 @@ import {
   resolveQuestionContentMode,
   type ExamPresentationMode,
 } from "./question-presentation.js";
-import { examRevisions, questions } from "./schema.js";
+import { examRevisions, exams, questions } from "./schema.js";
 
 export type OcrMetadata = NonNullable<
   typeof questions.$inferSelect.ocrMetadata
@@ -245,50 +245,69 @@ export class PostgresOcrRepository {
   }
 
   async saveOcrResult(questionId: string, result: OcrResult): Promise<void> {
-    const [question] = await this.db
-      .select({
-        ocrMetadata: questions.ocrMetadata,
-        correctOptions: questions.correctOptions,
-      })
-      .from(questions)
-      .where(eq(questions.id, questionId))
-      .limit(1);
-    if (!question) throw new Error("Question not found");
+    await this.db.transaction(async (transaction) => {
+      const [question] = await transaction
+        .select({
+          ocrMetadata: questions.ocrMetadata,
+          optionCountCheck: questions.optionCountCheck,
+          options: questions.options,
+          correctOptions: questions.correctOptions,
+          examStatus: exams.status,
+        })
+        .from(questions)
+        .innerJoin(examRevisions, eq(questions.revisionId, examRevisions.id))
+        .innerJoin(exams, eq(examRevisions.examId, exams.id))
+        .where(eq(questions.id, questionId))
+        .limit(1)
+        .for("update", { of: questions });
+      if (!question) throw new Error("Question not found");
+      if (
+        question.examStatus !== "draft" ||
+        question.ocrMetadata?.status !== "processing"
+      ) {
+        return;
+      }
 
-    const options = result.options
-      ?.map((option) => option.trim())
-      .filter(Boolean);
-    const optionCount = options?.length ?? 0;
-    const flagReasons = [...(result.flagReasons ?? [])];
-    if (optionCount < 2 || optionCount > 6) {
-      flagReasons.push("invalid_option_count");
-    }
-    if (question.correctOptions.some((option) => option >= optionCount)) {
-      flagReasons.push("answer_out_of_range");
-    }
+      const options = result.options
+        ?.map((option) => option.trim())
+        .filter(Boolean);
+      const optionCount = options?.length ?? 0;
+      const flagReasons = [...(result.flagReasons ?? [])];
+      const validCount = optionCount >= 2 && optionCount <= 6;
+      const answerOutOfRange = question.correctOptions.some(
+        (option) => option >= optionCount,
+      );
+      const optionCountMismatch =
+        validCount &&
+        question.optionCountCheck !== null &&
+        optionCount !== question.options.length;
+      if (!validCount) flagReasons.push("invalid_option_count");
+      if (answerOutOfRange) flagReasons.push("answer_out_of_range");
+      if (optionCountMismatch) flagReasons.push("option_count_conflict");
 
-    const metadata: OcrMetadata = {
-      ...question.ocrMetadata,
-      status: flagReasons.length > 0 ? "needs_review" : result.status,
-      textContent: result.textContent?.trim(),
-      options,
-      confidence: result.confidence,
-      flagReasons: [...new Set(flagReasons)],
-      rawText: result.rawText,
-      providerVersion: result.providerVersion,
-      completedAt: new Date().toISOString(),
-      error: undefined,
-    };
+      const metadata: OcrMetadata = {
+        ...question.ocrMetadata,
+        status: flagReasons.length > 0 ? "needs_review" : result.status,
+        textContent: result.textContent?.trim(),
+        options,
+        confidence: result.confidence,
+        flagReasons: [...new Set(flagReasons)],
+        rawText: result.rawText,
+        providerVersion: result.providerVersion,
+        completedAt: new Date().toISOString(),
+        error: undefined,
+      };
 
-    await this.db
-      .update(questions)
-      .set({
-        ocrMetadata: metadata,
-        ...(optionCount >= 2 && optionCount <= 6
-          ? { options: optionLabels(optionCount) }
-          : {}),
-      })
-      .where(eq(questions.id, questionId));
+      await transaction
+        .update(questions)
+        .set({
+          ocrMetadata: metadata,
+          ...(validCount && !answerOutOfRange && !optionCountMismatch
+            ? { options: optionLabels(optionCount) }
+            : {}),
+        })
+        .where(eq(questions.id, questionId));
+    });
   }
 
   async markOcrFailed(questionId: string, error: string): Promise<void> {
@@ -309,7 +328,12 @@ export class PostgresOcrRepository {
           completedAt: new Date().toISOString(),
         },
       })
-      .where(eq(questions.id, questionId));
+      .where(
+        and(
+          eq(questions.id, questionId),
+          sql`${questions.ocrMetadata}->>'status' = 'processing'`,
+        ),
+      );
   }
 
   /**
@@ -335,7 +359,12 @@ export class PostgresOcrRepository {
           error: error.slice(0, 1_000),
         },
       })
-      .where(eq(questions.id, questionId));
+      .where(
+        and(
+          eq(questions.id, questionId),
+          sql`${questions.ocrMetadata}->>'status' = 'processing'`,
+        ),
+      );
   }
 
   async getExamOcrStatus(revisionId: string): Promise<ExamOcrStatus> {
@@ -420,7 +449,10 @@ export class PostgresOcrRepository {
     userId: string,
   ): Promise<void> {
     const [question] = await this.db
-      .select({ ocrMetadata: questions.ocrMetadata })
+      .select({
+        ocrMetadata: questions.ocrMetadata,
+        optionCountCheck: questions.optionCountCheck,
+      })
       .from(questions)
       .where(eq(questions.id, questionId))
       .limit(1);
@@ -443,6 +475,13 @@ export class PostgresOcrRepository {
           reviewedBy: userId,
         },
         options: optionLabels(options.length),
+        optionCountCheck: {
+          status: "manual",
+          detectedCount: question.optionCountCheck?.detectedCount ?? null,
+          labels: question.optionCountCheck?.labels ?? [],
+          confidence: question.optionCountCheck?.confidence ?? null,
+          reason: null,
+        },
       })
       .where(eq(questions.id, questionId));
   }

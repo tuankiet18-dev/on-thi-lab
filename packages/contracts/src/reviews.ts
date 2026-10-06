@@ -52,7 +52,15 @@ export const draftImportResultSchema = z.object({
   status: z.literal("draft"),
   /** The draft is usable even if its optional OCR jobs could not be queued. */
   ocrQueueWarning: z.string().optional(),
+  optionCountQueueWarning: z.string().optional(),
 });
+
+export const retryOptionCountResultSchema = z.object({
+  queuedCount: z.number().int().nonnegative(),
+});
+export type RetryOptionCountResult = z.infer<
+  typeof retryOptionCountResultSchema
+>;
 
 export const ocrStatuses = [
   "pending",
@@ -152,6 +160,37 @@ export const reviewQuestionSchema = z.object({
   options: z.array(z.string()).min(2).max(6),
   correctOptions: z.array(z.number().int().min(0).max(5)).max(6),
   aiSuggestion: aiAnswerSuggestionSchema.nullable(),
+  canBulkConfirm: z.boolean().optional(),
+  answerReviewReason: z
+    .object({
+      code: z.enum([
+        "missing_answer",
+        "conflicting_answers",
+        "invalid_answer",
+        "option_count_unverified",
+      ]),
+      message: z.string(),
+    })
+    .nullable()
+    .optional(),
+  optionCountCheck: z
+    .object({
+      status: z.enum([
+        "pending",
+        "confirmed",
+        "uncertain",
+        "conflict",
+        "failed",
+        "manual",
+      ]),
+      detectedCount: z.number().int().min(2).max(6).nullable(),
+      labels: z.array(z.enum(["A", "B", "C", "D", "E", "F"])),
+      confidence: z.number().min(0).max(1).nullable(),
+      reason: z.string().nullable(),
+      queuedAt: z.string().datetime().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const savedReviewQuestionSchema = reviewQuestionSchema.omit({

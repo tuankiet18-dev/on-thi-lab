@@ -5,6 +5,7 @@ import {
   publishExamResultSchema,
   queueAiSuggestionsResultSchema,
   reviewReadinessResultSchema,
+  retryOptionCountResultSchema,
   savedReviewQuestionSchema,
   type ConfirmTrustedSuggestionsResult,
   type CreateDraftImportInput,
@@ -13,6 +14,7 @@ import {
   type PublishExamResult,
   type QueueAiSuggestionsResult,
   type ReviewReadinessResult,
+  type RetryOptionCountResult,
   type SavedReviewQuestion,
   type UpdateQuestionAnswerInput,
 } from "@onthilab/contracts";
@@ -121,6 +123,20 @@ export async function confirmTrustedCommunitySuggestions(
     fetcher,
   );
   return confirmTrustedSuggestionsResultSchema.parse(result);
+}
+
+export async function retryFailedOptionChecks(
+  idToken: string,
+  examId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<RetryOptionCountResult> {
+  const result = await apiRequest(
+    `/v1/admin/exams/${encodeURIComponent(examId)}/option-count/retry`,
+    idToken,
+    { method: "POST" },
+    fetcher,
+  );
+  return retryOptionCountResultSchema.parse(result);
 }
 
 export async function publishExam(
