@@ -34,11 +34,24 @@ function isFormDataBody(body: BodyInit | null | undefined): boolean {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
+/**
+ * Resolves a fresh ID token after the API rejected `rejectedToken`, or null if
+ * none can be obtained. Registered by the auth provider.
+ */
+export type TokenRefresher = (rejectedToken: string) => Promise<string | null>;
+
+let tokenRefresher: TokenRefresher | null = null;
+
+export function setTokenRefresher(refresher: TokenRefresher | null): void {
+  tokenRefresher = refresher;
+}
+
 export async function apiRequest(
   path: string,
   idToken: string,
   init: RequestInit = {},
   fetcher: typeof fetch = fetch,
+  canRefresh = true,
 ): Promise<unknown> {
   const response = await fetcher(
     `${webConfig.apiUrl.replace(/\/$/, "")}${path}`,
@@ -53,6 +66,14 @@ export async function apiRequest(
       },
     },
   );
+  // The ID token lives one hour, which is shorter than a long session or an
+  // exam. Refresh it once and replay the request instead of failing the user.
+  if (response.status === 401 && canRefresh && tokenRefresher) {
+    const freshToken = await tokenRefresher(idToken);
+    if (freshToken && freshToken !== idToken) {
+      return apiRequest(path, freshToken, init, fetcher, false);
+    }
+  }
   const body = (await response.json().catch(() => ({}))) as ApiResponse;
   if (!response.ok) {
     throw new ApiError(
