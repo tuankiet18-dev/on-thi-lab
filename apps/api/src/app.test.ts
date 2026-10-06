@@ -1155,9 +1155,6 @@ describe("attempt API", () => {
     let queuedExamId = "";
     let queuedQuestionId = "";
     const suggestions = {
-      queueExam: async (inputExamId: string) => {
-        return { examId: inputExamId, queuedCount: 0, skippedCount: 0 };
-      },
       queueQuestion: async (inputExamId: string, inputQuestionId: string) => {
         queuedExamId = inputExamId;
         queuedQuestionId = inputQuestionId;

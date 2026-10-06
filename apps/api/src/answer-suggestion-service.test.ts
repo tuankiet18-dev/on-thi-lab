@@ -24,9 +24,6 @@ describe("LocalAsyncAnswerSuggestionService", () => {
     const savedQuestionIds: string[] = [];
 
     const repository: AiSuggestionRepository = {
-      queueUnanswered: async () => {
-        throw new Error("The whole exam must not be queued");
-      },
       queueQuestion: async (inputExamId, inputQuestionId) => {
         expect(inputExamId).toBe(examId);
         expect(inputQuestionId).toBe(questionId);
