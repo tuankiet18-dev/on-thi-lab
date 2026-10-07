@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -17,12 +18,18 @@ import {
   refreshAuthSession,
   type AuthSession,
 } from "../lib/auth";
+import { setTokenRefresher } from "../api/http";
 import { ApiError, getMyProfile, saveMyProfile } from "../lib/api";
 import { cognitoConfig } from "../lib/config";
 import type {
   StudentProfile,
   UpsertStudentProfileInput,
 } from "@onthilab/contracts";
+import {
+  createTokenManager,
+  isExpiringSoon,
+  msUntilRefresh,
+} from "./token-manager";
 
 const sessionStorageKey = "onthilab.auth.session";
 const transactionStorageKey = "onthilab.auth.transaction";
@@ -81,6 +88,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cognitoConfig ? "loading" : "unauthenticated",
   );
   const [error, setError] = useState<string | null>(null);
+
+  // The ID token lasts one hour, so a long session (or exam) outlives it. Keep
+  // the latest session in a ref and refresh it before it expires, and when the
+  // API rejects it (see setTokenRefresher).
+  const sessionRef = useRef<AuthSession | null>(null);
+  sessionRef.current = session;
+  const tokenManager = useMemo(
+    () =>
+      createTokenManager({
+        getSession: () => sessionRef.current ?? readStoredSession(),
+        setSession: (next) => {
+          storeSession(next);
+          sessionRef.current = next;
+          setSession(next);
+        },
+        refresh: (current) => {
+          if (!cognitoConfig) {
+            return Promise.reject(new Error("Cognito chưa được cấu hình."));
+          }
+          return refreshAuthSession(cognitoConfig, current);
+        },
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    setTokenRefresher(async (rejectedToken) => {
+      const refreshed = await tokenManager.refresh(rejectedToken);
+      return refreshed?.idToken ?? null;
+    });
+    return () => setTokenRefresher(null);
+  }, [tokenManager]);
+
+  const expiresAt = session?.expiresAt;
+  useEffect(() => {
+    if (!cognitoConfig || expiresAt === undefined) return;
+    let timer: number | undefined;
+    let cancelled = false;
+    const schedule = (delayMs: number) => {
+      timer = window.setTimeout(async () => {
+        const next = await tokenManager.refresh();
+        // A successful refresh changes expiresAt, which re-runs this effect.
+        // On failure, try again in a minute.
+        if (!cancelled && !next) schedule(60_000);
+      }, delayMs);
+    };
+    schedule(msUntilRefresh(expiresAt, Date.now()));
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [expiresAt, tokenManager]);
+
+  useEffect(() => {
+    // Timers are throttled in background tabs and stop while a laptop sleeps,
+    // so also check when the tab or the network comes back.
+    const refreshIfExpiring = () => {
+      const current = sessionRef.current;
+      if (
+        current &&
+        document.visibilityState !== "hidden" &&
+        isExpiringSoon(current, Date.now())
+      ) {
+        void tokenManager.refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", refreshIfExpiring);
+    window.addEventListener("online", refreshIfExpiring);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfExpiring);
+      window.removeEventListener("online", refreshIfExpiring);
+    };
+  }, [tokenManager]);
 
   useEffect(() => {
     if (!cognitoConfig) return;

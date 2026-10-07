@@ -56,6 +56,12 @@ export function AttemptPage() {
   const { attemptId } = useParams({ from: "/attempts/$attemptId" });
   const navigate = useNavigate();
   const { configured, session } = useAuth();
+  // The ID token is refreshed during a long exam. Read it through a ref so a
+  // refresh does not recreate the save queue (dropping unsaved answers) or
+  // reload the attempt (overwriting local selections).
+  const hasSession = Boolean(session);
+  const idTokenRef = useRef(session?.idToken);
+  idTokenRef.current = session?.idToken;
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [exam, setExam] = useState<Exam | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
@@ -72,18 +78,29 @@ export function AttemptPage() {
   const didAutoSubmit = useRef(false);
 
   useEffect(() => {
-    if (!configured || !session) {
+    if (!configured || !hasSession) {
       saveQueue.current = null;
       return;
     }
     saveQueue.current = new AnswerSaveQueue({
-      save: (answer) => saveAttemptAnswer(session.idToken, attemptId, answer),
+      save: (answer) =>
+        saveAttemptAnswer(idTokenRef.current ?? "", attemptId, answer),
       onStateChange: setSaveState,
     });
     return () => {
       saveQueue.current = null;
     };
-  }, [attemptId, configured, session]);
+  }, [attemptId, configured, hasSession]);
+
+  // If saving failed while the token was invalid, retry once a fresh one arrives.
+  const idToken = session?.idToken;
+  const saveStateRef = useRef(saveState);
+  saveStateRef.current = saveState;
+  useEffect(() => {
+    if (saveStateRef.current === "offline") {
+      void saveQueue.current?.flush().catch(() => undefined);
+    }
+  }, [idToken]);
 
   useEffect(() => {
     let active = true;
@@ -111,9 +128,9 @@ export function AttemptPage() {
       setLoading(false);
       return;
     }
-    if (!session) return;
+    if (!hasSession) return;
 
-    void getAttemptSession(session.idToken, attemptId)
+    void getAttemptSession(idTokenRef.current ?? "", attemptId)
       .then(({ attempt: loadedAttempt, exam: loadedExam }) => {
         if (!active) return;
         setAttempt(loadedAttempt);
@@ -144,7 +161,7 @@ export function AttemptPage() {
     return () => {
       active = false;
     };
-  }, [attemptId, configured, navigate, session]);
+  }, [attemptId, configured, hasSession, navigate]);
 
   const questions = useMemo(() => {
     if (!attempt || !exam) return [];
@@ -186,9 +203,10 @@ export function AttemptPage() {
           });
           return;
         }
-        if (!session) return;
+        if (!hasSession) return;
         await retryTransientAttemptRequest(
-          () => submitRemoteAttempt(session.idToken, attempt.id, reason),
+          () =>
+            submitRemoteAttempt(idTokenRef.current ?? "", attempt.id, reason),
           { retryDelaysMs: [500, 1_200, 2_500, 5_000] },
         );
         await navigate({
@@ -201,7 +219,7 @@ export function AttemptPage() {
         setSubmitting(false);
       }
     },
-    [attempt, attemptId, configured, flagged, navigate, session, submitting],
+    [attempt, attemptId, configured, flagged, hasSession, navigate, submitting],
   );
 
   useEffect(() => {
@@ -276,7 +294,7 @@ export function AttemptPage() {
       window.setTimeout(() => setSaveState("saved"), 250);
       return;
     }
-    if (!session) return;
+    if (!hasSession) return;
     sequence.current = Math.max(
       sequence.current + 1,
       Math.floor(Date.now() / 1_000),

@@ -97,6 +97,10 @@ export function AdminReviewPage() {
     studentProfile?.role === "admin" ||
     session?.user.groups.includes("admin") === true;
 
+  // Depend on whether we are signed in, not on the session object: a token
+  // refresh must not reload the review and jump to the first pending question.
+  const hasSession = Boolean(session);
+
   const refreshReview = async () => {
     if (!session) return;
     const result = await getDraftExamReview(session.idToken, examId);
@@ -137,7 +141,7 @@ export function AdminReviewPage() {
     return () => {
       active = false;
     };
-  }, [examId, session]);
+  }, [examId, hasSession]);
 
   const currentQuestion = review?.questions[currentIndex];
   useEffect(() => {
