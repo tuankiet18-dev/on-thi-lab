@@ -116,7 +116,27 @@ test("desktop student can complete a practice exam", async ({
   await page.getByRole("button", { name: "Bắt đầu" }).click();
   await expect(page).toHaveURL(/\/attempts\/demo-attempt$/);
 
-  await page.getByRole("button", { name: "Phóng to ảnh câu 1" }).click();
+  // Zooming happens inside the picture frame; no full-screen dialog opens.
+  await page.getByRole("button", { name: "Phóng to ảnh", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /^Mức phóng to 150%/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // The zoom level is kept when moving to the next question.
+  await page.getByRole("button", { name: "Câu sau" }).click();
+  await expect(
+    page.getByRole("button", { name: /^Mức phóng to 150%/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Câu trước" }).click();
+  await page.getByRole("button", { name: "Vừa khung" }).click();
+  await expect(
+    page.getByRole("button", { name: /^Mức phóng to 100%/ }),
+  ).toBeVisible();
+
+  // The full-screen viewer is still available from the toolbar.
+  await page
+    .getByRole("button", { name: "Mở toàn màn hình ảnh câu 1" })
+    .click();
   await expect(
     page.getByRole("dialog", { name: "Ảnh phóng to câu 1" }),
   ).toBeVisible();

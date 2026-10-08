@@ -1,4 +1,5 @@
 import { Maximize2 } from "lucide-react";
+import { ZoomableImage } from "./ZoomableImage";
 
 export interface QuestionContentProps {
   presentationMode: "image" | "text";
@@ -8,6 +9,14 @@ export interface QuestionContentProps {
   options?: string[] | null;
   showOptions?: boolean;
   onExpandImage?: () => void;
+  /**
+   * Zoom inside the picture frame instead of opening a full-screen viewer.
+   * `onExpandImage` then becomes an optional full-screen button in the toolbar.
+   */
+  inlineZoom?: boolean;
+  /** Inline zoom level to start at, and a callback to remember changes. */
+  initialZoomScale?: number;
+  onZoomScaleChange?: (scale: number) => void;
   className?: string;
   order?: number;
 }
@@ -20,6 +29,9 @@ export function QuestionContent({
   options,
   showOptions = true,
   onExpandImage,
+  inlineZoom = false,
+  initialZoomScale,
+  onZoomScaleChange,
   className = "",
   order,
 }: QuestionContentProps) {
@@ -44,6 +56,21 @@ export function QuestionContent({
           </ol>
         )}
       </div>
+    );
+  }
+
+  if (inlineZoom) {
+    return (
+      <ZoomableImage
+        key={imageUrl}
+        imageUrl={imageUrl}
+        imageAlt={imageAlt}
+        order={order}
+        initialScale={initialZoomScale}
+        onScaleChange={onZoomScaleChange}
+        onOpenFullscreen={onExpandImage}
+        className={className}
+      />
     );
   }
 
