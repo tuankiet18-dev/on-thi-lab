@@ -70,6 +70,8 @@ export function AttemptPage() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [showSubmit, setShowSubmit] = useState(false);
   const [imageExpanded, setImageExpanded] = useState(false);
+  // Keep the inline zoom level while moving between questions.
+  const [imageZoomScale, setImageZoomScale] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -461,6 +463,9 @@ export function AttemptPage() {
                 imageUrl={questionImageUrl(question.imageUrl)}
                 imageAlt={question.imageAlt}
                 order={currentIndex + 1}
+                inlineZoom
+                initialZoomScale={imageZoomScale}
+                onZoomScaleChange={setImageZoomScale}
                 onExpandImage={() => setImageExpanded(true)}
               />
             </div>
