@@ -53,7 +53,7 @@ React/Vite
 API Gateway ── Lambda/Hono ── Supabase PostgreSQL qua transaction pooler
                          ├── S3 (ảnh) và SSM Parameter Store
                          ├── AI Vision provider (Groq), gọi trực tiếp
-                         └── SQS OcrQueue ── Lambda worker ── Textract
+                         └── SQS OcrQueue ── Lambda worker ── Text OCR Lambda
 ```
 
 Sơ đồ chi tiết, cấu hình từng tài nguyên và các khác biệt giữa repo và hạ tầng
@@ -87,7 +87,7 @@ xóa. Các control vận hành bắt buộc gồm:
 - thiết lập AWS Budgets ở các mốc 25/50/75/90%;
 - đặt Supabase ở region gần Singapore, dùng pooler connection string cho Lambda;
 - sao lưu PostgreSQL hằng ngày sang S3 và diễn tập restore;
-- thêm WAF, nối CloudWatch alarm với kênh thông báo (hiện có 11 alarm nhưng chưa có SNS);
+- thêm WAF, nối CloudWatch alarm với kênh thông báo (hiện có 12 alarm nhưng chưa có SNS);
 - giữ domain, ACM certificate và parameter tách biệt theo environment;
 - chạy smoke test và kiểm tra alarm sau mỗi production deploy.
 

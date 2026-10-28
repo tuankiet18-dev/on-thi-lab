@@ -42,8 +42,8 @@ flowchart TB
         subgraph ASYNC["OCR bất đồng bộ"]
             OcrQ["SQS OcrQueue<br/>onthilab-ocr-prod<br/>visibility 180 s"]
             OcrDlq["SQS OcrDlq<br/>giữ 14 ngày"]
-            WorkerFn["Lambda Worker<br/>Node 22, arm64, 512 MB, 120 s<br/>batch 1, max concurrency 3<br/>sharp, DB max 1 conn"]
-            Textract["Amazon Textract<br/>DetectDocumentText"]
+            WorkerFn["Lambda Worker<br/>Node 22, arm64, 512 MB, 120 s<br/>batch 1, max concurrency 3<br/>DB max 1 conn"]
+            TextOcr["Lambda TextOcrFunction<br/>Python container, x86_64<br/>2048 MB, 90 s<br/>Tesseract + PaddleOCR, không DB"]
         end
 
         subgraph OPT["Đếm số lựa chọn trên ảnh (RapidOCR)"]
@@ -54,7 +54,7 @@ flowchart TB
 
 
         SSM["SSM Parameter Store<br/>/onthilab/prod/database (SecureString)<br/>/onthilab/prod/ai/api-key (SecureString)"]
-        CW["CloudWatch - 11 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR queue age và DLQ<br/>OptionCount DLQ + worker error<br/>(chưa có action/SNS)"]
+        CW["CloudWatch - 12 alarms<br/>APIGW 5xx + p95 | Lambda lỗi/throttle<br/>OCR queue age và DLQ<br/>OptionCount DLQ + worker error<br/>(chưa có action/SNS)"]
     end
 
     SSMG["SSM Parameter Store<br/>/onthilab/prod/google/client-id<br/>/onthilab/prod/google/client-secret<br/>(String thường)"]
@@ -98,7 +98,8 @@ flowchart TB
     OptFn -->|"cập nhật số lựa chọn (SQL)"| Supabase
     WorkerFn -->|"claim + lưu kết quả (SQL)"| Supabase
     WorkerFn -->|"GetObject"| S3Img
-    WorkerFn -->|"ảnh đã xử lý bằng sharp"| Textract
+    WorkerFn -->|"Invoke (key ảnh)"| TextOcr
+    TextOcr -->|"GetObject"| S3Img
 
     %% AI Vision (trong API Lambda)
     ApiFn -->|"Chat Completions: ảnh + prompt<br/>timeout 20 s, không retry"| Groq
@@ -114,19 +115,20 @@ flowchart TB
 
 ## Thành phần và cấu hình
 
-| Thành phần    | Cấu hình đã xác nhận                                                                                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Web SPA       | S3 private + CloudFront OAC; `index.html` không cache, asset cache 1 năm (`scripts/deploy.sh`); không có WAF.                                                                                                |
-| Ảnh câu hỏi   | Bucket riêng, versioned, CloudFront riêng (không alias). Ảnh ghi với `Cache-Control: public, max-age=31536000, immutable`. Route ảnh qua API vẫn còn cho local/client cũ.                                    |
-| Upload ZIP    | Browser gọi `GET /v1/admin/imports/presign`, PUT thẳng lên S3 (URL hiệu lực 600 giây), rồi gọi `POST /v1/admin/imports` với `archiveKey`. API đọc ZIP, kiểm tra, giải nén và ghi ảnh lên S3.                 |
-| Xác thực      | Cognito ở stack riêng `OnThiLabAuth-<stage>`. SPA dùng Authorization Code + PKCE (S256). API xác thực **ID token** (`tokenUse: "id"`, client ID) bằng `aws-jwt-verify`. Role lấy từ server.                  |
-| API Gateway   | REST API, stage `prod`, throttle 80/160, tracing X-Ray, access log, binary media cho ảnh.                                                                                                                    |
-| API Lambda    | Node.js 22, **x86_64**, 1024 MB, timeout 29 giây, `DATABASE_MAX_CONNECTIONS=3`. Không đặt reserved concurrency.                                                                                              |
-| Worker Lambda | Node.js 22, **arm64**, 512 MB, timeout 120 giây, 1 DB connection, bundle `sharp` cho linux/arm64. Quyền: SSM (DB), S3, SQS (nhận/xóa), `textract:DetectDocumentText`.                                        |
-| SQS           | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`). `OptionCountQueue` (visibility 180 giây, `maxReceiveCount` 3 -> `OptionCountDlq`).                                              |
-| Secrets       | `DATABASE_URL` và AI key: SSM SecureString (`alias/aws/ssm`), đọc khi cold start. Google client ID/secret: SSM **String thường** do giới hạn của CloudFormation Cognito.                                     |
-| Database      | Supabase PostgreSQL (Singapore) qua transaction pooler, ngoài AWS, không có VPC/RDS.                                                                                                                         |
-| Quan sát      | 11 CloudWatch alarm prod (2 queue OCR + 2 worker OCR + 1 DLQ OptionCount + 1 worker OptionCount + 3 API Lambda + 2 API Gateway) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.** |
+| Thành phần      | Cấu hình đã xác nhận                                                                                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web SPA         | S3 private + CloudFront OAC; `index.html` không cache, asset cache 1 năm (`scripts/deploy.sh`); không có WAF.                                                                                                                            |
+| Ảnh câu hỏi     | Bucket riêng, versioned, CloudFront riêng (không alias). Ảnh ghi với `Cache-Control: public, max-age=31536000, immutable`. Route ảnh qua API vẫn còn cho local/client cũ.                                                                |
+| Upload ZIP      | Browser gọi `GET /v1/admin/imports/presign`, PUT thẳng lên S3 (URL hiệu lực 600 giây), rồi gọi `POST /v1/admin/imports` với `archiveKey`. API đọc ZIP, kiểm tra, giải nén và ghi ảnh lên S3.                                             |
+| Xác thực        | Cognito ở stack riêng `OnThiLabAuth-<stage>`. SPA dùng Authorization Code + PKCE (S256). API xác thực **ID token** (`tokenUse: "id"`, client ID) bằng `aws-jwt-verify`. Role lấy từ server.                                              |
+| API Gateway     | REST API, stage `prod`, throttle 80/160, tracing X-Ray, access log, binary media cho ảnh.                                                                                                                                                |
+| API Lambda      | Node.js 22, **x86_64**, 1024 MB, timeout 29 giây, `DATABASE_MAX_CONNECTIONS=3`. Không đặt reserved concurrency.                                                                                                                          |
+| Worker Lambda   | Node.js 22, **arm64**, 512 MB, timeout 120 giây, 1 DB connection, không còn `sharp`. Quyền: SSM (DB), SQS (nhận/xóa), `lambda:InvokeFunction` tới `TextOcrFunction`.                                                                     |
+| TextOcrFunction | Python 3.11 container (Debian), x86_64, 2048 MB, timeout 90 giây, Tesseract 5 (`tessdata_best` eng) + PaddleOCR Latin (RapidOCR, mô hình nằm trong image, không cần mạng). Chỉ đọc S3 ảnh câu hỏi, không có quyền DB. Image khoảng 1 GB. |
+| SQS             | `OcrQueue` (standard, visibility 180 giây, `maxReceiveCount` 3 -> `OcrDlq`). `OptionCountQueue` (visibility 180 giây, `maxReceiveCount` 3 -> `OptionCountDlq`).                                                                          |
+| Secrets         | `DATABASE_URL` và AI key: SSM SecureString (`alias/aws/ssm`), đọc khi cold start. Google client ID/secret: SSM **String thường** do giới hạn của CloudFormation Cognito.                                                                 |
+| Database        | Supabase PostgreSQL (Singapore) qua transaction pooler, ngoài AWS, không có VPC/RDS.                                                                                                                                                     |
+| Quan sát        | 12 CloudWatch alarm prod (2 queue OCR + 2 worker OCR + 1 TextOcrFunction + 1 DLQ OptionCount + 1 worker OptionCount + 3 API Lambda + 2 API Gateway) và các log group 30 ngày. **Không alarm nào có action; không có SNS topic.**         |
 
 ## Luồng xử lý
 
@@ -147,7 +149,7 @@ kiểm tra chữ ký, issuer, client ID, loại token và expiry.
 autosave dùng `sequence` tăng dần (ghi chỉ khi sequence mới >= cũ); submit
 idempotent; attempt gắn với `exam_revision` bất biến.
 
-### 4. Nhập đề và OCR (Textract)
+### 4. Nhập đề và OCR (Tesseract + PaddleOCR)
 
 1. Admin lấy presigned URL, PUT ZIP lên S3 `uploads/<uuid>/questions.zip`.
 2. `POST /v1/admin/imports` (`archiveKey`): API đọc ZIP, validate, giải nén,
@@ -158,19 +160,21 @@ idempotent; attempt gắn với `exam_revision` bất biến.
    (gom 10 message/batch khi gọi SQS).
 4. Worker (batch 1, tối đa 3 đồng thời):
    claim bằng `UPDATE ... WHERE status='pending'` -> dùng lại kết quả theo
-   `imageHash` nếu có (trừ khi `force`) -> đọc ảnh S3 -> `sharp` (xoay EXIF,
-   upscale tối đa 2600 px, nền trắng, sharpen, JPEG) -> `DetectDocumentText`
-   -> `normalizeQuestionText` -> `classifyQuestion` -> lưu `ocr_metadata`.
-   Cờ `needs_review`: `low_confidence`, `has_formula`, `low_resolution`,
-   `missing_option_labels`, `too_short` (và `invalid_option_count`,
-   `answer_out_of_range` khi lưu). Câu có cờ giữ ảnh gốc (hybrid).
+   `imageHash` nếu có (trừ khi `force`) -> gọi `TextOcrFunction` -> lưu
+   `ocr_metadata` (`providerVersion` `tesseract-paddle@2026-10`).
+   `TextOcrFunction` (Python container, không có quyền DB) tìm khối chữ bằng xử
+   lý ảnh, đọc bằng hai bộ độc lập (Tesseract, PaddleOCR) và chỉ trả
+   `approved` khi hai bộ trùng nhau ở mọi trường, cấu trúc A→N sạch, không có
+   code/công thức/hình cạnh hoặc dưới phần chữ, không có chỗ trống `____`, không
+   có chữ tiếng Việt/không phải Latin và không có tên dễ nhầm I/l. Mọi trường
+   hợp còn lại là `needs_review` và web hiển thị ảnh gốc (hybrid).
 5. Lỗi runtime: worker đặt lại `pending` (trước lần nhận cuối) và throw để SQS
    retry; sau 3 lần nhận message vào `OcrDlq`. Nếu worker bị Lambda timeout
    (không chạy được error handler), câu còn `processing`; lần SQS gửi lại sau
    150 giây trở đi sẽ claim lại được (`OCR_STALE_PROCESSING_MS`, nằm giữa timeout
    120 giây của Lambda và visibility 180 giây của queue).
 
-Textract chỉ dùng `LINE.Text` và `Confidence`; toạ độ không được dùng.
+Mô hình tiếng Việt chưa được bật: câu tiếng Việt luôn giữ ảnh. Đo trên 166 câu đối chiếu (ngoài repo): 45/99 câu tiếng Anh tự thành text, 45/45 đúng; 0/34 câu code/công thức bị duyệt nhầm.
 
 ### 4b. Đếm số lựa chọn trên ảnh (RapidOCR)
 

@@ -16,7 +16,6 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sqs from "aws-cdk-lib/aws-sqs";
-import * as iam from "aws-cdk-lib/aws-iam";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -318,6 +317,40 @@ export class OnThiLabStack extends Stack {
         alarmDescription: "Option-count OCR worker failed.",
       });
 
+      // Reads one question image and decides whether it can safely become text.
+      // It has no database access; the Node worker owns claiming and saving.
+      const textOcrLogGroup = new logs.LogGroup(this, "TextOcrLogGroup", {
+        retention: isProduction
+          ? logs.RetentionDays.ONE_MONTH
+          : logs.RetentionDays.TWO_WEEKS,
+        removalPolicy: dataRemovalPolicy,
+      });
+      const textOcrFunction = new lambda.DockerImageFunction(
+        this,
+        "TextOcrFunction",
+        {
+          code: lambda.DockerImageCode.fromImageAsset(
+            join(projectRoot, "apps/text-ocr-worker"),
+          ),
+          architecture: lambda.Architecture.X86_64,
+          memorySize: 2048,
+          timeout: Duration.seconds(90),
+          logGroup: textOcrLogGroup,
+          environment: {
+            QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+          },
+        },
+      );
+      questionImageBucket.grantRead(textOcrFunction);
+      new cloudwatch.Alarm(this, "TextOcrFunctionErrorAlarm", {
+        metric: textOcrFunction.metricErrors({ period: Duration.minutes(5) }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: "Text OCR function crashed or timed out.",
+      });
+
       const workerLogGroup = new logs.LogGroup(this, "WorkerLogGroup", {
         retention: isProduction
           ? logs.RetentionDays.ONE_MONTH
@@ -351,35 +384,26 @@ export class OnThiLabStack extends Stack {
                 return [];
               },
               afterBundling(inputDir: string, outputDir: string): string[] {
-                return [
-                  `cd ${outputDir} && npm init -y && npm install --os=linux --cpu=arm64 sharp`,
-                ];
+                return [];
               },
             },
           },
           environment: {
             DATABASE_PARAMETER_NAME: props.databaseParameterName,
             DATABASE_MAX_CONNECTIONS: "1",
-            QUESTION_IMAGE_BUCKET: questionImageBucket.bucketName,
+            TEXT_OCR_FUNCTION_NAME: textOcrFunction.functionName,
             OCR_QUEUE_URL: ocrQueue.queueUrl,
           },
         },
       );
 
       databaseParameter.grantRead(workerHandler);
-      questionImageBucket.grantReadWrite(workerHandler);
+      textOcrFunction.grantInvoke(workerHandler);
 
       workerHandler.addEventSource(
         new SqsEventSource(ocrQueue, {
           batchSize: 1,
           maxConcurrency: 3,
-        }),
-      );
-
-      workerHandler.addToRolePolicy(
-        new iam.PolicyStatement({
-          actions: ["textract:DetectDocumentText"],
-          resources: ["*"],
         }),
       );
 

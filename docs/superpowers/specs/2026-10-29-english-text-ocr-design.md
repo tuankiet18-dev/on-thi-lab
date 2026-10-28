@@ -1,18 +1,22 @@
 # Tự chuyển câu hỏi tiếng Anh từ ảnh sang text (thay AWS Textract)
 
 ## Mục tiêu
+
 Khi import đề, câu hỏi **tiếng Anh** đủ chắc được hiển thị dạng text; mọi câu khác giữ ảnh gốc.
 Admin không phải kiểm tra từng câu. Bỏ AWS Textract khỏi kiến trúc.
 
 ## Ngoài phạm vi (bước đầu)
+
 Tiếng Việt, chạy lại đề đã có (chỉ khi admin bấm "OCR lại"), VietOCR/PyTorch, mô hình thị giác.
 
 ## Hiện trạng giữ nguyên
+
 `import -> OcrQueue -> Worker (Node) -> questions.ocr_metadata`; hybrid hiển thị text chỉ khi `status=approved`,
 có `textContent` và 2–6 lựa chọn, ngược lại hiện ảnh. Không đổi bảng, cột, API, giao diện web.
 Claim idempotent, reclaim job bị kẹt, retry/DLQ, cache theo `imageHash` vẫn nằm trong worker Node đã có test.
 
 ## Thay đổi
+
 1. **Lambda mới `TextOcrFunction`** (`apps/text-ocr-worker/`, Python container, x86_64, 2048 MB, timeout 90 s).
    Không có quyền DB. Chỉ đọc S3 ảnh câu hỏi. Vào: `{key}`; ra:
    `{ status: "approved" | "needs_review", textContent, options[], flagReasons[], confidence }`.
@@ -30,10 +34,12 @@ Claim idempotent, reclaim job bị kẹt, retry/DLQ, cache theo `imageHash` vẫ
    cấp `lambda:InvokeFunction` cho worker, thêm biến `TEXT_OCR_FUNCTION_NAME`. `OptionCountWorker` không đổi.
 
 ## Lỗi và hồi phục
+
 - Invoke lỗi/timeout: worker chạy đường lỗi hiện có (`scheduleOcrRetry`, DLQ sau 3 lần); câu hiển thị ảnh. Không ảnh hưởng sinh viên.
 - Không chắc là đủ lý do để giữ ảnh. Cổng không bao giờ ghi đáp án.
 
 ## Kiểm chứng (điều kiện để deploy)
+
 - Test Python cho cổng bằng ảnh tổng hợp (I/l, công thức bên phải, thiếu cấu trúc, chỗ trống, tiếng Việt).
 - Test worker Node (processOcrJob) với reader giả; test tích hợp DB hiện có vẫn qua; `pnpm validate`.
 - Build image thật rồi chạy trên bộ đối chiếu tiếng Anh (ngoài repo, `~/onthilab-ocr-work/golden*`): không câu nào ngoài
@@ -41,6 +47,7 @@ Claim idempotent, reclaim job bị kẹt, retry/DLQ, cache theo `imageHash` vẫ
 - `cdk diff` cho prod để bạn xem trước; deploy bằng `scripts/deploy.sh --confirm-production`.
 
 ## Rủi ro đã biết
+
 - Base image Lambda của AWS (Amazon Linux) không có Tesseract: dùng base Debian + `awslambdaric`; phiên bản Tesseract có
   thể lệch (đo trên 5.3.4) nên phải chạy lại bộ đối chiếu trên image thật.
 - Mẫu đo nhỏ (99 câu tiếng Anh); vài câu sai vẫn có thể hiện text cho sinh viên.
