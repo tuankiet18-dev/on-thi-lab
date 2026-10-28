@@ -14,7 +14,7 @@ _WORDS |= {
     "api", "ui", "ux", "url", "http", "https", "html", "css", "sql", "java", "javascript", "json", "xml", "ip",
     "ipv4", "ipv6", "mac", "dhcp", "dns", "tcp", "udp", "osi", "mvvm", "mvc", "tempdata", "grpc", "react",
     "android", "unity", "wifi", "online", "email", "login", "backend", "frontend", "ai", "cpu", "gpu", "ram",
-    "rom", "usb", "lan", "wan", "vpn", "ssh", "tftp", "arp", "ic", "ics",
+    "rom", "usb", "lan", "wan", "vpn", "ssh", "tftp", "arp",
 }
 
 # Screen chrome that surrounds the question in exam screenshots.
@@ -146,6 +146,9 @@ def decide(readings: dict[str, list[str]], extra_ink: int, has_blank: bool) -> d
         flags.append("code_like")
     if any(_IL_AMBIGUOUS.search(_core(t)) or (re.search(r"[a-z][A-Z]", _core(t)) and re.search(r"[lI]", _core(t)))
            for f in a for t in f.split()):
+        flags.append("ambiguous_il")
+    # A short lowercase word ending a sentence or abbreviation ("inc.", "ltd.") may really start with a capital I.
+    if any(re.fullmatch(r"[il][a-z]{1,3}\.", _core(t) + ("." if t.endswith(".") else "")) for f in a for t in f.split()):
         flags.append("ambiguous_il")
     if any(t[:1] in "iIlL" or _LETTER_AMBIGUOUS.search(t) for f in a for t in unknown_tokens(f)):
         flags.append("unconfirmed_word")

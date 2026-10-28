@@ -63,6 +63,17 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(result["status"], "needs_review")
         self.assertIn("no_structure", result["flagReasons"])
 
+    def test_lowercase_abbreviation_may_hide_a_capital_i(self):
+        blocks = ["Ralph Corp. and Swan inc. signed an agreement.", "A. Yes", "B. No"]
+        result = decide(both(blocks), extra_ink=0, has_blank=False)
+        self.assertEqual(result["status"], "needs_review")
+        self.assertIn("ambiguous_il", result["flagReasons"])
+
+    def test_unknown_word_starting_with_i_is_not_trusted(self):
+        blocks = [STEM, "A. Semiconductor Ics", "B. Index"]
+        result = decide(both(blocks), extra_ink=0, has_blank=False)
+        self.assertEqual(result["status"], "needs_review")
+
     def test_six_options_are_allowed(self):
         blocks = [STEM, *[f"{c}. Option {c.lower()}" for c in "ABCDEF"]]
         result = decide(both(blocks), extra_ink=0, has_blank=False)

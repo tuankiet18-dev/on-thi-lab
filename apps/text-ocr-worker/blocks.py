@@ -93,4 +93,8 @@ def locate(image: Image.Image) -> Located:
     if panel:
         top, bottom = min(c["y0"] for c in panel), max(c["y1"] for c in panel)
         extra = sum(c["ink"] for c in others if c["y1"] > top and c["y0"] < bottom and c["ink"] >= 40)
+        # A diagram or code block below the options is not beside the panel, but is just as unrepresentable as text.
+        total = sum(c["ink"] for c in others)
+        if total > 3000:
+            extra += total
     return Located(boxes, Image.fromarray(cleaned), dark, extra, _has_blank(dark, boxes))

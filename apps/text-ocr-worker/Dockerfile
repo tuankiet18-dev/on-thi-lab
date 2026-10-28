@@ -13,8 +13,9 @@ WORKDIR /var/task
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download the PP-OCR Latin models at build time so the Lambda never needs the network.
-RUN python -c "from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR; RapidOCR(params={'Rec.lang_type': LangRec.LATIN, 'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.model_type': ModelType.MOBILE})"
+# Download the PP-OCR Latin model at build time (RapidOCR fetches lazily, on the first recognition) so the Lambda never needs the network.
+RUN python -c "import numpy as np; from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR; e = RapidOCR(params={'Rec.lang_type': LangRec.LATIN, 'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.model_type': ModelType.MOBILE}); e(np.full((32, 200, 3), 255, np.uint8), use_det=False, use_cls=False, use_rec=True)" \
+    && ls /usr/local/lib/python3.11/site-packages/rapidocr/models/latin_PP-OCRv5_rec_mobile.onnx
 
 COPY blocks.py gate.py readers.py handler.py ./
 ENV TESSDATA_PREFIX=/opt/tessdata OMP_THREAD_LIMIT=1

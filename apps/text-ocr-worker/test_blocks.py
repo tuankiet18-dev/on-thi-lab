@@ -38,6 +38,14 @@ class LocateTests(unittest.TestCase):
         located = blocks.locate(question_image(extra="f(x) = x^2 + 1"))
         self.assertGreater(located.extra_ink, 150)
 
+    def test_diagram_below_the_options_counts_as_extra_ink(self):
+        image = question_image()
+        draw = ImageDraw.Draw(image)
+        for x in (80, 200, 320):  # a tree-like diagram: outlined nodes with labels
+            draw.ellipse((x, 335, x + 70, 395), outline="black", width=3)
+            draw.text((x + 22, 354), "30", fill="black", font=FONT)
+        self.assertGreater(blocks.locate(image).extra_ink, 150)
+
     def test_blank_line_detected(self):
         self.assertTrue(blocks.locate(question_image(blank=True)).has_blank)
 
