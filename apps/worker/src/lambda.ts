@@ -3,39 +3,42 @@ import {
   createDatabaseConnection,
   PostgresOcrRepository,
 } from "@onthilab/database";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { TextractClient } from "@aws-sdk/client-textract";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-import { processOcrJob, type OcrImageReader } from "./ocr-processor.js";
+import {
+  processOcrJob,
+  type TextOcrClient,
+  type TextOcrResult,
+} from "./ocr-processor.js";
 
 const databaseParameterName = process.env.DATABASE_PARAMETER_NAME;
-const questionImageBucket = process.env.QUESTION_IMAGE_BUCKET;
+const textOcrFunctionName = process.env.TEXT_OCR_FUNCTION_NAME;
 
-if (!databaseParameterName || !questionImageBucket) {
+if (!databaseParameterName || !textOcrFunctionName) {
   throw new Error("Missing required environment variables for worker.");
 }
 
 const ssmClient = new SSMClient({});
-const s3Client = new S3Client({});
-const textractClient = new TextractClient({});
+const lambdaClient = new LambdaClient({});
 const maxOcrDeliveryAttempts = 3;
 
-class S3ImageReader implements OcrImageReader {
-  constructor(private readonly bucketName: string) {}
+class LambdaTextOcrClient implements TextOcrClient {
+  constructor(private readonly functionName: string) {}
 
-  async read(imageKey: string) {
-    const response = await s3Client.send(
-      new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: imageKey,
+  async read(imageKey: string): Promise<TextOcrResult> {
+    const response = await lambdaClient.send(
+      new InvokeCommand({
+        FunctionName: this.functionName,
+        Payload: new TextEncoder().encode(JSON.stringify({ key: imageKey })),
       }),
     );
-    if (!response.Body) return null;
-    const bytes = await response.Body.transformToByteArray();
-    return {
-      bytes,
-      contentType: response.ContentType ?? "image/jpeg",
-    };
+    // The function reports its own failures as needs_review; FunctionError means it crashed or timed out.
+    if (response.FunctionError) {
+      throw new Error(`Text OCR function failed: ${response.FunctionError}`);
+    }
+    return JSON.parse(
+      new TextDecoder().decode(response.Payload),
+    ) as TextOcrResult;
   }
 }
 
@@ -63,7 +66,7 @@ async function getOcrRepository() {
   return ocrRepositoryPromise;
 }
 
-const imageReader = new S3ImageReader(questionImageBucket);
+const textOcr = new LambdaTextOcrClient(textOcrFunctionName);
 
 export const handler: SQSHandler = async (event: SQSEvent) => {
   const ocrRepository = await getOcrRepository();
@@ -76,8 +79,7 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       // Assuming all jobs sent to this queue (OcrQueue) are OCR jobs.
       await processOcrJob(payload, {
         repository: ocrRepository,
-        images: imageReader,
-        textract: textractClient,
+        ocr: textOcr,
       });
     } catch (error) {
       console.error("Error processing message", record.messageId, error);
