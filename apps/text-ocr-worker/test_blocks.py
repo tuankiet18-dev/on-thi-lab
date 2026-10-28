@@ -39,11 +39,13 @@ class LocateTests(unittest.TestCase):
         self.assertGreater(located.extra_ink, 150)
 
     def test_diagram_below_the_options_counts_as_extra_ink(self):
-        image = question_image()
+        image = Image.new("RGB", (1400, 640), "white")
+        image.paste(question_image(), (0, 0))
         draw = ImageDraw.Draw(image)
-        for x in (80, 200, 320):  # a tree-like diagram: outlined nodes with labels
-            draw.ellipse((x, 335, x + 70, 395), outline="black", width=3)
-            draw.text((x + 22, 354), "30", fill="black", font=FONT)
+        for row in (330, 440, 550):  # a tree-like diagram: outlined, labelled nodes
+            for x in (80, 260, 440):
+                draw.ellipse((x, row, x + 130, row + 80), outline="black", width=4)
+                draw.text((x + 50, row + 28), "30", fill="black", font=FONT)
         self.assertGreater(blocks.locate(image).extra_ink, 150)
 
     def test_blank_line_detected(self):
