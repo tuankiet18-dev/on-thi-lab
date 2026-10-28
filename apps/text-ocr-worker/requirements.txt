@@ -1,0 +1,14 @@
+awslambdaric==4.2.3
+boto3==1.43.120
+numpy>=2.4,<3
+opencv-python-headless==5.0.0.93
+Pillow==12.3.0
+onnxruntime==1.28.0
+rapidocr==3.10.0
+omegaconf
+colorlog
+shapely
+pyclipper
+pyyaml
+requests
+tqdm
