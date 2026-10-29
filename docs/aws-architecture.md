@@ -97,7 +97,6 @@ flowchart TB
     OptFn -->|"GetObject"| S3Img
     OptFn -->|"cập nhật số lựa chọn (SQL)"| Supabase
     WorkerFn -->|"claim + lưu kết quả (SQL)"| Supabase
-    WorkerFn -->|"GetObject"| S3Img
     WorkerFn -->|"Invoke (key ảnh)"| TextOcr
     TextOcr -->|"GetObject"| S3Img
 
