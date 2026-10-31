@@ -8,7 +8,8 @@ Supabase Free.
 - API Lambda dùng concurrency quota chung của tài khoản. Không đặt reserved
   concurrency khi quota tài khoản còn thấp vì AWS luôn yêu cầu chừa ít nhất 10
   execution không dành riêng.
-- Mỗi Lambda/worker giữ tối đa một database connection.
+- API Lambda giữ tối đa 3 database connection mỗi container
+  (`DATABASE_MAX_CONNECTIONS`); OCR worker giữ tối đa 1.
 - API Gateway giới hạn 80 request/giây, burst 160.
 - OCR worker tối đa 3 execution đồng thời và có DLQ.
 - Ảnh câu hỏi mới được trả qua CloudFront riêng thay vì đi qua Lambda.

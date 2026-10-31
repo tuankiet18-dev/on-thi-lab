@@ -2,7 +2,7 @@
   "name": "onthilab",
   "version": "0.1.0",
   "private": true,
-  "description": "Nền tảng luyện thi FE theo đề thi thực tế dành cho sinh viên FPT.",
+  "description": "N\u1ec1n t\u1ea3ng luy\u1ec7n thi FE theo \u0111\u1ec1 thi th\u1ef1c t\u1ebf d\u00e0nh cho sinh vi\u00ean FPT.",
   "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=22"
@@ -16,7 +16,7 @@
     "test": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
     "test:load:staging": "bash ./scripts/run-load-test.sh",
-    "validate": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "validate": "pnpm format:check && pnpm check:boundaries && pnpm typecheck && pnpm test && pnpm build",
     "git:setup": "git config core.hooksPath .githooks",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,7 +24,8 @@
     "deploy:staging": "bash ./deploy-staging.sh",
     "deploy:staging:web": "bash ./deploy-staging-web.sh",
     "deploy:prod": "bash ./deploy-prod.sh",
-    "deploy:prod:web": "bash ./deploy-prod-web.sh"
+    "deploy:prod:web": "bash ./deploy-prod-web.sh",
+    "check:boundaries": "node scripts/check-boundaries.mjs && node --test scripts/check-boundaries.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
