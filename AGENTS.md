@@ -26,8 +26,13 @@ apps/web -> packages/contracts
 apps/api -> packages/contracts + packages/database + packages/importer
 apps/worker -> packages/contracts + packages/database
 packages/database -> packages/contracts
+packages/importer -> packages/database (types only)
 infra -> deployable apps/packages
 ```
+
+`pnpm check:boundaries` enforces this (it runs in `pnpm validate` and CI). The
+only exception is `apps/worker/src/validate-zip.ts`, a CLI that uses the
+importer. Change `scripts/check-boundaries.mjs` together with this section.
 
 - Domain modules must not import from a UI page or another app.
 - `apps/api/src/app.ts` is wiring only. Put endpoints in
