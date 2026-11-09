@@ -123,9 +123,6 @@ importers:
       "@aws-sdk/client-lambda":
         specifier: ^3.1098.0
         version: 3.1158.0
-      "@aws-sdk/client-sqs":
-        specifier: ^3.1098.0
-        version: 3.1098.0
       "@aws-sdk/client-ssm":
         specifier: ^3.1098.0
         version: 3.1098.0
