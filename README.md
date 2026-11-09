@@ -33,7 +33,7 @@
 
 ## 🌐 English Quick Overview
 
-> **OnThiLab** is an open educational platform designed to help students at FPT University (across all 5 campuses: Hoa Lac, HCM, Da Nang, Can Tho, Quy Nhon) prepare for 60-minute multiple-choice Final Exams under realistic exam conditions.
+> **OnThiLab** is an educational platform designed to help students at FPT University (across all 5 campuses: Hoa Lac, HCM, Da Nang, Can Tho, Quy Nhon) prepare for 60-minute multiple-choice Final Exams under realistic exam conditions.
 >
 > **Key Engineering Highlights:**
 >
@@ -63,7 +63,7 @@ Tại FPT University, sinh viên phải đối mặt với kỳ thi Final Exam (
 
 - **Phòng thi chuẩn học thuật:** Đếm ngược thời gian thực, bảng chuyển câu nhanh (Question Palette), gắn cờ câu hỏi cần xem lại, tự động nộp bài khi hết giờ.
 - **Cơ chế lưu bài chống rớt mạng (Monotonic Autosave):** Mọi lựa chọn được gửi lưu tức thì lên máy chủ. Bạn có thể reload trang hoặc mở thiết bị khác để làm tiếp trong thời gian còn lại.
-- **Chế độ hiển thị Hybrid OCR & Modal Zoom chi tiết:** Câu hỏi lý thuyết hiển thị text rõ nét; các câu hỏi sơ đồ kỹ thuật tự động giữ nguyên ảnh chụp đề thi gốc kèm công cụ phóng to/thu nhỏ và panning mượt mà.
+- **Chế độ hiển thị Hybrid OCR & Modal Zoom chi tiết:** Câu hỏi tiếng Anh được hai bộ OCR đọc khớp nhau thì hiển thị dạng text rõ nét; câu nào không chắc (sơ đồ, code, công thức, tiếng Việt) giữ nguyên ảnh đề gốc kèm công cụ phóng to/thu nhỏ và kéo xem chi tiết.
 - **Đăng nhập an toàn:** Tích hợp xác thực Google và Email qua Amazon Cognito theo chuẩn **OAuth 2.0 PKCE**.
 - **Kho học liệu 5 cơ sở:** Tìm kiếm và lọc đề thi theo mã môn (PRO192, PRF192, CSD201, DBI202, MAS291...), cơ sở và kỳ học. Lưu đề yêu thích và xem biểu đồ phân tích kết quả sau thi.
 
@@ -80,18 +80,22 @@ Tại FPT University, sinh viên phải đối mặt với kỳ thi Final Exam (
 
 Hệ thống được thiết kế theo mô hình **Pragmatic Serverless Architecture** (Kiến trúc Serverless thực dụng), mô tả hoàn toàn bằng mã nguồn **Infrastructure as Code (AWS CDK TypeScript)**.
 
-Sơ đồ Mermaid đầy đủ và chi tiết từng luồng nằm ở [docs/aws-architecture.md](docs/aws-architecture.md).
+<p align="center">
+  <img src="docs/images/onthilab-diagrams.png" alt="Sơ đồ kiến trúc production của OnThiLab trên AWS" width="100%" />
+</p>
+
+Sơ đồ Mermaid chi tiết từng luồng và cấu hình đã xác nhận nằm ở [docs/aws-architecture.md](docs/aws-architecture.md).
 
 ### Phân tích chi tiết các tầng kiến trúc:
 
-| Phân tầng            | Dịch vụ AWS                                                                              | Vai trò kỹ thuật & Điểm đặc biệt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| :------------------- | :--------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Edge & CDN**       | **Amazon Route 53** (ngoài CDK)<br />**Dual CloudFront**<br />**Amazon S3 (OAC)**        | • Tách làm **2 CloudFront Distributions riêng biệt**: 1 phân phối Web SPA (fallback 403/404 -> `/index.html`), 1 phân phối độc lập hàng nghìn ảnh câu hỏi.<br />• Ảnh đề thi được gán hash key bất biến, gắn `Cache-Control: immutable` (cache 1 năm) và phục vụ qua CloudFront riêng, nên **ảnh không đi qua API Gateway/Lambda**. Admin upload ZIP bằng presigned PUT thẳng lên S3.<br />• Khóa 100% truy cập S3 từ internet bằng **Origin Access Control (OAC)** chuẩn mới.                                                                                                                                                                                                                                                                                                                    |
-| **Identity & Auth**  | **Amazon Cognito**<br />**Google OAuth 2.0**                                             | • Cognito nằm ở stack riêng (`OnThiLabAuth`), dùng Managed Login hỗ trợ Google IdP và User Pool; production dùng custom domain `auth.onthilab.id.vn`.<br />• API xác thực **Cognito ID token** bằng `aws-jwt-verify`.<br />• Triển khai luồng **Authorization Code Flow with PKCE**, bảo đảm không lưu bất kỳ client secret nào phía trình duyệt.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Compute & API**    | **Amazon API Gateway**<br />**AWS Lambda (Node 22)**                                     | • API Gateway cấu hình Throttling Guardrails (`RateLimit = 80 req/s`, `BurstLimit = 160 req/s`) chống tấn công từ chối dịch vụ.<br />• API Handler (Node 22, x86_64, 1024 MB, timeout 29s) đóng gói ESM minified, giới hạn `DATABASE_MAX_CONNECTIONS = 3` trên mỗi container.<br />• Gợi ý đáp án AI Vision (Groq) được gọi **trực tiếp từ API Lambda**, không qua worker hay hàng đợi.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **Async Processing** | **Amazon SQS & DLQ**<br />**Worker Lambda (ARM64)**<br />**Text OCR Lambda (container)** | • OCR chạy nền bất đồng bộ qua `OcrQueue` (batch 1, tối đa 3 worker đồng thời, DLQ sau 3 lần). Giải nén ZIP chạy trong API Lambda, không qua worker.<br />• **OptionCountWorker** (Lambda Python container, RapidOCR) đếm số lựa chọn A–F trên ảnh đề qua `OptionCountQueue`, thay cho bước `exam_packager.py` chạy local.<br />• Worker Lambda (ARM64) giữ claim idempotent, lưu kết quả và retry; phần đọc chữ do **Text OCR Lambda** (Python container: Tesseract + PaddleOCR) thực hiện. Chỉ câu **tiếng Anh** mà hai bộ đọc trùng nhau và không có code/công thức/chỗ trống mới thành text; mọi câu khác giữ ảnh gốc.<br />• Áp dụng **Idempotent Claim Pattern**: Worker xác nhận trạng thái trong database trước khi gọi AWS Textract, loại bỏ rủi ro gọi trùng lặp gây phát sinh chi phí. |
-| **Data & Secrets**   | **Supabase PostgreSQL**<br />**AWS SSM Parameter Store**                                 | • Sử dụng **PostgreSQL Transaction Pooler** (Singapore) thay vì dựng Aurora Serverless + VPC NAT Gateway đắt đỏ, giữ chi phí nền ở mức gần $0 khi không có tải.<br />• `DATABASE_URL` và AI API key lưu dạng **SecureString**, Lambda đọc một lần lúc cold start. Google client ID/secret là SSM `String` thường (giới hạn của CloudFormation Cognito).                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **Observability**    | **Amazon CloudWatch**                                                                    | • **12 CloudWatch Alarms** giám sát DLQ (`visible >= 1`), tuổi message OCR (>15 phút), lỗi/throttle của Lambda, 5xx và độ trễ p95 (>2s) của API Gateway. Hiện **chưa gắn kênh thông báo** (chưa có SNS).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Phân tầng            | Dịch vụ AWS                                                                              | Vai trò kỹ thuật & Điểm đặc biệt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| :------------------- | :--------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Edge & CDN**       | **Amazon Route 53** (ngoài CDK)<br />**Dual CloudFront**<br />**Amazon S3 (OAC)**        | • Tách làm **2 CloudFront Distributions riêng biệt**: 1 phân phối Web SPA (fallback 403/404 -> `/index.html`), 1 phân phối độc lập hàng nghìn ảnh câu hỏi.<br />• Ảnh đề thi được gán hash key bất biến, gắn `Cache-Control: immutable` (cache 1 năm) và phục vụ qua CloudFront riêng, nên **ảnh không đi qua API Gateway/Lambda**. Admin upload ZIP bằng presigned PUT thẳng lên S3.<br />• Khóa 100% truy cập S3 từ internet bằng **Origin Access Control (OAC)** chuẩn mới.                                                                                                                                                                                                                                                                                                                              |
+| **Identity & Auth**  | **Amazon Cognito**<br />**Google OAuth 2.0**                                             | • Cognito nằm ở stack riêng (`OnThiLabAuth`), dùng Managed Login hỗ trợ Google IdP và User Pool; production dùng custom domain `auth.onthilab.id.vn`.<br />• API xác thực **Cognito ID token** bằng `aws-jwt-verify`.<br />• Triển khai luồng **Authorization Code Flow with PKCE**, bảo đảm không lưu bất kỳ client secret nào phía trình duyệt.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Compute & API**    | **Amazon API Gateway**<br />**AWS Lambda (Node 22)**                                     | • API Gateway cấu hình Throttling Guardrails (`RateLimit = 80 req/s`, `BurstLimit = 160 req/s`) giới hạn tải để bảo vệ API và database khi lưu lượng tăng đột biến.<br />• API Handler (Node 22, x86_64, 1024 MB, timeout 29s) đóng gói ESM minified, giới hạn `DATABASE_MAX_CONNECTIONS = 3` trên mỗi container.<br />• Gợi ý đáp án AI Vision (Groq) được gọi **trực tiếp từ API Lambda**, không qua worker hay hàng đợi.                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Async Processing** | **Amazon SQS & DLQ**<br />**Worker Lambda (ARM64)**<br />**Text OCR Lambda (container)** | • OCR chạy nền bất đồng bộ qua `OcrQueue` (batch 1, tối đa 3 worker đồng thời, DLQ sau 3 lần). Giải nén ZIP chạy trong API Lambda, không qua worker.<br />• **OptionCountWorker** (Lambda Python container, RapidOCR) đếm số lựa chọn A–F trên ảnh đề qua `OptionCountQueue`, thay cho bước `exam_packager.py` chạy local.<br />• Worker Lambda (ARM64) giữ claim idempotent, lưu kết quả và retry; phần đọc chữ do **Text OCR Lambda** (Python container: Tesseract + PaddleOCR) thực hiện. Chỉ câu **tiếng Anh** mà hai bộ đọc trùng nhau và không có code/công thức/chỗ trống mới thành text; mọi câu khác giữ ảnh gốc.<br />• Áp dụng **Idempotent Claim Pattern**: Worker xác nhận trạng thái trong database trước khi gọi Text OCR Lambda, nên một message bị gửi hai lần vẫn chỉ được xử lý một lần. |
+| **Data & Secrets**   | **Supabase PostgreSQL**<br />**AWS SSM Parameter Store**                                 | • Sử dụng **PostgreSQL Transaction Pooler** (Singapore) thay vì dựng Aurora Serverless + VPC NAT Gateway đắt đỏ, giữ chi phí nền ở mức gần $0 khi không có tải.<br />• `DATABASE_URL` và AI API key lưu dạng **SecureString**, Lambda đọc một lần lúc cold start. Google client ID/secret là SSM `String` thường (giới hạn của CloudFormation Cognito).                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Observability**    | **Amazon CloudWatch**                                                                    | • **12 CloudWatch Alarms** giám sát DLQ (`visible >= 1`), tuổi message OCR (>15 phút), lỗi/throttle của Lambda, 5xx và độ trễ p95 (>2s) của API Gateway. Hiện **chưa gắn kênh thông báo** (chưa có SNS).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -114,8 +118,10 @@ Sơ đồ Mermaid đầy đủ và chi tiết từng luồng nằm ở [docs/aws
 on-thi-lab/
 ├── apps/
 │   ├── web/          # React 19 SPA (TanStack Router, Tailwind CSS, Lucide Icons)
-│   ├── api/          # Hono REST API chạy trên AWS Lambda (Node.js 22)
-│   └── worker/       # Background Worker OCR (ARM64); gọi Text OCR Lambda
+│   ├── api/                # Hono REST API chạy trên AWS Lambda (Node.js 22)
+│   ├── worker/             # Worker OCR (ARM64): nhận job từ SQS, gọi Text OCR Lambda, lưu kết quả
+│   ├── text-ocr-worker/    # Lambda Python container: Tesseract + PaddleOCR đọc ảnh câu hỏi
+│   └── option-count-worker/ # Lambda Python container: đếm số lựa chọn A–F bằng RapidOCR
 ├── packages/
 │   ├── contracts/    # Zod schemas và TypeScript types dùng chung (Single Source of Truth)
 │   ├── database/     # Drizzle ORM schema, repositories và migrations
@@ -123,9 +129,24 @@ on-thi-lab/
 │   └── config/       # Shared build & runtime configuration
 ├── infra/            # AWS CDK TypeScript Stacks (OnThiLabStack, OnThiLabAuthStack)
 ├── e2e/              # Bộ kiểm thử Playwright End-to-End (Desktop Chromium + Mobile Chromium)
+├── load-tests/       # Kịch bản load test (k6)
+├── scripts/          # Script deploy và load test
 └── docs/             # Tài liệu kiến trúc, runbook vận hành, load testing và capacity planning
-    └── images/       # Sơ đồ kiến trúc Excalidraw và tài liệu hình ảnh
+    └── images/       # Sơ đồ kiến trúc, ảnh minh họa và script vẽ sơ đồ
 ```
+
+---
+
+## 📚 Tài liệu
+
+| Tài liệu                                                             | Nội dung                                     |
+| :------------------------------------------------------------------- | :------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)                         | Kiến trúc ứng dụng và quy tắc nghiệp vụ      |
+| [docs/aws-architecture.md](docs/aws-architecture.md)                 | Hạ tầng AWS production đã đối chiếu với code |
+| [docs/code-map.md](docs/code-map.md)                                 | Bản đồ code theo từng domain                 |
+| [docs/import-zip-format.md](docs/import-zip-format.md)               | Định dạng file ZIP nhập đề                   |
+| [docs/runbook.md](docs/runbook.md)                                   | Vận hành, xử lý sự cố                        |
+| [docs/secrets-and-environments.md](docs/secrets-and-environments.md) | Quản lý bí mật và môi trường                 |
 
 ---
 
@@ -165,10 +186,10 @@ Truy cập `http://localhost:5173` trên trình duyệt. Khi không có cấu h�
 Dự án áp dụng tiêu chuẩn kiểm thử tự động nghiêm ngặt trên GitHub Actions CI trước khi merge vào nhánh `main`:
 
 ```bash
-# Kiểm tra tổng thể trước khi commit / push (Format + Typecheck + Unit Tests + Build + CDK Synth)
+# Kiểm tra tổng thể trước khi commit / push (Format + Typecheck + Unit Tests + Build)
 pnpm validate
 
-# Chạy toàn bộ 26 kịch bản kiểm thử End-to-End trên cả Desktop & Mobile
+# Chạy 13 kịch bản End-to-End, mỗi kịch bản chạy trên Desktop Chromium và Mobile Chromium (26 lượt)
 pnpm test:e2e
 
 # Chạy riêng unit & integration tests
